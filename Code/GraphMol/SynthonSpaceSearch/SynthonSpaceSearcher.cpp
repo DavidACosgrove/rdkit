@@ -158,15 +158,11 @@ void SynthonSpaceSearcher::buildAllHits(
       std::tuple<std::string, std::vector<size_t>> thisComb(reactionId,
                                                             theseSynthNums);
       if (haveComb.insert(thisComb).second) {
-        if (auto prod = buildAndVerifyHit(reaction, theseSynthNums)) {
-          results.push_back(std::move(prod));
+        if (haveComb.size() >= static_cast<size_t>(d_params.hitStart)) {
+          if (auto prod = buildAndVerifyHit(reaction, theseSynthNums)) {
+            results.push_back(std::move(prod));
+          }
         }
-      } else {
-        std::cout << "Already have " << reactionId << " : ";
-        for (auto i : theseSynthNums) {
-          std::cout << i << "  ";
-        }
-        std::cout << std::endl;
       }
       if (results.size() == static_cast<size_t>(d_params.maxHits)) {
         sortHits(results);

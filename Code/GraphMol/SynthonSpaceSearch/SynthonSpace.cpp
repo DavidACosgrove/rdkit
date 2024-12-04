@@ -275,10 +275,10 @@ bool SynthonSpace::hasFingerprints() const {
 
 void SynthonSpace::buildSynthonFingerprints(
     const FingerprintGenerator<std::uint64_t> &fpGen) {
-  BOOST_LOG(rdWarningLog) << "Building the fingerprints may take some time."
-                          << std::endl;
   if (const auto fpType = fpGen.infoString();
       fpType != d_fpType || !hasFingerprints()) {
+    BOOST_LOG(rdWarningLog)
+        << "Building the fingerprints may take some time." << std::endl;
     d_fpType = fpType;
     for (const auto &[id, synthSet] : d_reactions) {
       synthSet->buildSynthonFingerprints(fpGen);

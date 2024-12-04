@@ -116,7 +116,7 @@ std::vector<SynthonSpaceHitSet> SynthonSpaceFingerprintSearcher::searchFragSet(
         if (skip) {
           continue;
         }
-        // It appears that for Morgan fingerprints, the isotope numbers are
+        // It appears that for fingerprints, the isotope numbers are
         // ignored so there's no need to worry about the connector numbers
         // in the fingerprints.
         auto theseSynthons = getHitSynthons(
