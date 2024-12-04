@@ -65,8 +65,7 @@ class SynthonSpaceSearcher {
   // if the hit isn't accepted for whatever reason.
   std::unique_ptr<ROMol> buildAndVerifyHit(
       const std::unique_ptr<SynthonSet> &reaction,
-      const std::vector<size_t> &synthNums,
-      std::set<std::string> &resultsNames) const;
+      const std::vector<size_t> &synthNums) const;
   virtual bool verifyHit(const ROMol &mol) const = 0;
 
   // Build the molecules from the synthons identified in reagentsToUse.
@@ -78,12 +77,14 @@ class SynthonSpaceSearcher {
   // be re-ordered on exit.
   void buildHits(std::vector<SynthonSpaceHitSet> &hitsets, size_t totHits,
                  std::vector<std::unique_ptr<ROMol>> &results) const;
-  void buildAllHits(const std::vector<SynthonSpaceHitSet> &hitsets,
-                    std::set<std::string> &resultsNames,
-                    std::vector<std::unique_ptr<ROMol>> &results) const;
-  void buildRandomHits(const std::vector<SynthonSpaceHitSet> &hitsets,
-                       size_t totHits, std::set<std::string> &resultsNames,
-                       std::vector<std::unique_ptr<ROMol>> &results) const;
+  void buildAllHits(
+      const std::vector<SynthonSpaceHitSet> &hitsets,
+      std::set<std::tuple<std::string, std::vector<size_t>>> &haveComb,
+      std::vector<std::unique_ptr<ROMol>> &results) const;
+  void buildRandomHits(
+      const std::vector<SynthonSpaceHitSet> &hitsets, size_t totHits,
+      std::set<std::tuple<std::string, std::vector<size_t>>> &haveComb,
+      std::vector<std::unique_ptr<ROMol>> &results) const;
   // get the subset of synthons for the given reaction to use for this
   // enumeration.
   std::vector<std::vector<ROMol *>> getSynthonsToUse(

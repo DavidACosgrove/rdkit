@@ -63,34 +63,25 @@ SearchResults SynthonSpaceSearcher::search() {
 
 std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
     const std::unique_ptr<SynthonSet> &reaction,
-    const std::vector<size_t> &synthNums,
-    std::set<std::string> &resultsNames) const {
-  const auto prodName = reaction->buildProductName(synthNums);
+    const std::vector<size_t> &synthNums) const {
+  auto prod = reaction->buildProduct(synthNums);
 
-  std::unique_ptr<ROMol> prod;
-  if (resultsNames.insert(prodName).second) {
-    if (resultsNames.size() < static_cast<size_t>(d_params.hitStart)) {
-      return prod;
-    }
-    prod = reaction->buildProduct(synthNums);
-
-    // Do a final check of the whole thing.  It can happen that the
-    // fragments match synthons but the final product doesn't match.
-    // A key example is when the 2 synthons come together to form an
-    // aromatic ring.  For substructure searching, an aliphatic query
-    // can match the aliphatic synthon so they are selected as a hit,
-    // but the final aromatic ring isn't a match.
-    // E.g. Cc1cccc(C(=O)N[1*])c1N=[2*] and c1ccoc1C(=[2*])[1*]
-    // making Cc1cccc2c(=O)[nH]c(-c3ccco3)nc12.  The query c1ccc(CN)o1
-    // when split is a match to the synthons (c1ccc(C[1*])o1 and [1*]N)
-    // but the product the hydroxyquinazoline is aromatic, at least in
-    // the RDKit model so the N in the query doesn't match.
-    if (!verifyHit(*prod)) {
-      prod.reset();
-    }
-  }
-  if (prod) {
+  // Do a final check of the whole thing.  It can happen that the
+  // fragments match synthons but the final product doesn't match.
+  // A key example is when the 2 synthons come together to form an
+  // aromatic ring.  For substructure searching, an aliphatic query
+  // can match the aliphatic synthon so they are selected as a hit,
+  // but the final aromatic ring isn't a match.
+  // E.g. Cc1cccc(C(=O)N[1*])c1N=[2*] and c1ccoc1C(=[2*])[1*]
+  // making Cc1cccc2c(=O)[nH]c(-c3ccco3)nc12.  The query c1ccc(CN)o1
+  // when split is a match to the synthons (c1ccc(C[1*])o1 and [1*]N)
+  // but the product the hydroxyquinazoline is aromatic, at least in
+  // the RDKit model so the N in the query doesn't match.
+  if (verifyHit(*prod)) {
+    const auto prodName = reaction->buildProductName(synthNums);
     prod->setProp<std::string>(common_properties::_Name, prodName);
+  } else {
+    prod.reset();
   }
   return prod;
 }
@@ -109,19 +100,18 @@ void SynthonSpaceSearcher::buildHits(
         }
         return hs1.reactionId < hs2.reactionId;
       });
-  // Keep track of the result names so we can weed out duplicates by
-  // reaction and synthons.  Different splits may give rise to the same
-  // synthon combination.  This will keep the same molecule produced via
-  // different reactions which I think makes sense.  The resultsNames will
-  // be accumulated even if the molecule itself doesn't make it into the
-  // results set, for example if it isn't a random selection or it's
-  // outside maxHits or hitStart.
-  std::set<std::string> resultsNames;
+  // Keep track of the reaction/synthon combinations so we can weed out
+  // duplicates. Different splits may give rise to the same synthon combination.
+  // This will keep the same molecule produced via different reactions which I
+  // think makes sense.  The haveComb entries will be accumulated even if the
+  // molecule itself doesn't make it into the results set, for example if it
+  // isn't a random selection or it's outside maxHits or hitStart.
+  std::set<std::tuple<std::string, std::vector<size_t>>> haveComb;
 
   if (d_params.randomSample) {
-    buildRandomHits(hitsets, totHits, resultsNames, results);
+    buildRandomHits(hitsets, totHits, haveComb, results);
   } else {
-    buildAllHits(hitsets, resultsNames, results);
+    buildAllHits(hitsets, haveComb, results);
   }
 }
 
@@ -141,7 +131,7 @@ void sortHits(std::vector<std::unique_ptr<ROMol>> &hits) {
 
 void SynthonSpaceSearcher::buildAllHits(
     const std::vector<SynthonSpaceHitSet> &hitsets,
-    std::set<std::string> &resultsNames,
+    std::set<std::tuple<std::string, std::vector<size_t>>> &haveComb,
     std::vector<std::unique_ptr<ROMol>> &results) const {
   for (const auto &[reactionId, synthonsToUse, numHits] : hitsets) {
     std::vector<std::vector<size_t>> synthonNums;
@@ -165,9 +155,18 @@ void SynthonSpaceSearcher::buildAllHits(
       for (size_t i = 0; i < stepper.d_currState.size(); ++i) {
         theseSynthNums[i] = synthonNums[i][stepper.d_currState[i]];
       }
-      if (auto prod =
-              buildAndVerifyHit(reaction, theseSynthNums, resultsNames)) {
-        results.push_back(std::move(prod));
+      std::tuple<std::string, std::vector<size_t>> thisComb(reactionId,
+                                                            theseSynthNums);
+      if (haveComb.insert(thisComb).second) {
+        if (auto prod = buildAndVerifyHit(reaction, theseSynthNums)) {
+          results.push_back(std::move(prod));
+        }
+      } else {
+        std::cout << "Already have " << reactionId << " : ";
+        for (auto i : theseSynthNums) {
+          std::cout << i << "  ";
+        }
+        std::cout << std::endl;
       }
       if (results.size() == static_cast<size_t>(d_params.maxHits)) {
         sortHits(results);
@@ -240,7 +239,7 @@ struct RandomHitSelector {
 
 void SynthonSpaceSearcher::buildRandomHits(
     const std::vector<SynthonSpaceHitSet> &hitsets, const size_t totHits,
-    std::set<std::string> &resultsNames,
+    std::set<std::tuple<std::string, std::vector<size_t>>> &haveComb,
     std::vector<std::unique_ptr<ROMol>> &results) const {
   if (hitsets.empty()) {
     return;
@@ -253,13 +252,15 @@ void SynthonSpaceSearcher::buildRandomHits(
          numFails < totHits * d_params.numRandomSweeps) {
     const auto &[reactionId, synths] = rhs.selectSynthComb(*d_randGen);
     const auto &reaction = getSpace().getReactions().find(reactionId)->second;
-    if (auto prod = buildAndVerifyHit(reaction, synths, resultsNames)) {
-      results.push_back(std::move(prod));
-    } else {
-      numFails++;
+    std::tuple<std::string, std::vector<size_t>> thisComb(reactionId, synths);
+    if (haveComb.insert(thisComb).second) {
+      if (auto prod = buildAndVerifyHit(reaction, synths)) {
+        results.push_back(std::move(prod));
+      } else {
+        numFails++;
+      }
     }
+    sortHits(results);
   }
-  sortHits(results);
 }
-
 }  // namespace RDKit::SynthonSpaceSearch

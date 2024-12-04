@@ -63,7 +63,8 @@ getConnectorPermutations(const std::vector<std::unique_ptr<ROMol>> &molFrags,
 
 // If all bits in one of the bitsets is unset, it means that nothing matched
 // that synthon.  If at least one of the bitsets has a set bit, all products
-// incorporating the synthon with no bits set must match the query so
+// incorporating the synthon with no bits set must match the query when
+// doing a substructure search so
 // should be used because the query matches products that don't incorporate
 // anything from 1 of the synthon lists.  For example, if the synthons are
 // [1*]Nc1c([2*])cccc1 and [1*]=CC=C[2*] and the query is c1ccccc1.
