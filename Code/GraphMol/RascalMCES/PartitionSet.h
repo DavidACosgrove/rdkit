@@ -26,11 +26,16 @@ class PartitionSet {
   // of the vertices from the first graph.  Each element in vtxPairs
   // has a row/column in modProd.  The partitions are sorted
   // into descending order of sizes.
-  PartitionSet(const std::vector<boost::dynamic_bitset<>> &modProd,
-               const std::vector<std::pair<int, int>> &vtxPairs,
-               const std::vector<unsigned int> &vtx1Labels,
-               const std::vector<unsigned int> &vtx2Labels,
-               unsigned int lowerBound);
+  PartitionSet(
+      const std::vector<boost::dynamic_bitset<>> &modProd,
+      const std::vector<std::pair<int, int>> &vtxPairs,
+      const std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+          &vtx1Labels,
+      const std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+          &vtx2Labels,
+      const std::vector<boost::dynamic_bitset<>> &uniqueAtomLabels,
+      const std::vector<boost::dynamic_bitset<>> &uniqueBondLabels,
+      unsigned int lowerBound);
 
   bool isEmpty() const { return d_parts.empty(); }
 
@@ -53,13 +58,29 @@ class PartitionSet {
  private:
   std::shared_ptr<const std::vector<boost::dynamic_bitset<>>> d_ModProd;
   std::shared_ptr<const std::vector<std::pair<int, int>>> d_VtxPairs;
-  std::shared_ptr<const std::vector<unsigned int>> d_vtx1Labels;
-  std::shared_ptr<const std::vector<unsigned int>> d_vtx2Labels;
+  std::shared_ptr<
+      const std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>>
+      d_vtx1Labels;
+  std::shared_ptr<
+      const std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>>
+      d_vtx2Labels;
+  std::shared_ptr<const std::vector<boost::dynamic_bitset<>>>
+      d_uniqueAtomLabels;
+  std::shared_ptr<const std::vector<boost::dynamic_bitset<>>>
+      d_uniqueBondLabels;
   std::vector<std::vector<unsigned int>> d_parts;
   // counts of the number of times each vertex appears in the partitions
   std::vector<int> d_vtx1Counts, d_vtx2Counts;
   // counts of the number of times the d_vtx[12]_labels appear in the partitions
   std::vector<int> d_vtx1TypeCounts, d_vtx2TypeCounts;
+  // These are the vertices of the type, so
+  // d_vtx1TypeCountVtxes[i].count() == d_vtx1TypeCounts[i].
+  std::vector<boost::dynamic_bitset<>> d_vtx1TypeCountVtxes,
+      d_vtx2TypeCountVtxes;
+  bool d_vtxInMoreThanOneClass{false};
+  // Bitsets for the individual atom and bond types present in the vertices
+  std::vector<boost::dynamic_bitset<>> d_indAtomTypes;
+  std::vector<boost::dynamic_bitset<>> d_indBondTypes;
 
   void sortPartitions();
 

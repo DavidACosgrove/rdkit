@@ -19,15 +19,32 @@
 namespace RDKit {
 
 namespace RascalMCES {
-PartitionSet::PartitionSet(const std::vector<boost::dynamic_bitset<>> &modProd,
-                           const std::vector<std::pair<int, int>> &vtxPairs,
-                           const std::vector<unsigned int> &vtx1Labels,
-                           const std::vector<unsigned int> &vtx2Labels,
-                           unsigned int lowerBound)
+// This is in lap_a_la_scipy.cpp and solves the linear assignment problem.
+int lapMaximize(const std::vector<std::vector<int>> &costsMat,
+                std::vector<size_t> &a, std::vector<size_t> &b);
+
+PartitionSet::PartitionSet(
+    const std::vector<boost::dynamic_bitset<>> &modProd,
+    const std::vector<std::pair<int, int>> &vtxPairs,
+    const std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+        &vtx1Labels,
+    const std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+        &vtx2Labels,
+    const std::vector<boost::dynamic_bitset<>> &uniqueAtomLabels,
+    const std::vector<boost::dynamic_bitset<>> &uniqueBondLabels,
+    unsigned int lowerBound)
     : d_ModProd(new std::vector<boost::dynamic_bitset<>>(modProd)),
       d_VtxPairs(new std::vector<std::pair<int, int>>(vtxPairs)),
-      d_vtx1Labels(new std::vector<unsigned int>(vtx1Labels)),
-      d_vtx2Labels(new std::vector<unsigned int>(vtx2Labels)) {
+      d_vtx1Labels(
+          new std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>(
+              vtx1Labels)),
+      d_vtx2Labels(
+          new std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>(
+              vtx2Labels)),
+      d_uniqueAtomLabels(
+          new std::vector<boost::dynamic_bitset<>>(uniqueAtomLabels)),
+      d_uniqueBondLabels(
+          new std::vector<boost::dynamic_bitset<>>(uniqueBondLabels)) {
   d_vtx1Counts = std::vector<int>(d_vtx1Labels->size(), 0);
   d_vtx2Counts = std::vector<int>(d_vtx2Labels->size(), 0);
   int firstVtx = -1;
@@ -101,10 +118,71 @@ PartitionSet::PartitionSet(const std::vector<boost::dynamic_bitset<>> &modProd,
 }
 
 int PartitionSet::upperBound() {
+  // std::cout << "upperBound() called seen dupes = " << d_vtxInMoreThanOneClass
+  // << std::endl;
+  // std::cout << "vtx1s" << std::endl;
+  // for (size_t i = 0; i < d_vtx1TypeCounts.size(); ++i) {
+  // std::cout << i << " :: " << d_vtx1TypeCounts[i] << " : "
+  // << d_vtx1TypeCountVtxes[i] << std::endl;
+  // }
+  // std::cout << "vtx2s" << std::endl;
+  // for (size_t i = 0; i < d_vtx2TypeCounts.size(); ++i) {
+  // std::cout << i << " :: " << d_vtx2TypeCounts[i] << " : "
+  // << d_vtx2TypeCountVtxes[i] << std::endl;
+  // }
+
   int upperBound = 0;
+  if (d_vtxInMoreThanOneClass) {
+    // It's complicated because we don't want to over-count the matching
+    // vertices.  Use the LAP algorithm to match a single vertex in mol1
+    // with a single vertex in mol2.  It'll be a lot slower.
+    constexpr size_t unassignedValue(99999999);
+    std::vector<std::vector<int>> costsMat(
+        d_vtx1Labels->size(), std::vector<int>(d_vtx2Labels->size(), 0));
+    for (size_t i = 0; i < d_vtx1TypeCountVtxes.size(); ++i) {
+      if (!d_vtx1TypeCounts[i]) {
+        continue;
+      }
+      for (size_t j = 0; j < d_vtx1TypeCountVtxes[i].size(); ++j) {
+        if (d_vtx1TypeCountVtxes[i][j]) {
+          for (size_t k = 0; k < d_vtx2TypeCountVtxes[i].size(); ++k) {
+            if (d_vtx2TypeCountVtxes[i][k]) {
+              costsMat[j][k] = 1;
+            }
+          }
+        }
+      }
+    }
+    // for (const auto &cl : costsMat) {
+    //   for (const auto c : cl) {
+    //     std::cout << c << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
+    std::vector<size_t> a(std::min(d_vtx1Labels->size(), d_vtx2Labels->size()),
+                          unassignedValue);
+    std::vector<size_t> b(std::min(d_vtx1Labels->size(), d_vtx2Labels->size()),
+                          unassignedValue);
+    int retVal = lapMaximize(costsMat, a, b);
+    if (retVal >= 0) {
+      for (auto i = 0u; i < a.size(); ++i) {
+        upperBound += costsMat[a[i]][b[i]];
+      }
+      // std::cout << "upperBound by LAP L " << upperBound << std::endl;
+      return upperBound;
+    }
+  }
+
+  // If we're here, it's either a straightforward calculation or
+  // the LAP failed, so we'll be getting an over-estimate which is ok
+  // but means unnecessary levels in the search tree will be attempted.
   for (size_t i = 0; i < d_vtx1TypeCounts.size(); ++i) {
+    if (!d_vtx1TypeCounts[i]) {
+      continue;
+    }
     upperBound += std::min(d_vtx1TypeCounts[i], d_vtx2TypeCounts[i]);
   }
+  // std::cout << "straightforward upperBound was " << upperBound << std::endl;
   return upperBound;
 }
 
@@ -163,35 +241,166 @@ void PartitionSet::sortPartitions() {
             });
 }
 
+namespace {
+void makeIndVertexTypes(
+    const std::vector<boost::dynamic_bitset<>> &uniqueLabels,
+    std::vector<boost::dynamic_bitset<>> &indVtxTypes) {
+  boost::dynamic_bitset<> allAtomTypes(uniqueLabels.front().size());
+  for (const auto &ual : uniqueLabels) {
+    allAtomTypes |= ual;
+  }
+  indVtxTypes.resize(allAtomTypes.count());
+  for (size_t i = 0; i < allAtomTypes.count(); ++i) {
+    indVtxTypes[i] = boost::dynamic_bitset<>(uniqueLabels.front().size());
+  }
+  size_t j = 0;
+  for (size_t k = 0; k < allAtomTypes.size(); ++k) {
+    if (allAtomTypes[k]) {
+      indVtxTypes[j++][k] = true;
+    }
+  }
+}
+}  // namespace
+
 void PartitionSet::calcVtxTypeCounts() {
-  auto doIt = [](unsigned int maxLabel, const std::vector<int> &vtxCounts,
-                 const std::vector<unsigned int> &vtxLabels,
-                 std::vector<int> &vtxTypeCounts) -> void {
-    vtxTypeCounts = std::vector<int>(maxLabel + 1, 0);
+  makeIndVertexTypes(*d_uniqueAtomLabels, d_indAtomTypes);
+  makeIndVertexTypes(*d_uniqueBondLabels, d_indBondTypes);
+
+  auto doIt =
+      [&](size_t numVtxTypes, const std::vector<int> &vtxCounts,
+          const std::vector<
+              std::tuple<unsigned int, unsigned int, unsigned int>> &vtxLabels,
+          std::vector<int> &vtxTypeCounts,
+          std::vector<boost::dynamic_bitset<>> &vtxTypeCountVtxes) -> void {
+    vtxTypeCounts.resize(numVtxTypes);
+    vtxTypeCountVtxes = std::vector<boost::dynamic_bitset<>>(
+        numVtxTypes, boost::dynamic_bitset<>(vtxCounts.size()));
+    boost::dynamic_bitset<> seenVtx(vtxCounts.size());
     for (size_t i = 0; i < vtxCounts.size(); ++i) {
+      const auto &bondLabel = (*d_uniqueBondLabels)[std::get<0>(vtxLabels[i])];
+      const auto &atom1Label = (*d_uniqueAtomLabels)[std::get<1>(vtxLabels[i])];
+      const auto &atom2Label = (*d_uniqueAtomLabels)[std::get<2>(vtxLabels[i])];
+      std::cout << "vtx label " << i << " : " << vtxCounts[i]
+                << " :: " << std::get<0>(vtxLabels[i]) << ", "
+                << std::get<1>(vtxLabels[i]) << ", "
+                << std::get<2>(vtxLabels[i]) << std::endl;
+      std::cout << "  " << (*d_uniqueBondLabels)[std::get<0>(vtxLabels[i])]
+                << std::endl;
+      std::cout << "  " << (*d_uniqueAtomLabels)[std::get<1>(vtxLabels[i])]
+                << std::endl;
+      std::cout << "  " << (*d_uniqueAtomLabels)[std::get<2>(vtxLabels[i])]
+                << std::endl;
       if (vtxCounts[i]) {
-        ++vtxTypeCounts[vtxLabels[i]];
+        size_t num = 0;
+        for (size_t bond = 0; bond < d_indBondTypes.size(); ++bond) {
+          for (size_t atom1 = 0; atom1 < d_indAtomTypes.size(); ++atom1) {
+            for (size_t atom2 = 0; atom2 < d_indAtomTypes.size();
+                 ++atom2, ++num) {
+              // std::cout << "indBondType " << bond << d_indBondTypes[bond]
+              //           << std::endl
+              //           << "indAtomType " << atom1 << d_indAtomTypes[atom1]
+              //           << std::endl
+              //           << "indAtomType " << atom2 << d_indAtomTypes[atom2]
+              //           << std::endl;
+              if ((bondLabel & d_indBondTypes[bond]).count() &&
+                  (atom1Label & d_indAtomTypes[atom1]).count() &&
+                  (atom2Label & d_indAtomTypes[atom2]).count()) {
+                vtxTypeCounts[num]++;
+                vtxTypeCountVtxes[num][i] = true;
+                if (seenVtx[i]) {
+                  d_vtxInMoreThanOneClass = true;
+                } else {
+                  seenVtx[i] = true;
+                }
+              }
+            }
+          }
+        }
       }
     }
   };
+  size_t numVtxTypes =
+      d_indBondTypes.size() * d_indAtomTypes.size() * d_indAtomTypes.size();
+  std::cout << "numVtxTypes : " << numVtxTypes << std::endl;
+  std::cout << "calling doIt 1" << std::endl;
+  doIt(numVtxTypes, d_vtx1Counts, *d_vtx1Labels, d_vtx1TypeCounts,
+       d_vtx1TypeCountVtxes);
+  std::cout << "vertex type counts" << std::endl;
+  for (size_t i = 0; i < d_vtx1TypeCounts.size(); ++i) {
+    std::cout << "vtx1 " << i << " : " << d_vtx1TypeCounts[i] << " :: ";
+    std::cout << d_vtx1TypeCountVtxes[i] << std::endl;
+  }
 
-  unsigned int max_label = 0;
-  max_label =
-      std::max(*std::max_element(d_vtx1Labels->begin(), d_vtx1Labels->end()),
-               *std::max_element(d_vtx2Labels->begin(), d_vtx2Labels->end()));
-  doIt(max_label, d_vtx1Counts, *d_vtx1Labels, d_vtx1TypeCounts);
-  doIt(max_label, d_vtx2Counts, *d_vtx2Labels, d_vtx2TypeCounts);
+  std::cout << "calling doIt 2" << std::endl;
+  doIt(numVtxTypes, d_vtx2Counts, *d_vtx2Labels, d_vtx2TypeCounts,
+       d_vtx2TypeCountVtxes);
+  std::cout << "vertex type counts" << std::endl;
+  for (size_t i = 0; i < d_vtx2TypeCounts.size(); ++i) {
+    std::cout << "vtx2 " << i << " : " << d_vtx2TypeCounts[i] << " :: ";
+    std::cout << d_vtx2TypeCountVtxes[i] << std::endl;
+  }
 }
 
+namespace {
+void reassessVertexInMoreThanOneClass(
+    const std::vector<boost::dynamic_bitset<>> &vtxTypeCountVtxes,
+    unsigned int numVtxes, bool &vtxInMoreThanOneClass) {
+  boost::dynamic_bitset<> seenVtx(numVtxes);
+  for (const auto &vtxTypeCount : vtxTypeCountVtxes) {
+    for (size_t i = 0; i < vtxTypeCount.size(); ++i) {
+      if (vtxTypeCount[i]) {
+        if (seenVtx[i]) {
+          vtxInMoreThanOneClass = true;
+          return;
+        } else {
+          seenVtx[i] = true;
+        }
+      }
+    }
+  }
+}
+}  // namespace
+
 void PartitionSet::decrementVertexCounts(int vtxNum) {
+  // std::cout << "decrementing vertex count for " << vtxNum << " : "
+  //           << d_vtx1Counts[(*d_VtxPairs)[vtxNum].first] << " and "
+  //           << d_vtx2Counts[(*d_VtxPairs)[vtxNum].second] << std::endl;
   --d_vtx1Counts[(*d_VtxPairs)[vtxNum].first];
+  std::unique_ptr<boost::dynamic_bitset<>> seenVtx1s, seenVtx2s;
+  bool reassess = false;
   if (!d_vtx1Counts[(*d_VtxPairs)[vtxNum].first]) {
-    --d_vtx1TypeCounts[(*d_vtx1Labels)[(*d_VtxPairs)[vtxNum].first]];
+    for (size_t i = 0; i < d_vtx1TypeCountVtxes.size(); i++) {
+      if (d_vtx1TypeCountVtxes[i].size()) {
+        d_vtx1TypeCountVtxes[i][(*d_VtxPairs)[vtxNum].first] = false;
+        d_vtx1TypeCounts[i] = static_cast<int>(d_vtx1TypeCountVtxes[i].count());
+        reassess = true;
+      }
+    }
   }
   --d_vtx2Counts[(*d_VtxPairs)[vtxNum].second];
   if (!d_vtx2Counts[(*d_VtxPairs)[vtxNum].second]) {
-    --d_vtx2TypeCounts[(*d_vtx2Labels)[(*d_VtxPairs)[vtxNum].second]];
+    for (size_t i = 0; i < d_vtx2TypeCountVtxes.size(); i++) {
+      if (d_vtx2TypeCountVtxes[i].size()) {
+        d_vtx2TypeCountVtxes[i][(*d_VtxPairs)[vtxNum].second] = false;
+        d_vtx2TypeCounts[i] = static_cast<int>(d_vtx2TypeCountVtxes[i].count());
+        reassess = true;
+      }
+    }
   }
+  // Re-assess d_vtxInMoreThanOneClass, because if we can avoid the LAP
+  // in upperBound it will save a lot of time.
+  if (reassess && d_vtxInMoreThanOneClass) {
+    d_vtxInMoreThanOneClass = false;
+    reassessVertexInMoreThanOneClass(d_vtx1TypeCountVtxes, d_vtx1Counts.size(),
+                                     d_vtxInMoreThanOneClass);
+    if (!d_vtxInMoreThanOneClass) {
+      reassessVertexInMoreThanOneClass(
+          d_vtx2TypeCountVtxes, d_vtx2Counts.size(), d_vtxInMoreThanOneClass);
+    }
+  }
+  // std::cout << "after decrementing vertex count for " << vtxNum << " : "
+  //           << d_vtx1Counts[(*d_VtxPairs)[vtxNum].first] << " and "
+  //           << d_vtx2Counts[(*d_VtxPairs)[vtxNum].second] << std::endl;
 }
 
 std::ostream &operator<<(std::ostream &os, const PartitionSet &pt) {

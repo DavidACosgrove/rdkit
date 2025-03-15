@@ -28,8 +28,10 @@ namespace RascalMCES {
 class RDKIT_RASCALMCES_EXPORT RascalResult {
  public:
   RascalResult(const RDKit::ROMol &mol1, const RDKit::ROMol &mol2,
-               const std::vector<std::vector<int>> &adjMatrix1,
-               const std::vector<std::vector<int>> &adjMatrix2,
+               const std::vector<std::vector<const boost::dynamic_bitset<> *>>
+                   &adjMatrix1,
+               const std::vector<std::vector<const boost::dynamic_bitset<> *>>
+                   &adjMatrix2,
                const std::vector<unsigned int> &clique,
                const std::vector<std::pair<int, int>> &vtx_pairs, bool timedOut,
                bool swapped, double tier1Sim, double tier2Sim,
@@ -130,7 +132,9 @@ class RDKIT_RASCALMCES_EXPORT RascalResult {
 
   std::string createSmartsString() const;
 
-  void matchCliqueAtoms(const std::vector<std::vector<int>> &mol1_adj_matrix);
+  void matchCliqueAtoms(
+      const std::vector<std::vector<const boost::dynamic_bitset<> *>>
+          &mol1_adj_matrix);
 
   // If the clique involves a fragment that is more than d_maxFragSep from
   // any other frag in either molecule, discard the smaller frag.

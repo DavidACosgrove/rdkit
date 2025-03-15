@@ -32,21 +32,25 @@ struct ClusNode {
 };
 
 RDKIT_RASCALMCES_EXPORT double tier1Sim(
-    const RDKit::ROMol &mol1, const RDKit::ROMol &mol2,
+    const ROMol &mol1, const ROMol &mol2,
+    const std::vector<boost::dynamic_bitset<>> &atomLabels1,
+    const std::vector<boost::dynamic_bitset<>> &atomLabels2,
     std::map<int, std::vector<std::pair<int, int>>> &degSeqs1,
     std::map<int, std::vector<std::pair<int, int>>> &degSeqs2);
-
 RDKIT_RASCALMCES_EXPORT double tier2Sim(
     const ROMol &mol1, const ROMol &mol2,
     const std::map<int, std::vector<std::pair<int, int>>> &degSeqs1,
     const std::map<int, std::vector<std::pair<int, int>>> &degSeqs2,
-    const std::vector<unsigned int> &bondLabels1,
-    const std::vector<unsigned int> &bondLabels2);
-
-RDKIT_RASCALMCES_EXPORT void getBondLabels(
-    const RDKit::ROMol &mol1, const RDKit::ROMol &mol2,
-    const RascalOptions &opts, std::vector<unsigned int> &bondLabels1,
-    std::vector<unsigned int> &bondLabels2);
+    const std::vector<boost::dynamic_bitset<>> &atomLabels1,
+    const std::vector<boost::dynamic_bitset<>> &atomLabels2,
+    const std::vector<boost::dynamic_bitset<>> &bondLabels1,
+    const std::vector<boost::dynamic_bitset<>> &bondLabels2);
+RDKIT_RASCALMCES_EXPORT void makeAtomLabels(
+    const ROMol &mol, const std::string &equivalentAtoms,
+    std::vector<boost::dynamic_bitset<>> &atomLabels);
+RDKIT_RASCALMCES_EXPORT void makeBondBitstrings(
+    const ROMol &mol, const bool ignoreBondOrders,
+    std::vector<boost::dynamic_bitset<>> &bondLabels);
 
 std::vector<std::vector<ClusNode>> buildProximityGraph(
     const std::vector<std::shared_ptr<ROMol>> &mols,

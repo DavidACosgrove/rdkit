@@ -28,17 +28,15 @@ namespace RDKit {
 
 namespace RascalMCES {
 
-RascalResult::RascalResult(const RDKit::ROMol &mol1, const RDKit::ROMol &mol2,
-                           const std::vector<std::vector<int>> &adjMatrix1,
-                           const std::vector<std::vector<int>> &adjMatrix2,
-                           const std::vector<unsigned int> &clique,
-                           const std::vector<std::pair<int, int>> &vtx_pairs,
-                           bool timedOut, bool swapped, double tier1Sim,
-                           double tier2Sim, bool ringMatchesRingOnly,
-                           bool singleLargestFrag, int maxFragSep,
-                           bool exactConnectionsMatch,
-                           const std::string &equivalentAtoms,
-                           bool ignoreBondOrders)
+RascalResult::RascalResult(
+    const RDKit::ROMol &mol1, const RDKit::ROMol &mol2,
+    const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix1,
+    const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix2,
+    const std::vector<unsigned int> &clique,
+    const std::vector<std::pair<int, int>> &vtx_pairs, bool timedOut,
+    bool swapped, double tier1Sim, double tier2Sim, bool ringMatchesRingOnly,
+    bool singleLargestFrag, int maxFragSep, bool exactConnectionsMatch,
+    const std::string &equivalentAtoms, bool ignoreBondOrders)
     : d_timedOut(timedOut),
       d_tier1Sim(tier1Sim),
       d_tier2Sim(tier2Sim),
@@ -47,7 +45,12 @@ RascalResult::RascalResult(const RDKit::ROMol &mol1, const RDKit::ROMol &mol2,
       d_exactConnectionsMatch(exactConnectionsMatch),
       d_equivalentAtoms(equivalentAtoms),
       d_ignoreBondOrders(ignoreBondOrders) {
-  const std::vector<std::vector<int>> *mol1AdjMatrix;
+  // It doesn't matter if the bitsets are out of scope at this point and
+  // destroyed, since the addresses are never de-referenced, they are
+  // just used as a flag for whether there's an atom joining 2 bonds
+  // in the clique.
+  const std::vector<std::vector<const boost::dynamic_bitset<> *>>
+      *mol1AdjMatrix;
   if (swapped) {
     d_mol1.reset(new RDKit::ROMol(mol2));
     d_mol2.reset(new RDKit::ROMol(mol1));
@@ -292,7 +295,8 @@ int common_atom_in_bonds(const RDKit::Bond *bond1, const RDKit::Bond *bond2) {
 }  // namespace
 
 void RascalResult::matchCliqueAtoms(
-    const std::vector<std::vector<int>> &mol1_adj_matrix) {
+    const std::vector<std::vector<const boost::dynamic_bitset<> *>>
+        &mol1_adj_matrix) {
   if (d_bondMatches.empty()) {
     return;
   }
@@ -775,7 +779,8 @@ void cleanSmarts(std::string &smarts, const std::string &equivalentAtoms) {
       {std::regex(R"(([cnops][1-9]*)-([A-Z]))"), "$1$2"},
       {std::regex(R"(([A-Z][1-9]*)-([A-Z]))"), "$1$2"},
       {std::regex(R"(([A-Z])-([1-9]))"), "$1$2"}};
-  // Sometimes it needs more than 1 pass through
+  // First, tidy up the easier atom numbers.  Sometimes it needs more than
+  // 1 pass through.
   std::string start_smt = "";
   while (start_smt != smarts) {
     start_smt = smarts;
