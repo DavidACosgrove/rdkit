@@ -85,6 +85,12 @@ class PartitionSet {
   void sortPartitions();
 
   void calcVtxTypeCounts();
+  void calcVtxTypeCounts(
+      size_t numVtxTypes, const std::vector<int> &vtxCounts,
+      const std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+          &vtxLabels,
+      std::vector<int> &vtxTypeCounts,
+      std::vector<boost::dynamic_bitset<>> &vtxTypeCountVtxes);
 
   void decrementVertexCounts(int vtxNum);
 };

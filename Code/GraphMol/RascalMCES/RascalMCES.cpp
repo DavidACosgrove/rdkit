@@ -117,14 +117,6 @@ void sortedDegreeSeqs(
               [](const std::pair<int, int> &p1, const std::pair<int, int> &p2)
                   -> bool { return p1.first > p2.first; });
   }
-  std::cout << MolToSmiles(mol) << std::endl;
-  for (const auto &it : degSeqs) {
-    std::cout << it.first << " : " << it.second.size() << " ::";
-    for (const auto &p : it.second) {
-      std::cout << " (" << p.first << ", " << p.second << ")";
-    }
-    std::cout << std::endl;
-  }
 }
 
 void sortedDegreeSeqs(
@@ -142,14 +134,6 @@ void sortedDegreeSeqs(
     std::sort(it.second.begin(), it.second.end(),
               [](const std::pair<int, int> &p1, const std::pair<int, int> &p2)
                   -> bool { return p1.first > p2.first; });
-  }
-  std::cout << "Sorted degree sequences for " << MolToSmiles(mol) << std::endl;
-  for (const auto &it : degSeqs) {
-    std::cout << it.first << " : " << it.second.size() << " ::";
-    for (const auto &p : it.second) {
-      std::cout << " (" << p.first << ", " << p.second << ")";
-    }
-    std::cout << std::endl;
   }
 }
 
@@ -207,10 +191,8 @@ unsigned int calcCost(
 
   unsigned int cost = 0;
   for (const auto &uai : uniqAtomiBLs) {
-    // std::cout << uai.first << " : " << uai.second << std::endl;
     int numAtomi = countMatches(atomiBLs, uai);
     int numAtomj = countMatches(atomjBLs, uai);
-    // std::cout << numAtomi << " : " << numAtomj << std::endl;
     cost += std::min(numAtomi, numAtomj);
   }
   return std::min({cost, atomiDegree, atomjDegree});
@@ -228,8 +210,6 @@ void assignCosts(const std::vector<std::pair<int, int>> &atomDegrees1,
   // matching bonds with each atom that match.
   std::vector<std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>>
       atomiBLs, atomjBLs;
-  std::cout << "Doing LAP into " << costsMat.size() << " by "
-            << costsMat.front().size() << std::endl;
   for (auto i = 0u; i < atomDegrees1.size(); ++i) {
     atomiBLs.clear();
     const auto atomi = mol1.getAtomWithIdx(atomDegrees1[i].second);
@@ -246,10 +226,8 @@ void assignCosts(const std::vector<std::pair<int, int>> &atomDegrees1,
             std::make_pair(bondLabels2[b->getIdx()],
                            atomLabels2[b->getOtherAtomIdx(atomj->getIdx())]));
       }
-      // std::cout << "calc cost between " << i << " and " << j << std::endl;
       costsMat[i][j] =
           calcCost(atomiBLs, atomjBLs, atomi->getDegree(), atomj->getDegree());
-      // std::cout << "cost = " << costsMat[i][j] << std::endl;
     }
   }
 }
@@ -338,8 +316,6 @@ double tier2Sim(const ROMol &mol1, const ROMol &mol2,
     }
   }
   eg1g2 /= 2;
-  std::cout << "eg1g2: " << eg1g2 << std::endl;
-  std::cout << "vg1g2: " << vg1g2 << std::endl;
   vg1g2 = std::min({vg1g2, mol1.getNumAtoms(), mol2.getNumAtoms()});
   eg1g2 = std::min({eg1g2, mol1.getNumBonds(), mol2.getNumBonds()});
   double sim = double((vg1g2 + eg1g2) * (vg1g2 + eg1g2)) /
@@ -347,68 +323,6 @@ double tier2Sim(const ROMol &mol1, const ROMol &mol2,
                       (mol2.getNumAtoms() + mol2.getNumBonds()));
   return sim;
 }
-
-#if 0
-// For each bond in the molecule, encode it with its type and the labels of the
-// two end atoms, returning the results as strings.
-// Note that the molecule should not be in kekulized form.
-void getBondLabels(const ROMol &mol, const RascalOptions &opts,
-                   std::vector<std::string> &bondLabels) {
-  std::vector<std::string> atomLabels;
-  getAtomLabels(mol, opts, atomLabels);
-  bondLabels = std::vector<std::string>(mol.getNumBonds());
-  for (const auto &b : mol.bonds()) {
-    std::string bondType;
-    if (opts.ignoreBondOrders) {
-      bondType = "0";
-    } else {
-      bondType = std::to_string(b->getBondType());
-    }
-    // The atom labels need to be in consistent order irrespective
-    // of input order.
-    auto lbl1 = atomLabels[b->getBeginAtomIdx()];
-    auto lbl2 = atomLabels[b->getEndAtomIdx()];
-    if (lbl1 < lbl2) {
-      std::swap(lbl1, lbl2);
-    }
-    bondLabels[b->getIdx()] = lbl1 + bondType + lbl2;
-  }
-}
-
-// Fills bondLabels[12] with a small integer denoting the type of the bond and
-// the types of the atoms at each end.  Both molecules need to be done at the
-// same time so that the labels are consistent across both.
-void getBondLabels(const ROMol &mol1, const ROMol &mol2,
-                   const RascalOptions &opts,
-                   std::vector<unsigned int> &bondLabels1,
-                   std::vector<unsigned int> &bondLabels2) {
-  std::vector<std::string> tmpBondLabels1, tmpBondLabels2;
-
-  getBondLabels(mol1, opts, tmpBondLabels1);
-  getBondLabels(mol2, opts, tmpBondLabels2);
-
-  // convert the bond labels, which are currently encoding the atoms and
-  // bond type to a small set of sequential integers for ease of use later.
-  // This results in loss of information, but that information is not currently
-  // used anywhere.
-  std::set<std::string> allLabels;
-  for (auto bl : tmpBondLabels1) {
-    allLabels.insert(bl);
-  }
-  for (auto bl : tmpBondLabels2) {
-    allLabels.insert(bl);
-  }
-  auto recodeBondLabels = [&](std::vector<std::string> &strBondLabels,
-                              std::vector<unsigned int> &bondLabels) {
-    for (auto &bl : strBondLabels) {
-      auto it = allLabels.find(bl);
-      bondLabels.push_back(std::distance(allLabels.begin(), it));
-    }
-  };
-  recodeBondLabels(tmpBondLabels1, bondLabels1);
-  recodeBondLabels(tmpBondLabels2, bondLabels2);
-}
-#endif
 
 }  // namespace details
 
@@ -430,13 +344,6 @@ void makeLineGraph(
         }
       }
     }
-  }
-  std::cout << "ADJ MATRIX" << std::endl;
-  for (const auto &a1 : adjMatrix) {
-    for (const auto &a2 : a1) {
-      std::cout << a2 << " ";
-    }
-    std::cout << std::endl;
   }
 }
 
@@ -498,19 +405,14 @@ bool checkAromaticRings(const ROMol &mol1,
                     mol2BondIdx) == mol2BondRings[j].end()) {
         continue;
       }
-      std::cout << mol1RingSmiles[i] << " " << mol2RingSmiles[j] << std::endl;
       if (mol1RingSmiles[i] == mol2RingSmiles[j]) {
         return true;
       }
-      std::cout << "vtxLabels1 : " << vtxLabels1.front().size() << " vs "
-                << elementNames.size() << std::endl;
       if (vtxLabels1.front().size() > elementNames.size() + 1) {
         bool match = true;
         // If the atom bitstring is bigger than the number of elements
         // RDKit knows about, check the case where 2 atoms have different
         // atomic numbers but have otherwise been deemed equivalent.
-        std::cout << "extra checking " << mol1RingSmiles[i] << " and "
-                  << mol2RingSmiles[j] << std::endl;
         // If the input contained equivalentAtoms or equivalentBonds the
         // SMILES won't necessarily match (e.g. with c1ccccc1 and c1cccnc1
         // and [c,n] for equivalentAtoms, so we need to check the vertex
@@ -555,13 +457,11 @@ bool checkAromaticRings(const ROMol &mol1,
           }
         }
         if (match) {
-          std::cout << "OK" << std::endl;
           return true;
         }
       }
     }
   }
-  std::cout << "NOT OK" << std::endl;
   return false;
 }
 
@@ -602,11 +502,6 @@ void extractRings(const ROMol &mol,
     }
     ringMol->commitBatchEdit();
     molRingSmiles.push_back(MolToSmiles(*ringMol));
-    std::cout << "ring " << i << " : " << molRingSmiles.back() << std::endl;
-    for (const auto a : ringMol->atoms()) {
-      std::cout << a->getIdx() << " : " << a->getProp<int>("ORIG_INDEX")
-                << " : " << a->getAtomicNum() << std::endl;
-    }
     molRings.push_back(std::move(ringMol));
   }
 }
@@ -691,9 +586,6 @@ void buildPairs(const ROMol &mol1,
 
   for (const auto &bond1 : mol1.bonds()) {
     for (const auto &bond2 : mol2.bonds()) {
-      if (bond1->getIdx() == 5 && bond2->getIdx() == 5) {
-        std::cout << "HERE" << std::endl;
-      }
       if (bondsMatch(*bond1, *bond2, vtxLabels1, edgeLabels1, vtxLabels2,
                      edgeLabels2, opts.ignoreAtomAromaticity)) {
         if (opts.completeAromaticRings &&
@@ -711,11 +603,6 @@ void buildPairs(const ROMol &mol1,
         vtxPairs.push_back(std::make_pair(bond1->getIdx(), bond2->getIdx()));
       }
     }
-  }
-  std::cout << "Vertex pairs" << std::endl;
-  for (size_t i = 0; i < vtxPairs.size(); ++i) {
-    std::cout << i << " : " << vtxPairs[i].first << " : " << vtxPairs[i].second
-              << std::endl;
   }
 }
 
@@ -781,17 +668,6 @@ void makeModularProduct(
       }
     }
   }
-  std::cout << "mod prod" << std::endl;
-  for (size_t i = 0; i < modProd.size(); ++i) {
-    std::cout << i << " : " << modProd[i] << " : " << modProd[i].count()
-              << " :: ";
-    for (size_t j = 0; j < modProd[i].size(); ++j) {
-      if (modProd[i][j]) {
-        std::cout << j << " ";
-      }
-    }
-    std::cout << std::endl;
-  }
 }
 
 // Calculate the lower bound on the size of the MCES.  This requires that mol1
@@ -845,8 +721,8 @@ void printClique(const std::vector<unsigned int> &clique,
       os << "{" << vtxPairs[mem].first << ", " << vtxPairs[mem].second << "},";
     }
   }
-  std::cout << std::endl;
-  std::cout << "mol 1 bonds : [";
+  os << std::endl;
+  os << "mol 1 bonds : [";
   for (auto mem : clique) {
     if (swapped) {
       os << vtxPairs[mem].second << ", ";
@@ -854,8 +730,8 @@ void printClique(const std::vector<unsigned int> &clique,
       os << vtxPairs[mem].first << ", ";
     }
   }
-  std::cout << "]" << std::endl;
-  std::cout << "mol 2 bonds : [";
+  os << "]" << std::endl;
+  os << "mol 2 bonds : [";
   for (auto mem : clique) {
     if (swapped) {
       os << vtxPairs[mem].first << ", ";
@@ -863,7 +739,7 @@ void printClique(const std::vector<unsigned int> &clique,
       os << vtxPairs[mem].second << ", ";
     }
   }
-  std::cout << "]" << std::endl;
+  os << "]" << std::endl;
 }
 
 // if the clique involves a delta-y exchange, returns true.  Should only be
@@ -1140,10 +1016,6 @@ void explorePartitions(
       checkTimeout(startTime, opts, clique, maxCliques, numSteps);
     }
     auto part = parts.back();
-    // std::cout << "NEXT" << std::endl;
-    // std::cout << *part << std::endl;
-    // printClique(clique, starter.d_vtxPairs, starter.d_swapped, std::cout);
-    // std::cout << "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV" << std::endl;
     bool goDeeper = false;
     bool backtrack = false;
     if (opts.allBestMCESs) {
@@ -1274,40 +1146,6 @@ void calcDistMatrix(
   }
 }
 
-// Set the atomic number of the atoms that match the SMARTS in
-// RascalOptions.EquivalentAtoms to 110, 111 etc.  These will
-// be mapped back at the end.
-void assignEquivalentAtoms(ROMol &mol, const std::string &equivalentAtoms) {
-  if (equivalentAtoms.empty()) {
-    return;
-  }
-  std::vector<std::string> classSmarts;
-  boost::split(classSmarts, equivalentAtoms, boost::is_any_of(" "),
-               boost::token_compress_on);
-  std::cout << "class smarts size " << classSmarts.size() << std::endl;
-  if (classSmarts.size() > 9) {
-    throw ValueErrorException(
-        "Too many classes of equivalent atoms.  Maximum is 9.");
-  }
-  int atNum = 110;
-  for (auto &smt : classSmarts) {
-    if (smt.empty()) {
-      continue;
-    }
-    auto qmol = v2::SmilesParse::MolFromSmarts(smt);
-    std::vector<RDKit::MatchVectType> hits_vect;
-    if (RDKit::SubstructMatch(mol, *qmol, hits_vect)) {
-      for (const auto &hv : hits_vect) {
-        for (const auto &h : hv) {
-          auto a = mol.getAtomWithIdx(h.second);
-          a->setAtomicNum(atNum);
-        }
-      }
-    }
-    ++atNum;
-  }
-}
-
 namespace details {
 // Set a bit in the bitset for each atom for its atomic number OR
 // all the equivalent atom classes it is in.  If an O atom in one
@@ -1346,11 +1184,6 @@ void makeAtomLabels(const ROMol &mol, const std::string &equivalentAtoms,
         }
       }
     }
-  }
-  std::cout << "ATOM LABELS: " << std::endl;
-  for (const auto &atom : mol.atoms()) {
-    std::cout << atom->getIdx() << " : " << atom->getAtomicNum()
-              << "  ::  " << atomLabels[atom->getIdx()] << std::endl;
   }
 }
 
@@ -1429,8 +1262,6 @@ RascalStartPoint makeInitialPartitionSet(const ROMol *mol1, const ROMol *mol2,
   starter.d_tier1Sim =
       details::tier1Sim(*starter.d_mol1, *starter.d_mol2, atomLabels1,
                         atomLabels2, degSeqs1, degSeqs2);
-  std::cout << "second tier1Sim : " << starter.d_tier1Sim << std::endl;
-
   if (starter.d_tier1Sim < opts.similarityThreshold) {
     return starter;
   }
@@ -1444,8 +1275,6 @@ RascalStartPoint makeInitialPartitionSet(const ROMol *mol1, const ROMol *mol2,
   starter.d_tier2Sim =
       details::tier2Sim(*starter.d_mol1, *starter.d_mol2, degSeqs1, degSeqs2,
                         atomLabels1, atomLabels2, bondStrings1, bondStrings2);
-  std::cout << "second tier2Sim : " << starter.d_tier2Sim << std::endl;
-
   if (starter.d_tier2Sim < opts.similarityThreshold) {
     return starter;
   }
@@ -1485,34 +1314,16 @@ RascalStartPoint makeInitialPartitionSet(const ROMol *mol1, const ROMol *mol2,
   uniqueBitsets(bondStrings2, uniqueBondLabels);
   uniqueBitsets(atomLabels1, uniqueAtomLabels);
   uniqueBitsets(atomLabels2, uniqueAtomLabels);
-  for (const auto &ual : uniqueAtomLabels) {
-    std::cout << "ual : " << ual << std::endl;
-  }
-  for (const auto &ubl : uniqueBondLabels) {
-    std::cout << "ubl : " << ubl << std::endl;
-  }
   std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> bondLabels1,
       bondLabels2;
   makeBondLabels(*starter.d_mol1, bondStrings1, uniqueBondLabels, atomLabels1,
                  uniqueAtomLabels, bondLabels1);
-  for (const auto &bl : bondLabels1) {
-    std::cout << "bl1 : " << std::get<0>(bl) << ", " << std::get<1>(bl) << ", "
-              << std::get<2>(bl) << std::endl;
-  }
   makeBondLabels(*starter.d_mol2, bondStrings2, uniqueBondLabels, atomLabels2,
                  uniqueAtomLabels, bondLabels2);
-  for (const auto &bl : bondLabels2) {
-    std::cout << "bl2 : " << std::get<0>(bl) << ", " << std::get<1>(bl) << ", "
-              << std::get<2>(bl) << std::endl;
-  }
 
   starter.d_partSet.reset(new PartitionSet(
       starter.d_modProd, starter.d_vtxPairs, bondLabels1, bondLabels2,
       uniqueAtomLabels, uniqueBondLabels, starter.d_lowerBound));
-
-  std::cout << "Initial part set" << std::endl;
-  std::cout << *starter.d_partSet << std::endl;
-  std::cout << "TTTTTTTTTTTTTTT" << std::endl;
 
   starter.d_deltaYPoss =
       deltaYExchangePossible(*starter.d_mol1, *starter.d_mol2);
