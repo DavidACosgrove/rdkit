@@ -1304,7 +1304,6 @@ TEST_CASE("Exact Connection Matches", "[basics]") {
 }
 
 TEST_CASE("Equivalent atoms") {
-#if 1
   {
     auto m1 = "c1cc(Br)ccc1F"_smiles;
     REQUIRE(m1);
@@ -1321,8 +1320,6 @@ TEST_CASE("Equivalent atoms") {
           "c1:c:c(-[F,Cl,Br,I]):c:c:c:1-[F,Cl,Br,I]");
     check_smarts_ok(*m1, *m2, res.front());
   }
-#endif
-#if 1
   {
     auto m1 = "c1cc(Br)ccc1F"_smiles;
     REQUIRE(m1);
@@ -1352,8 +1349,6 @@ TEST_CASE("Equivalent atoms") {
           "[c,n]1:[c,n]:[c,n]:[c,n]:[c,n]:[c,n]:1-[F,Cl,Br,I]");
     check_smarts_ok(*m1, *m2, res.front());
   }
-#endif
-#if 1
   {
     auto m1 = "c1ccccc1"_smiles;
     REQUIRE(m1);
@@ -1366,10 +1361,9 @@ TEST_CASE("Equivalent atoms") {
     auto res = rascalMCES(*m1, *m2, opts);
     REQUIRE(res.size() == 1);
     CHECK(res.front().getAtomMatches().size() == 6);
-    CHECK(res.front().getSmarts() == "[*]1:[*]:[*]:[*]:[*]:[*]:1");
+    CHECK(res.front().getSmarts() == "*1:*:*:*:*:*:1");
     check_smarts_ok(*m1, *m2, res.front());
   }
-#endif
 }
 
 TEST_CASE("Equivalent bonds") {
@@ -1617,18 +1611,38 @@ TEST_CASE("Github8255 - incorrect MCES with singleLargestFrag=true") {
 }
 
 TEST_CASE("Overlapping matches for equivalentAtoms") {
-  auto m1 = "CC(O)CCCO"_smiles;
-  REQUIRE(m1);
-  auto m2 = "CC(N)CCCN(C)(C)"_smiles;
-  REQUIRE(m2);
-  RascalOptions opts;
-  opts.similarityThreshold = 0.1;
-  opts.equivalentAtoms = "[O,N;H1,H2] [O,ND3]";
-  auto res = rascalMCES(*m1, *m2, opts);
-  REQUIRE(!res.empty());
-  CHECK(res.front().getAtomMatches().size() == 7);
-  CHECK(res.front().getBondMatches().size() == 6);
-  CHECK(res.front().getSimilarity() == Catch::Approx(0.7647).margin(0.0001));
-  std::cout << res.front().getSmarts() << std::endl;
-  check_smarts_ok(*m1, *m2, res.front());
+  {
+    auto m1 = "CC(O)CCCO"_smiles;
+    REQUIRE(m1);
+    auto m2 = "CC(N)CCCN(C)(C)"_smiles;
+    REQUIRE(m2);
+    RascalOptions opts;
+    opts.similarityThreshold = 0.1;
+    opts.equivalentAtoms = "[O,N;H1,H2] [O,ND3]";
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.front().getAtomMatches().size() == 7);
+    CHECK(res.front().getBondMatches().size() == 6);
+    CHECK(res.front().getSimilarity() == Catch::Approx(0.7647).margin(0.0001));
+    check_smarts_ok(*m1, *m2, res.front());
+  }
+  {
+    // This one threw a non-smartable exception.
+    auto m1 = "c1ncccc1"_smiles;
+    REQUIRE(m1);
+    auto m2 = "c1nnccc1"_smiles;
+    REQUIRE(m2);
+    RascalOptions opts;
+    opts.similarityThreshold = 0.1;
+    opts.equivalentAtoms = "[#6,#7;H1] [c,n]";
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.front().getAtomMatches().size() == 6);
+    CHECK(res.front().getBondMatches().size() == 6);
+    CHECK(res.front().getSimilarity() == Catch::Approx(1.0).margin(0.0001));
+    CHECK(
+        res.front().getSmarts() ==
+        "[$([#6,#7;H1]),$([c,n])]1:[c,n]:[c,n]:[$([#6,#7;H1]),$([c,n])]:[$([#6,#7;H1]),$([c,n])]:[$([#6,#7;H1]),$([c,n])]:1");
+    check_smarts_ok(*m1, *m2, res.front());
+  }
 }

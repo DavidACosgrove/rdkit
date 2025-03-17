@@ -1151,6 +1151,7 @@ namespace details {
 // all the equivalent atom classes it is in.  If an O atom in one
 // molecule is in a class "H bond donor", for example, and the only
 // O atom in the other molecule is not, we don't want them to match.
+// Add any matching SMARTS to the atom as the property "EQUIV_SMARTS".
 void makeAtomLabels(const ROMol &mol, const std::string &equivalentAtoms,
                     std::vector<boost::dynamic_bitset<>> &atomLabels) {
   std::vector<std::string> classSmarts;
@@ -1181,6 +1182,13 @@ void makeAtomLabels(const ROMol &mol, const std::string &equivalentAtoms,
           auto a = mol.getAtomWithIdx(h.second);
           atomLabels[h.second][i + elementNames.size()] = true;
           atomLabels[h.second][a->getAtomicNum()] = false;
+          if (a->hasProp("EQUIV_SMARTS")) {
+            auto currProp = a->getProp<std::string>("EQUIV_SMARTS");
+            currProp += " " + classSmarts[i];
+            a->setProp("EQUIV_SMARTS", currProp);
+          } else {
+            a->setProp<std::string>("EQUIV_SMARTS", classSmarts[i]);
+          }
         }
       }
     }

@@ -23,6 +23,7 @@
 
 #include <GraphMol/RascalMCES/RascalDetails.h>
 #include <GraphMol/RascalMCES/RascalResult.h>
+#include <GraphMol/SmilesParse/SmilesParse.h>
 
 namespace RDKit {
 
@@ -210,6 +211,73 @@ void RascalResult::rebuildFromFrags(
   d_largestFragSize = frags.empty() ? 0 : frags.front()->getNumAtoms();
 }
 
+namespace {
+QueryAtom *makeSmartsQueryAtom(Atom *mol1Atom, Atom *mol2Atom) {
+  auto mol1Smts = mol1Atom->getProp<std::string>("EQUIV_SMARTS");
+  auto mol2Smts = mol2Atom->getProp<std::string>("EQUIV_SMARTS");
+  std::vector<std::string> splitMol1Smts, splitMol2Smts, jointSmts;
+  boost::split(splitMol1Smts, mol1Smts, boost::is_any_of(" "));
+  boost::split(splitMol2Smts, mol2Smts, boost::is_any_of(" "));
+  for (const auto &smt1 : splitMol1Smts) {
+    if (std::find(splitMol2Smts.begin(), splitMol2Smts.end(), smt1) !=
+        splitMol2Smts.end()) {
+      jointSmts.push_back(smt1);
+    }
+  }
+
+  auto atomFromSmt = [](const std::string smt) -> Atom * {
+    auto tmpAtom = v2::SmilesParse::AtomFromSmarts(smt);
+    return tmpAtom.release();
+  };
+
+  QueryAtom *a = new QueryAtom();
+  for (const auto &smt : jointSmts) {
+    auto bareAtom = atomFromSmt(smt);
+    if (!a->hasQuery()) {
+      a->setQuery(bareAtom->getQuery());
+    } else {
+      a->expandQuery(bareAtom->getQuery(), Queries::COMPOSITE_OR);
+    }
+  }
+
+  // Check for a non-smartable atom exception.  If it happens, we need to
+  // use recursive SMARTS.
+  try {
+    RWMol smartsMol;
+    smartsMol.addAtom(a, false, false);
+    // We don't want the compiler to optimise this away, because we're
+    // relying on an exception if the SMARTS can't be generated.
+    [[maybe_unused]] auto smt = MolToSmarts(smartsMol);
+  } catch (std::exception &e) {
+    if (std::string(e.what()) ==
+        "This is a non-smartable query - OR above and below AND in the binary tree") {
+      delete a;
+      a = new QueryAtom();
+      std::string smtString("[");
+      for (size_t i = 0; i < jointSmts.size(); i++) {
+        smtString += "$(" + jointSmts[i] + ")";
+        if (i != jointSmts.size() - 1) {
+          smtString += ",";
+        }
+      }
+      smtString += "]";
+      a->setQuery(atomFromSmt(smtString)->getQuery());
+    }
+  }
+  return a;
+}
+
+QueryAtom *makeAtomicNumQueryAtom(Atom *mol1Atom, Atom *mol2Atom) {
+  QueryAtom *a = new QueryAtom();
+  a->setQuery(RDKit::makeAtomNumQuery(mol1Atom->getAtomicNum()));
+  if (mol1Atom->getAtomicNum() != mol2Atom->getAtomicNum()) {
+    a->expandQuery(RDKit::makeAtomNumQuery(mol2Atom->getAtomicNum()),
+                   Queries::COMPOSITE_OR);
+  }
+  return a;
+}
+}  // namespace
+
 std::string RascalResult::createSmartsString() const {
   if (!d_mol1 || !d_mol2) {
     return "";
@@ -219,32 +287,34 @@ std::string RascalResult::createSmartsString() const {
   auto mol1Rings = d_mol1->getRingInfo();
   auto mol2Rings = d_mol2->getRingInfo();
   for (const auto &am : d_atomMatches) {
-    RDKit::QueryAtom a;
+    std::unique_ptr<QueryAtom> a;
     auto mol1Atom = d_mol1->getAtomWithIdx(am.first);
-    a.setQuery(RDKit::makeAtomNumQuery(mol1Atom->getAtomicNum()));
     auto mol2Atom = d_mol2->getAtomWithIdx(am.second);
-    if (mol1Atom->getAtomicNum() != mol2Atom->getAtomicNum()) {
-      a.expandQuery(RDKit::makeAtomNumQuery(mol2Atom->getAtomicNum()),
-                    Queries::COMPOSITE_OR);
-    }
-    if (mol1Atom->getIsAromatic() && mol2Atom->getIsAromatic()) {
-      a.expandQuery(RDKit::makeAtomAromaticQuery(), Queries::COMPOSITE_AND,
-                    true);
-    } else if (!mol1Atom->getIsAromatic() && !mol2Atom->getIsAromatic()) {
-      a.expandQuery(RDKit::makeAtomAliphaticQuery(), Queries::COMPOSITE_AND,
-                    true);
+    if (mol1Atom->hasProp("EQUIV_SMARTS")) {
+      // Just use the SMARTS, without any embellishments.
+      a.reset(makeSmartsQueryAtom(mol1Atom, mol2Atom));
+    } else {
+      a.reset(makeAtomicNumQueryAtom(mol1Atom, mol2Atom));
+      if (mol1Atom->getIsAromatic() && mol2Atom->getIsAromatic()) {
+        a->expandQuery(RDKit::makeAtomAromaticQuery(), Queries::COMPOSITE_AND,
+                       true);
+      } else if (!mol1Atom->getIsAromatic() && !mol2Atom->getIsAromatic()) {
+        a->expandQuery(RDKit::makeAtomAliphaticQuery(), Queries::COMPOSITE_AND,
+                       true);
+      }
     }
     if (d_ringMatchesRingOnly && !mol1Atom->getIsAromatic() &&
         !mol2Atom->getIsAromatic() &&
         mol1Rings->numAtomRings(mol1Atom->getIdx()) &&
         mol2Rings->numAtomRings(mol2Atom->getIdx())) {
-      a.expandQuery(RDKit::makeAtomInRingQuery(), Queries::COMPOSITE_AND, true);
+      a->expandQuery(RDKit::makeAtomInRingQuery(), Queries::COMPOSITE_AND,
+                     true);
     }
     if (d_exactConnectionsMatch) {
-      a.expandQuery(RDKit::makeAtomExplicitDegreeQuery(mol1Atom->getDegree()),
-                    Queries::COMPOSITE_AND, true);
+      a->expandQuery(RDKit::makeAtomExplicitDegreeQuery(mol1Atom->getDegree()),
+                     Queries::COMPOSITE_AND, true);
     }
-    auto ai = smartsMol.addAtom(&a);
+    auto ai = smartsMol.addAtom(a.release(), false, true);
     atomMap.insert(std::make_pair(am.first, ai));
   }
 
