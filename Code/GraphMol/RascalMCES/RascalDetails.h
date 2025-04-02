@@ -16,15 +16,14 @@
 
 #include <GraphMol/RascalMCES/RascalOptions.h>
 #include <GraphMol/RascalMCES/RascalResult.h>
+
 namespace RDKit {
 class ROMol;
 
 namespace RascalMCES {
-
 struct RascalClusterOptions;
 
 namespace details {
-
 struct ClusNode {
   std::shared_ptr<RascalResult> d_res;
   double d_sim;
@@ -46,10 +45,10 @@ RDKIT_RASCALMCES_EXPORT double tier2Sim(
     const std::vector<boost::dynamic_bitset<>> &bondLabels1,
     const std::vector<boost::dynamic_bitset<>> &bondLabels2);
 RDKIT_RASCALMCES_EXPORT void makeAtomLabels(
-    const ROMol &mol, const std::string &equivalentAtoms,
+    const ROMol &mol, const RascalOptions &opts,
     std::vector<boost::dynamic_bitset<>> &atomLabels);
 RDKIT_RASCALMCES_EXPORT void makeBondBitstrings(
-    const ROMol &mol, const bool ignoreBondOrders,
+    const ROMol &mol, const RascalOptions &opts,
     std::vector<boost::dynamic_bitset<>> &bondLabels);
 
 std::vector<std::vector<ClusNode>> buildProximityGraph(
@@ -91,9 +90,7 @@ RDKIT_RASCALMCES_EXPORT double johnsonSimilarity(
     const std::vector<std::pair<int, int>> &bondMatches,
     const std::vector<std::pair<int, int>> &atomMatches,
     const RDKit::ROMol &mol1, const RDKit::ROMol &mol2);
-
 }  // namespace details
-
 }  // namespace RascalMCES
 }  // namespace RDKit
 #endif  // RDKIT_RASCAL_MCES_H

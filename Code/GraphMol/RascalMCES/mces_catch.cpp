@@ -19,6 +19,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <GraphMol/FMCS/FMCS.h>
 #include <GraphMol/RascalMCES/RascalMCES.h>
 #include <GraphMol/RascalMCES/RascalOptions.h>
 #include <GraphMol/RascalMCES/RascalResult.h>
@@ -59,8 +60,8 @@ TEST_CASE("Very small test", "[basics]") {
 
   RascalOptions opts;
   std::vector<boost::dynamic_bitset<>> atomLabels1, atomLabels2;
-  details::makeAtomLabels(*m1, opts.equivalentAtoms, atomLabels1);
-  details::makeAtomLabels(*m2, opts.equivalentAtoms, atomLabels2);
+  details::makeAtomLabels(*m1, opts, atomLabels1);
+  details::makeAtomLabels(*m2, opts, atomLabels2);
 
   std::map<int, std::vector<std::pair<int, int>>> degSeqs1, degSeqs2;
   auto tier1_sim =
@@ -69,8 +70,8 @@ TEST_CASE("Very small test", "[basics]") {
   REQUIRE_THAT(tier1_sim, Catch::Matchers::WithinAbs(1.0000, 0.0001));
 
   std::vector<boost::dynamic_bitset<>> bondStrings1, bondStrings2;
-  details::makeBondBitstrings(*m1, opts.ignoreBondOrders, bondStrings1);
-  details::makeBondBitstrings(*m2, opts.ignoreBondOrders, bondStrings2);
+  details::makeBondBitstrings(*m1, opts, bondStrings1);
+  details::makeBondBitstrings(*m2, opts, bondStrings2);
   auto tier2_sim = tier2Sim(*m1, *m2, degSeqs1, degSeqs2, atomLabels1,
                             atomLabels2, bondStrings1, bondStrings2);
   REQUIRE_THAT(tier2_sim, Catch::Matchers::WithinAbs(0.7901, 0.0001));
@@ -113,8 +114,8 @@ TEST_CASE("Juglone vs Scopoletin test", "[basics]") {
 
   RascalOptions opts;
   std::vector<boost::dynamic_bitset<>> atomLabels1, atomLabels2;
-  details::makeAtomLabels(*m1, opts.equivalentAtoms, atomLabels1);
-  details::makeAtomLabels(*m2, opts.equivalentAtoms, atomLabels2);
+  details::makeAtomLabels(*m1, opts, atomLabels1);
+  details::makeAtomLabels(*m2, opts, atomLabels2);
 
   std::map<int, std::vector<std::pair<int, int>>> degSeqs1, degSeqs2;
   auto tier1_sim =
@@ -122,8 +123,8 @@ TEST_CASE("Juglone vs Scopoletin test", "[basics]") {
   REQUIRE_THAT(tier1_sim, Catch::Matchers::WithinAbs(0.8633, 0.0001));
 
   std::vector<boost::dynamic_bitset<>> bondStrings1, bondStrings2;
-  details::makeBondBitstrings(*m1, opts.ignoreBondOrders, bondStrings1);
-  details::makeBondBitstrings(*m2, opts.ignoreBondOrders, bondStrings2);
+  details::makeBondBitstrings(*m1, opts, bondStrings1);
+  details::makeBondBitstrings(*m2, opts, bondStrings2);
   auto tier2_sim = tier2Sim(*m1, *m2, degSeqs1, degSeqs2, atomLabels1,
                             atomLabels2, bondStrings1, bondStrings2);
   REQUIRE_THAT(tier2_sim, Catch::Matchers::WithinAbs(0.5632, 0.0001));
@@ -161,16 +162,16 @@ TEST_CASE("Methadone vs mepiridine test", "[basics]") {
   // It's a general requirement that the first mol is smaller than the second.
   RascalOptions opts;
   std::vector<boost::dynamic_bitset<>> atomLabels1, atomLabels2;
-  details::makeAtomLabels(*m1, opts.equivalentAtoms, atomLabels1);
-  details::makeAtomLabels(*m2, opts.equivalentAtoms, atomLabels2);
+  details::makeAtomLabels(*m1, opts, atomLabels1);
+  details::makeAtomLabels(*m2, opts, atomLabels2);
   std::map<int, std::vector<std::pair<int, int>>> degSeqs1, degSeqs2;
   auto tier1_sim =
       details::tier1Sim(*m1, *m2, atomLabels1, atomLabels2, degSeqs1, degSeqs2);
   REQUIRE_THAT(tier1_sim, Catch::Matchers::WithinAbs(0.7044, 0.0001));
 
   std::vector<boost::dynamic_bitset<>> bondStrings1, bondStrings2;
-  details::makeBondBitstrings(*m1, opts.ignoreBondOrders, bondStrings1);
-  details::makeBondBitstrings(*m2, opts.ignoreBondOrders, bondStrings2);
+  details::makeBondBitstrings(*m1, opts, bondStrings1);
+  details::makeBondBitstrings(*m2, opts, bondStrings2);
   auto tier2_sim = tier2Sim(*m1, *m2, degSeqs1, degSeqs2, atomLabels1,
                             atomLabels2, bondStrings1, bondStrings2);
   REQUIRE_THAT(tier2_sim, Catch::Matchers::WithinAbs(0.6262, 0.0001));
@@ -323,16 +324,16 @@ TEST_CASE("Symmetrical esters test", "[basics]") {
   // It's a general requirement that the first mol is smaller than the second.
   RascalOptions opts;
   std::vector<boost::dynamic_bitset<>> atomLabels1, atomLabels2;
-  details::makeAtomLabels(*m1, opts.equivalentAtoms, atomLabels1);
-  details::makeAtomLabels(*m2, opts.equivalentAtoms, atomLabels2);
+  details::makeAtomLabels(*m1, opts, atomLabels1);
+  details::makeAtomLabels(*m2, opts, atomLabels2);
   std::map<int, std::vector<std::pair<int, int>>> degSeqs1, degSeqs2;
   auto tier1_sim =
       details::tier1Sim(*m1, *m2, atomLabels1, atomLabels2, degSeqs1, degSeqs2);
   REQUIRE_THAT(tier1_sim, Catch::Matchers::WithinAbs(0.9701, 0.0001));
 
   std::vector<boost::dynamic_bitset<>> bondStrings1, bondStrings2;
-  details::makeBondBitstrings(*m1, opts.ignoreBondOrders, bondStrings1);
-  details::makeBondBitstrings(*m2, opts.ignoreBondOrders, bondStrings2);
+  details::makeBondBitstrings(*m1, opts, bondStrings1);
+  details::makeBondBitstrings(*m2, opts, bondStrings2);
   auto tier2_sim = tier2Sim(*m1, *m2, degSeqs1, degSeqs2, atomLabels1,
                             atomLabels2, bondStrings1, bondStrings2);
   REQUIRE_THAT(tier2_sim, Catch::Matchers::WithinAbs(0.9701, 0.0001));
@@ -697,7 +698,6 @@ TEST_CASE("complete smallest rings") {
     REQUIRE(res.front().getSmarts() == "CNC1CCC(-C)-CC1C");
   }
 }
-
 
 TEST_CASE("multiple cliques returned") {
   std::vector<std::tuple<std::string, std::string, unsigned int, unsigned int,
@@ -1561,5 +1561,95 @@ TEST_CASE("Overlapping matches for equivalentAtoms") {
         res.front().getSmarts() ==
         "[$([#6,#7;H1]),$([c,n])]1:[c,n]:[c,n]:[$([#6,#7;H1]),$([c,n])]:[$([#6,#7;H1]),$([c,n])]:[$([#6,#7;H1]),$([c,n])]:1");
     check_smarts_ok(*m1, *m2, res.front());
+  }
+}
+
+TEST_CASE("User comparison functions") {
+  // This one is from testFMCS_Unit.cpp
+  auto atomCompare = [](const ROMol &mol1, unsigned int atom1,
+                        const ROMol &mol2, unsigned int atom2, void *) -> bool {
+    const auto a1 = mol1.getAtomWithIdx(atom1);
+    const auto a2 = mol2.getAtomWithIdx(atom2);
+    // If one's a dummy and the other isn't, the dummy should
+    // be degree 1, the non-dummy degree >1.
+    bool a1IsDummy = (a1->getAtomicNum() == 0);
+    bool a2IsDummy = (a2->getAtomicNum() == 0);
+    if (a1IsDummy ^ a2IsDummy) {
+      const Atom *atoms[] = {a1, a2};
+      unsigned int dummyAtomIdx = a1IsDummy ? 0 : 1;
+      unsigned int otherAtomIdx = 1 - dummyAtomIdx;
+      return atoms[dummyAtomIdx]->getDegree() == 1 &&
+             atoms[otherAtomIdx]->getDegree() > 1;
+    }
+    // Otherwise check atomic numbers and ring membership.
+    if (a1->getAtomicNum() != a2->getAtomicNum()) {
+      return false;
+    }
+    MCSAtomCompareParameters p;
+    // This is in FMCS.cpp, library FMCS.
+    return checkAtomRingMatch(p, mol1, atom1, mol2, atom2);
+  };
+
+  auto bondCompare = [](const ROMol &mol1, unsigned int bond1,
+                        const ROMol &mol2, unsigned int bond2, void *) -> bool {
+    const auto b1 = mol1.getBondWithIdx(bond1);
+    const auto b2 = mol2.getBondWithIdx(bond2);
+    if (b1->getBondType() == b2->getBondType()) {
+      return true;
+    }
+    if ((b1->getBondType() == Bond::BondType::SINGLE ||
+         b1->getBondType() == Bond::BondType::DOUBLE) &&
+        (b2->getBondType() == Bond::BondType::SINGLE ||
+         b2->getBondType() == Bond::BondType::DOUBLE)) {
+      return true;
+    }
+    return false;
+  };
+
+  {
+    auto m1 = "OC(=O)CCc1cccc2ccccc12"_smiles;
+    REQUIRE(m1);
+    auto m2 = "c1cc(cccc2)c2c(*)c1"_smiles;
+    REQUIRE(m2);
+
+    RascalOptions opts;
+    opts.similarityThreshold = 0.1;
+    opts.atomCompareFunction = atomCompare;
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.front().getAtomMatches().size() == 11);
+    CHECK(res.front().getBondMatches().size() == 12);
+    CHECK(res.front().getSmarts() == "[#6,#0;A]-c1:c:c:c:c2:c:c:c:c:c:1:2");
+  }
+
+  {
+    auto m1 = "c1cc(CC=CC2)c2c(*)c1"_smiles;
+    REQUIRE(m1);
+    auto m2 = "OC(=O)CCc1cccc2CCCCc12"_smiles;
+    REQUIRE(m2);
+    RascalOptions opts;
+    opts.similarityThreshold = 0.1;
+    opts.bondCompareFunction = bondCompare;
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.front().getAtomMatches().size() == 10);
+    CHECK(res.front().getBondMatches().size() == 11);
+    CHECK(res.front().getSmarts() == "c1:c:c2CC=,-CCc:2:c:c:1");
+  }
+
+  {
+    auto m1 = "c1cc(CCCC2)c2c(*)c1"_smiles;
+    REQUIRE(m1);
+    auto m2 = "OC(=O)CCc1cccc2CC=CCc12"_smiles;
+    REQUIRE(m2);
+    RascalOptions opts;
+    opts.similarityThreshold = 0.1;
+    opts.atomCompareFunction = atomCompare;
+    opts.bondCompareFunction = bondCompare;
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.front().getAtomMatches().size() == 11);
+    CHECK(res.front().getBondMatches().size() == 12);
+    CHECK(res.front().getSmarts() == "c1:c:c2CC-,=CCc:2:c(-[#0,#6;A]):c:1");
   }
 }
