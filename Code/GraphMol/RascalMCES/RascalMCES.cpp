@@ -23,9 +23,11 @@
 #include <unordered_set>
 #include <vector>
 
+#include <RDGeneral/BoostStartInclude.h>
 #include <boost/dynamic_bitset.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
+#include <RDGeneral/BoostEndInclude.h>
 
 #include <GraphMol/atomic_data.h>
 #include <GraphMol/ROMol.h>
@@ -43,12 +45,11 @@
 
 namespace RDKit {
 namespace RascalMCES {
-
 class TimedOutException : public std::exception {
- public:
+public:
   TimedOutException(long long int run_time,
                     std::vector<std::vector<unsigned int>> &bestCliques)
-      : d_cliques(bestCliques) {
+    : d_cliques(bestCliques) {
     d_message = "Timed out after " + std::to_string(run_time) + " second";
     if (run_time == 1) {
       d_message += ".";
@@ -61,7 +62,7 @@ class TimedOutException : public std::exception {
 
   std::vector<std::vector<unsigned int>> d_cliques;
 
- private:
+private:
   std::string d_message;
 };
 
@@ -91,7 +92,7 @@ struct RascalStartPoint {
   std::unique_ptr<ROMol> d_mol2;
 
   std::vector<std::vector<const boost::dynamic_bitset<> *>> d_adjMatrix1,
-      d_adjMatrix2;
+        d_adjMatrix2;
   std::vector<std::pair<int, int>> d_vtxPairs;
   std::vector<boost::dynamic_bitset<>> d_modProd;
 
@@ -106,22 +107,24 @@ struct RascalStartPoint {
 // atomic number in the molecule.  Each element in the degree sequence is
 // the degree of the atom and its index.
 void sortedDegreeSeqs(
-    const ROMol &mol,
-    std::map<int, std::vector<std::pair<int, int>>> &degSeqs) {
+  const ROMol &mol,
+  std::map<int, std::vector<std::pair<int, int>>> &degSeqs) {
   for (const auto &a : mol.atoms()) {
     degSeqs[a->getAtomicNum()].push_back(
-        std::make_pair(a->getDegree(), a->getIdx()));
+      std::make_pair(a->getDegree(), a->getIdx()));
   }
   for (auto &it : degSeqs) {
     std::sort(it.second.begin(), it.second.end(),
               [](const std::pair<int, int> &p1, const std::pair<int, int> &p2)
-                  -> bool { return p1.first > p2.first; });
+            -> bool {
+                return p1.first > p2.first;
+              });
   }
 }
 
 void sortedDegreeSeqs(
-    const ROMol &mol, const std::vector<boost::dynamic_bitset<>> &atomLabels,
-    std::map<int, std::vector<std::pair<int, int>>> &degSeqs) {
+  const ROMol &mol, const std::vector<boost::dynamic_bitset<>> &atomLabels,
+  std::map<int, std::vector<std::pair<int, int>>> &degSeqs) {
   for (const auto &a : mol.atoms()) {
     const auto &al = atomLabels[a->getIdx()];
     for (unsigned int i = 0; i < al.size(); i++) {
@@ -133,7 +136,9 @@ void sortedDegreeSeqs(
   for (auto &it : degSeqs) {
     std::sort(it.second.begin(), it.second.end(),
               [](const std::pair<int, int> &p1, const std::pair<int, int> &p2)
-                  -> bool { return p1.first > p2.first; });
+            -> bool {
+                return p1.first > p2.first;
+              });
   }
 }
 
@@ -157,11 +162,11 @@ bool bitsetLess(const boost::dynamic_bitset<> &bs1,
 // Find the number of bonds incident on atom i that match a bond incident
 // on atom j.
 unsigned int calcCost(
-    const std::vector<
-        std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>> &atomiBLs,
-    const std::vector<
-        std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>> &atomjBLs,
-    unsigned int atomiDegree, unsigned int atomjDegree) {
+  const std::vector<
+    std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>> &atomiBLs,
+  const std::vector<
+    std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>> &atomjBLs,
+  unsigned int atomiDegree, unsigned int atomjDegree) {
   std::vector<std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>>
       uniqAtomiBLs(atomiBLs);
   std::sort(uniqAtomiBLs.begin(), uniqAtomiBLs.end(),
@@ -177,9 +182,9 @@ unsigned int calcCost(
 
   auto countMatches =
       [](const std::vector<
-             std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>> &vec,
+           std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>>> &vec,
          const std::pair<boost::dynamic_bitset<>, boost::dynamic_bitset<>> &q)
-      -> unsigned int {
+    -> unsigned int {
     unsigned int count = 0;
     for (const auto &p : vec) {
       if ((p.first & q.first).count() && (p.second & q.second).count()) {
@@ -215,16 +220,16 @@ void assignCosts(const std::vector<std::pair<int, int>> &atomDegrees1,
     const auto atomi = mol1.getAtomWithIdx(atomDegrees1[i].second);
     for (const auto b : mol1.atomBonds(atomi)) {
       atomiBLs.push_back(
-          std::make_pair(bondLabels1[b->getIdx()],
-                         atomLabels1[b->getOtherAtomIdx(atomi->getIdx())]));
+        std::make_pair(bondLabels1[b->getIdx()],
+                       atomLabels1[b->getOtherAtomIdx(atomi->getIdx())]));
     }
     for (auto j = 0u; j < atomDegrees2.size(); ++j) {
       atomjBLs.clear();
       const auto atomj = mol2.getAtomWithIdx(atomDegrees2[j].second);
       for (const auto b : mol2.atomBonds(atomj)) {
         atomjBLs.push_back(
-            std::make_pair(bondLabels2[b->getIdx()],
-                           atomLabels2[b->getOtherAtomIdx(atomj->getIdx())]));
+          std::make_pair(bondLabels2[b->getIdx()],
+                         atomLabels2[b->getOtherAtomIdx(atomj->getIdx())]));
       }
       costsMat[i][j] =
           calcCost(atomiBLs, atomjBLs, atomi->getDegree(), atomj->getDegree());
@@ -244,7 +249,7 @@ int getAssignmentScore(const std::vector<std::pair<int, int>> &atomDegrees1,
   constexpr int bigScore(9999);
   constexpr size_t unassignedValue(99999999);
   std::vector<std::vector<int>> costsMat(
-      atomDegrees1.size(), std::vector<int>(atomDegrees2.size(), bigScore));
+    atomDegrees1.size(), std::vector<int>(atomDegrees2.size(), bigScore));
   assignCosts(atomDegrees1, atomDegrees2, atomLabels1, atomLabels2, bondLabels1,
               bondLabels2, mol1, mol2, costsMat);
   std::vector<size_t> a(std::min(atomDegrees1.size(), atomDegrees2.size()),
@@ -264,7 +269,6 @@ int getAssignmentScore(const std::vector<std::pair<int, int>> &atomDegrees1,
 }
 
 namespace details {
-
 double tier1Sim(const ROMol &mol1, const ROMol &mol2,
                 const std::vector<boost::dynamic_bitset<>> &atomLabels1,
                 const std::vector<boost::dynamic_bitset<>> &atomLabels2,
@@ -323,19 +327,18 @@ double tier2Sim(const ROMol &mol1, const ROMol &mol2,
                       (mol2.getNumAtoms() + mol2.getNumBonds()));
   return sim;
 }
-
-}  // namespace details
+} // namespace details
 
 // make the line graph for the molecule, as an adjacency matrix.  Each
 // row/column is a bond, with a connection between 2 bonds if they share an
 // atom.  The adjacency matrix is 0 for no bond, the atomic number of the
 // connecting atom otherwise.
 void makeLineGraph(
-    const ROMol &mol, const std::vector<boost::dynamic_bitset<>> &atomLabels,
-    std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix) {
+  const ROMol &mol, const std::vector<boost::dynamic_bitset<>> &atomLabels,
+  std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix) {
   adjMatrix = std::vector<std::vector<const boost::dynamic_bitset<> *>>(
-      mol.getNumBonds(),
-      std::vector<const boost::dynamic_bitset<> *>(mol.getNumBonds(), 0));
+    mol.getNumBonds(),
+    std::vector<const boost::dynamic_bitset<> *>(mol.getNumBonds(), 0));
   for (const auto &a : mol.atoms()) {
     for (const auto &b1 : mol.atomBonds(a)) {
       for (const auto &b2 : mol.atomBonds(a)) {
@@ -361,25 +364,31 @@ std::vector<unsigned int> orderStringToInts(const std::string &str) {
   }
   return res;
 }
-
-}  // namespace
-// make sure that mol1_bond in mol1 and mol2_bond in mol2 are, if aromatic,
-// in at least one ring that is the same.
-bool checkAromaticRings(const ROMol &mol1,
-                        std::vector<std::string> &mol1RingSmiles,
-                        const std::vector<std::unique_ptr<ROMol>> &mol1Rings,
-                        const std::vector<boost::dynamic_bitset<>> &vtxLabels1,
-                        const std::vector<boost::dynamic_bitset<>> &edgeLabels1,
-                        int mol1BondIdx, const ROMol &mol2,
-                        std::vector<std::string> &mol2RingSmiles,
-                        const std::vector<std::unique_ptr<ROMol>> &mol2Rings,
-                        const std::vector<boost::dynamic_bitset<>> &vtxLabels2,
-                        const std::vector<boost::dynamic_bitset<>> &edgeLabels2,
-                        int mol2BondIdx) {
+} // namespace
+// make sure that mol1_bond in mol1 and mol2_bond in mol2 are, in at least one
+// ring that is the same. If aromaticRingsMatchOnly is true, then only aromatic
+// bonds are considered.
+bool checkRings(const ROMol &mol1,
+                std::vector<std::string> &mol1RingSmiles,
+                const std::vector<std::unique_ptr<ROMol>> &mol1Rings,
+                const std::vector<boost::dynamic_bitset<>> &vtxLabels1,
+                const std::vector<boost::dynamic_bitset<>> &edgeLabels1,
+                int mol1BondIdx, const ROMol &mol2,
+                std::vector<std::string> &mol2RingSmiles,
+                const std::vector<std::unique_ptr<ROMol>> &mol2Rings,
+                const std::vector<boost::dynamic_bitset<>> &vtxLabels2,
+                const std::vector<boost::dynamic_bitset<>> &edgeLabels2,
+                int mol2BondIdx,
+                bool aromaticRingsMatchOnly) {
   auto mol1Bond = mol1.getBondWithIdx(mol1BondIdx);
   auto mol2Bond = mol2.getBondWithIdx(mol2BondIdx);
-  if (!mol1Bond->getIsAromatic() || !mol2Bond->getIsAromatic()) {
+  if (aromaticRingsMatchOnly && (
+        !mol1Bond->getIsAromatic() || !mol2Bond->getIsAromatic())) {
     return true;
+  }
+
+  if (mol1Bond->getBondType() != mol2Bond->getBondType()) {
+    return false;
   }
 
   // If neither bond was in a ring, but they were marked aromatic, then
@@ -419,17 +428,17 @@ bool checkAromaticRings(const ROMol &mol1,
         // labels.
         auto mol1AtomOrder =
             orderStringToInts(mol1Rings[i]->getProp<std::string>(
-                common_properties::_smilesAtomOutputOrder));
+              common_properties::_smilesAtomOutputOrder));
         auto mol2AtomOrder =
             orderStringToInts(mol2Rings[j]->getProp<std::string>(
-                common_properties::_smilesAtomOutputOrder));
+              common_properties::_smilesAtomOutputOrder));
         for (size_t k = 0; k < mol1AtomOrder.size(); ++k) {
           auto origMol1Atom = mol1Rings[i]
-                                  ->getAtomWithIdx(mol1AtomOrder[k])
-                                  ->getProp<int>("ORIG_INDEX");
+                              ->getAtomWithIdx(mol1AtomOrder[k])
+                              ->getProp<int>("ORIG_INDEX");
           auto origMol2Atom = mol2Rings[j]
-                                  ->getAtomWithIdx(mol2AtomOrder[k])
-                                  ->getProp<int>("ORIG_INDEX");
+                              ->getAtomWithIdx(mol2AtomOrder[k])
+                              ->getProp<int>("ORIG_INDEX");
           if (!(vtxLabels1[origMol1Atom] & vtxLabels2[origMol2Atom]).count()) {
             match = false;
             break;
@@ -438,19 +447,19 @@ bool checkAromaticRings(const ROMol &mol1,
         if (match) {
           auto mol1BondOrder =
               orderStringToInts(mol1Rings[i]->getProp<std::string>(
-                  common_properties::_smilesBondOutputOrder));
+                common_properties::_smilesBondOutputOrder));
           auto mol2BondOrder =
               orderStringToInts(mol2Rings[j]->getProp<std::string>(
-                  common_properties::_smilesBondOutputOrder));
+                common_properties::_smilesBondOutputOrder));
           for (size_t k = 0; k < mol1BondOrder.size(); ++k) {
             auto origMol1Bond = mol1Rings[i]
-                                    ->getBondWithIdx(mol1BondOrder[k])
-                                    ->getProp<int>("ORIG_INDEX");
+                                ->getBondWithIdx(mol1BondOrder[k])
+                                ->getProp<int>("ORIG_INDEX");
             auto origMol2bond = mol2Rings[j]
-                                    ->getBondWithIdx(mol2BondOrder[k])
-                                    ->getProp<int>("ORIG_INDEX");
+                                ->getBondWithIdx(mol2BondOrder[k])
+                                ->getProp<int>("ORIG_INDEX");
             if (!(edgeLabels1[origMol1Bond] & edgeLabels2[origMol2bond])
-                     .count()) {
+              .count()) {
               match = false;
               break;
             }
@@ -528,29 +537,29 @@ bool bondsMatch(const Bond &bond1, const Bond &bond2,
   if ((edgeLabels1[bond1.getIdx()] & edgeLabels2[bond2.getIdx()]).count()) {
     if (!ignoreAtomAromaticity) {
       if (!((bond1.getBeginAtom()->getIsAromatic() ==
-                 bond2.getBeginAtom()->getIsAromatic() &&
+             bond2.getBeginAtom()->getIsAromatic() &&
              bond1.getEndAtom()->getIsAromatic() ==
-                 bond2.getEndAtom()->getIsAromatic()) ||
+             bond2.getEndAtom()->getIsAromatic()) ||
             (bond1.getBeginAtom()->getIsAromatic() ==
-                 bond2.getEndAtom()->getIsAromatic() &&
+             bond2.getEndAtom()->getIsAromatic() &&
              bond1.getEndAtom()->getIsAromatic() ==
-                 bond2.getBeginAtom()->getIsAromatic()))) {
+             bond2.getBeginAtom()->getIsAromatic()))) {
         return false;
       }
     }
     if ((vtxLabels1[bond1.getBeginAtomIdx()] &
          vtxLabels2[bond2.getBeginAtomIdx()])
-            .count() &&
+        .count() &&
         (vtxLabels1[bond1.getEndAtomIdx()] & vtxLabels2[bond2.getEndAtomIdx()])
-            .count()) {
+        .count()) {
       return true;
     }
     if ((vtxLabels1[bond1.getBeginAtomIdx()] &
          vtxLabels2[bond2.getEndAtomIdx()])
-            .count() &&
+        .count() &&
         (vtxLabels1[bond1.getEndAtomIdx()] &
          vtxLabels2[bond2.getBeginAtomIdx()])
-            .count()) {
+        .count()) {
       return true;
     }
   }
@@ -588,14 +597,24 @@ void buildPairs(const ROMol &mol1,
     for (const auto &bond2 : mol2.bonds()) {
       if (bondsMatch(*bond1, *bond2, vtxLabels1, edgeLabels1, vtxLabels2,
                      edgeLabels2, opts.ignoreAtomAromaticity)) {
-        if (opts.completeAromaticRings &&
-            !checkAromaticRings(mol1, mol1RingSmiles, mol1Rings, vtxLabels1,
-                                edgeLabels1, bond1->getIdx(), mol2,
-                                mol2RingSmiles, mol2Rings, vtxLabels2,
-                                edgeLabels2, bond2->getIdx())) {
+        // completeSmallestRings automatically implies completeAromaticRings and
+        // ringMatchesRingsOnly
+        if (opts.completeSmallestRings &&
+            !checkRings(mol1, mol1RingSmiles, mol1Rings, vtxLabels1,
+                        edgeLabels1, bond1->getIdx(), mol2,
+                        mol2RingSmiles, mol2Rings, vtxLabels2,
+                        edgeLabels2, bond2->getIdx(), false)) {
           continue;
         }
-        if (opts.ringMatchesRingOnly &&
+        if (opts.completeAromaticRings &&
+                   !checkRings(mol1, mol1RingSmiles, mol1Rings, vtxLabels1,
+                               edgeLabels1,
+                               bond1->getIdx(), mol2,
+                               mol2RingSmiles, mol2Rings, vtxLabels2,
+                               edgeLabels2, bond2->getIdx(), true)) {
+          continue;
+        }
+        if (!opts.completeSmallestRings && opts.ringMatchesRingOnly &&
             !checkRingMatchesRing(mol1, bond1->getIdx(), mol2,
                                   bond2->getIdx())) {
           continue;
@@ -612,17 +631,17 @@ void buildPairs(const ROMol &mol1,
 // product if either the 2 matching vertices in the 2 input vertices are
 // connected by edges with the same label, or neither is connected.
 void makeModularProduct(
-    const ROMol &mol1,
-    const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix1,
-    const std::vector<boost::dynamic_bitset<>> &vtxLabels1,
-    const std::vector<boost::dynamic_bitset<>> &edgeLabels1,
-    const std::vector<std::vector<int>> &distMatrix1, const ROMol &mol2,
-    const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix2,
-    const std::vector<boost::dynamic_bitset<>> &vtxLabels2,
-    const std::vector<boost::dynamic_bitset<>> &edgeLabels2,
-    const std::vector<std::vector<int>> &distMatrix2, const RascalOptions &opts,
-    std::vector<std::pair<int, int>> &vtxPairs,
-    std::vector<boost::dynamic_bitset<>> &modProd) {
+  const ROMol &mol1,
+  const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix1,
+  const std::vector<boost::dynamic_bitset<>> &vtxLabels1,
+  const std::vector<boost::dynamic_bitset<>> &edgeLabels1,
+  const std::vector<std::vector<int>> &distMatrix1, const ROMol &mol2,
+  const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix2,
+  const std::vector<boost::dynamic_bitset<>> &vtxLabels2,
+  const std::vector<boost::dynamic_bitset<>> &edgeLabels2,
+  const std::vector<std::vector<int>> &distMatrix2, const RascalOptions &opts,
+  std::vector<std::pair<int, int>> &vtxPairs,
+  std::vector<boost::dynamic_bitset<>> &modProd) {
   buildPairs(mol1, vtxLabels1, edgeLabels1, mol2, vtxLabels2, edgeLabels2, opts,
              vtxPairs);
   if (vtxPairs.empty()) {
@@ -637,7 +656,7 @@ void makeModularProduct(
     return;
   }
   modProd = std::vector<boost::dynamic_bitset<>>(
-      vtxPairs.size(), boost::dynamic_bitset<>(vtxPairs.size()));
+    vtxPairs.size(), boost::dynamic_bitset<>(vtxPairs.size()));
   for (auto i = 0u; i < vtxPairs.size() - 1; ++i) {
     for (auto j = i + 1; j < vtxPairs.size(); ++j) {
       if (vtxPairs[i].first == vtxPairs[j].first ||
@@ -654,7 +673,7 @@ void makeModularProduct(
       }
       if (opts.singleLargestFrag &&
           distMatrix1[vtxPairs[i].first][vtxPairs[j].first] !=
-              distMatrix2[vtxPairs[i].second][vtxPairs[j].second]) {
+          distMatrix2[vtxPairs[i].second][vtxPairs[j].second]) {
         distsOk = false;
       }
       if (distsOk && (!adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &&
@@ -663,7 +682,7 @@ void makeModularProduct(
            adjMatrix2[vtxPairs[i].second][vtxPairs[j].second] &&
            (*adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &
             *adjMatrix2[vtxPairs[i].second][vtxPairs[j].second])
-               .count())) {
+           .count())) {
         modProd[i][j] = modProd[j][i] = 1;
       }
     }
@@ -757,7 +776,7 @@ bool deltaYInClique(const std::vector<unsigned int> &clique, const ROMol &mol1,
   std::vector<std::pair<int, int>> bondMatches;
   for (auto mem : clique) {
     bondMatches.push_back(
-        std::make_pair(vtxPairs[mem].first, vtxPairs[mem].second));
+      std::make_pair(vtxPairs[mem].first, vtxPairs[mem].second));
   }
   std::vector<int> cliqueDegs1(mol1.getNumAtoms(), 0);
   std::vector<int> cliqueDegs2(mol2.getNumAtoms(), 0);
@@ -917,11 +936,11 @@ void updateMaxClique(const std::vector<unsigned int> &clique, bool deltaYPoss,
 // If the current time is beyond the timeout limit, throws a
 // TimedOutException.
 void checkTimeout(
-    const std::chrono::time_point<std::chrono::high_resolution_clock>
-        &startTime,
-    const RascalOptions &opts, const std::vector<unsigned int> &clique,
-    std::vector<std::vector<unsigned int>> &maxCliques,
-    unsigned long long &numSteps) {
+  const std::chrono::time_point<std::chrono::high_resolution_clock>
+  &startTime,
+  const RascalOptions &opts, const std::vector<unsigned int> &clique,
+  std::vector<std::vector<unsigned int>> &maxCliques,
+  unsigned long long &numSteps) {
   ++numSteps;
   if (numSteps == 100) {
     // This clock is very convenient, but seems quite expensive.  Calling it
@@ -929,7 +948,7 @@ void checkTimeout(
     auto currTime = std::chrono::high_resolution_clock::now();
     auto runTime =
         std::chrono::duration_cast<std::chrono::seconds>(currTime - startTime)
-            .count();
+        .count();
     if (runTime > opts.timeout) {
       if (maxCliques.empty()) {
         maxCliques.push_back(clique);
@@ -971,7 +990,7 @@ bool hasSubstructMatch(const ROMol &mol, const ROMol &query) {
   ps.maxMatches = 1;
   return !SubstructMatch(mol, query, ps).empty();
 }
-}  // namespace
+} // namespace
 
 // There are some simple substructures for which equivalent bond pruning isn't
 // allowed.
@@ -997,11 +1016,11 @@ bool checkEquivalentsAllowed(const ROMol &mol) {
 }
 
 void explorePartitions(
-    RascalStartPoint &starter,
-    const std::chrono::time_point<std::chrono::high_resolution_clock>
-        &startTime,
-    const RascalOptions &opts,
-    std::vector<std::vector<unsigned int>> &maxCliques) {
+  RascalStartPoint &starter,
+  const std::chrono::time_point<std::chrono::high_resolution_clock>
+  &startTime,
+  const RascalOptions &opts,
+  std::vector<std::vector<unsigned int>> &maxCliques) {
   unsigned long long numSteps = 0ULL;
   std::vector<std::shared_ptr<PartitionSet>> parts(1, starter.d_partSet);
   std::vector<unsigned int> clique;
@@ -1122,11 +1141,11 @@ void findEquivalentBonds(const ROMol &mol, std::vector<int> &equivBonds) {
 // adjacency matrix.
 // Adapted from https://en.wikipedia.org/wiki/Floyd–Warshall_algorithm
 void calcDistMatrix(
-    const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix,
-    std::vector<std::vector<int>> &distMatrix) {
+  const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix,
+  std::vector<std::vector<int>> &distMatrix) {
   distMatrix = std::vector<std::vector<int>>(
-      adjMatrix.size(),
-      std::vector<int>(adjMatrix.size(), adjMatrix.size() + 1));
+    adjMatrix.size(),
+    std::vector<int>(adjMatrix.size(), adjMatrix.size() + 1));
   for (size_t i = 0u; i < adjMatrix.size(); ++i) {
     distMatrix[i][i] = 0;
     for (size_t j = 0u; j < adjMatrix.size(); ++j) {
@@ -1159,9 +1178,9 @@ void makeAtomLabels(const ROMol &mol, const std::string &equivalentAtoms,
     boost::split(classSmarts, equivalentAtoms, boost::is_any_of(" "),
                  boost::token_compress_on);
     classSmarts.erase(
-        std::remove_if(classSmarts.begin(), classSmarts.end(),
-                       [](const auto &s) -> bool { return s.empty(); }),
-        classSmarts.end());
+      std::remove_if(classSmarts.begin(), classSmarts.end(),
+                     [](const auto &s) -> bool { return s.empty(); }),
+      classSmarts.end());
   }
   const unsigned int numBits = elementNames.size() + 1 + classSmarts.size();
   atomLabels.resize(mol.getNumAtoms());
@@ -1208,7 +1227,7 @@ void makeBondBitstrings(const ROMol &mol, const bool ignoreBondOrders,
     }
   }
 }
-}  // namespace details
+} // namespace details
 
 // Add the unique entries in bitsets to uniqueBitSets.
 void uniqueBitsets(const std::vector<boost::dynamic_bitset<>> &bitsets,
@@ -1223,12 +1242,12 @@ void uniqueBitsets(const std::vector<boost::dynamic_bitset<>> &bitsets,
 // order bond, atom1, atom2 where atom1 and atom2 are in their bitset
 // order, i.e. uniqueAtomLabels[atom1] < uniqueAtomLabels[atom2].
 void makeBondLabels(
-    const ROMol &mol, const std::vector<boost::dynamic_bitset<>> &bondLabels,
-    const std::vector<boost::dynamic_bitset<>> &uniqueBondLabels,
-    const std::vector<boost::dynamic_bitset<>> &atomLabels,
-    const std::vector<boost::dynamic_bitset<>> &uniqueAtomLabels,
-    std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
-        &bondTypeLabels) {
+  const ROMol &mol, const std::vector<boost::dynamic_bitset<>> &bondLabels,
+  const std::vector<boost::dynamic_bitset<>> &uniqueBondLabels,
+  const std::vector<boost::dynamic_bitset<>> &atomLabels,
+  const std::vector<boost::dynamic_bitset<>> &uniqueAtomLabels,
+  std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+  &bondTypeLabels) {
   auto getType =
       [](const boost::dynamic_bitset<> &bs,
          const std::vector<boost::dynamic_bitset<>> &types) -> unsigned int {
@@ -1323,15 +1342,15 @@ RascalStartPoint makeInitialPartitionSet(const ROMol *mol1, const ROMol *mol2,
   uniqueBitsets(atomLabels1, uniqueAtomLabels);
   uniqueBitsets(atomLabels2, uniqueAtomLabels);
   std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> bondLabels1,
-      bondLabels2;
+    bondLabels2;
   makeBondLabels(*starter.d_mol1, bondStrings1, uniqueBondLabels, atomLabels1,
                  uniqueAtomLabels, bondLabels1);
   makeBondLabels(*starter.d_mol2, bondStrings2, uniqueBondLabels, atomLabels2,
                  uniqueAtomLabels, bondLabels2);
 
   starter.d_partSet.reset(new PartitionSet(
-      starter.d_modProd, starter.d_vtxPairs, bondLabels1, bondLabels2,
-      uniqueAtomLabels, uniqueBondLabels, starter.d_lowerBound));
+    starter.d_modProd, starter.d_vtxPairs, bondLabels1, bondLabels2,
+    uniqueAtomLabels, uniqueBondLabels, starter.d_lowerBound));
 
   starter.d_deltaYPoss =
       deltaYExchangePossible(*starter.d_mol1, *starter.d_mol2);
@@ -1369,45 +1388,45 @@ std::vector<RascalResult> findMCES(RascalStartPoint &starter,
   std::vector<RascalResult> results;
   for (const auto &c : maxCliques) {
     results.push_back(
-        RascalResult(*starter.d_mol1, *starter.d_mol2, starter.d_adjMatrix1,
-                     starter.d_adjMatrix2, c, starter.d_vtxPairs, timedOut,
-                     starter.d_swapped, starter.d_tier1Sim, starter.d_tier2Sim,
-                     opts.ringMatchesRingOnly, opts.singleLargestFrag,
-                     opts.maxFragSeparation, opts.exactConnectionsMatch,
-                     opts.equivalentAtoms, opts.ignoreBondOrders));
+      RascalResult(*starter.d_mol1, *starter.d_mol2, starter.d_adjMatrix1,
+                   starter.d_adjMatrix2, c, starter.d_vtxPairs, timedOut,
+                   starter.d_swapped, starter.d_tier1Sim, starter.d_tier2Sim,
+                   opts.ringMatchesRingOnly, opts.singleLargestFrag,
+                   opts.maxFragSeparation, opts.exactConnectionsMatch,
+                   opts.equivalentAtoms, opts.ignoreBondOrders));
   }
   if (opts.singleLargestFrag) {
     std::sort(
-        results.begin(), results.end(),
-        [](const RascalResult &r1, const RascalResult &r2) -> bool {
-          if (r1.getAtomMatches().size() == r2.getAtomMatches().size()) {
-            if (r1.getBondMatches().size() == r2.getBondMatches().size()) {
-              if (r1.getAtomMatches() == r2.getAtomMatches()) {
-                return (r1.getBondMatches() < r2.getBondMatches());
-              }
-              return r1.getAtomMatches() < r2.getAtomMatches();
+      results.begin(), results.end(),
+      [](const RascalResult &r1, const RascalResult &r2) -> bool {
+        if (r1.getAtomMatches().size() == r2.getAtomMatches().size()) {
+          if (r1.getBondMatches().size() == r2.getBondMatches().size()) {
+            if (r1.getAtomMatches() == r2.getAtomMatches()) {
+              return (r1.getBondMatches() < r2.getBondMatches());
             }
-            return r1.getBondMatches().size() > r2.getBondMatches().size();
+            return r1.getAtomMatches() < r2.getAtomMatches();
           }
-          return (r1.getAtomMatches().size() > r2.getAtomMatches().size());
-        });
+          return r1.getBondMatches().size() > r2.getBondMatches().size();
+        }
+        return (r1.getAtomMatches().size() > r2.getAtomMatches().size());
+      });
 
     // the singleLargestFrag method throws bits of solutions out, so there may
     // now be duplicates and results that are different sizes.
     results.erase(
-        std::unique(results.begin(), results.end(),
-                    [](const RascalResult &r1, const RascalResult &r2) -> bool {
-                      return (r1.getAtomMatches() == r2.getAtomMatches() &&
-                              r1.getBondMatches() == r2.getBondMatches());
-                    }),
-        results.end());
+      std::unique(results.begin(), results.end(),
+                  [](const RascalResult &r1, const RascalResult &r2) -> bool {
+                    return (r1.getAtomMatches() == r2.getAtomMatches() &&
+                            r1.getBondMatches() == r2.getBondMatches());
+                  }),
+      results.end());
     boost::dynamic_bitset<> want(results.size());
     want.set();
     for (size_t i = 1; i < results.size(); ++i) {
       if (results[i].getAtomMatches().size() <
-              results[0].getAtomMatches().size() ||
+          results[0].getAtomMatches().size() ||
           results[i].getBondMatches().size() <
-              results[0].getBondMatches().size()) {
+          results[0].getBondMatches().size()) {
         want[i] = false;
       }
     }
@@ -1436,20 +1455,19 @@ std::vector<RascalResult> rascalMCES(const ROMol &mol1, const ROMol &mol2,
   if (!starter.d_partSet) {
     if (opts.returnEmptyMCES) {
       return std::vector<RascalResult>(
-          1, RascalResult(starter.d_tier1Sim, starter.d_tier2Sim));
+        1, RascalResult(starter.d_tier1Sim, starter.d_tier2Sim));
     }
     return std::vector<RascalResult>();
   }
   auto results = findMCES(starter, opts);
   if (results.empty() && opts.returnEmptyMCES) {
     return std::vector<RascalResult>(
-        1, RascalResult(starter.d_tier1Sim, starter.d_tier2Sim));
+      1, RascalResult(starter.d_tier1Sim, starter.d_tier2Sim));
   }
   if (!opts.allBestMCESs && results.size() > 1) {
     results.erase(results.begin() + 1, results.end());
   }
   return results;
 }
-
-}  // namespace RascalMCES
-}  // namespace RDKit
+} // namespace RascalMCES
+} // namespace RDKit
