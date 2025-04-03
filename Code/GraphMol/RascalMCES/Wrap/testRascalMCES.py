@@ -171,11 +171,14 @@ class TestCase(unittest.TestCase):
     mol2 = Chem.MolFromSmiles('c1ccccc1C(C)C')
     results = rdRascalMCES.FindMCES(mol1, mol2, opts)
     self.assertEqual(results[0].numFragments, 1)
+    self.assertEqual(len(results[0].bondMatches()), 9)
     self.assertEqual(results[0].smartsString, 'c1:c:c:c:c:c:1-C(-C)-C')
 
     opts.exactConnectionsMatch = True
     results = rdRascalMCES.FindMCES(mol1, mol2, opts)
+    self.assertEqual(len(results), 4)
     self.assertEqual(results[0].numFragments, 2)
+    self.assertEqual(len(results[0].bondMatches()), 8)
     self.assertEqual(results[0].smartsString,
                      '[#6&a&D2]1:[#6&a&D2]:[#6&a&D2]:[#6&a&D2]:[#6&a&D2]:[#6&a&D3]:1.[#6&A&D3](-[#6&A&D1])-[#6&A&D1]')
 

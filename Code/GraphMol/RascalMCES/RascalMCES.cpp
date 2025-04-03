@@ -560,6 +560,22 @@ bool bondsMatch(const Bond &bond1, const Bond &bond2,
     }
   }
 
+  if (opts.exactConnectionsMatch) {
+    auto b1bd = bond1.getBeginAtom()->getDegree();
+    auto b1ed = bond1.getEndAtom()->getDegree();
+    auto b2bd = bond2.getBeginAtom()->getDegree();
+    auto b2ed = bond2.getEndAtom()->getDegree();
+    bool match = false;
+    if (b1bd == b2bd && b1ed == b2ed) {
+      match = true;
+    }
+    if (b1bd == b2ed && b1ed == b2bd) {
+      match = true;
+    }
+    if (!match) {
+      return false;
+    }
+  }
   if ((vtxLabels1[bond1.getBeginAtomIdx()] &
        vtxLabels2[bond2.getBeginAtomIdx()])
           .count() &&

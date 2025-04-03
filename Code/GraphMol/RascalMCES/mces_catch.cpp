@@ -1170,6 +1170,8 @@ TEST_CASE("Exact Connection Matches", "[basics]") {
     opts.similarityThreshold = 0.1;
     opts.allBestMCESs = true;
     auto res1 = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res1.empty());
+    CHECK(res1.size() == 48);
     CHECK(res1.front().getNumFrags() == 2);
     CHECK(res1.front().getSmarts() == "c1:c:c:c:c:c:1.C(=O)-C(-N)-N");
     auto q1 = v2::SmilesParse::MolFromSmarts(res1.front().getSmarts());
@@ -1182,6 +1184,8 @@ TEST_CASE("Exact Connection Matches", "[basics]") {
 
     opts.exactConnectionsMatch = true;
     auto res2 = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res2.empty());
+    CHECK(res2.size() == 4);
     CHECK(res2.front().getNumFrags() == 2);
     CHECK(res2.front().getSmarts() ==
           "[#6&a&D2]1:[#6&a&D2]:[#6&a&D2]:[#6&a&D2]:[#6&a&D2]:[#6&a&D3]:1."
@@ -1227,6 +1231,22 @@ TEST_CASE("Exact Connection Matches", "[basics]") {
       auto res2 = rascalMCES(*m3, *m4, opts);
       CHECK(res2.front().getBondMatches().size() == 12);
     }
+  }
+  {
+    // This is the same one as in the Python test, which showed an
+    // error recently.
+    auto m2 = "c1ccccc1C1CCC(C(C)C)C1"_smiles;
+    REQUIRE(m2);
+    auto m1 = "c1ccccc1C(C)C"_smiles;
+    REQUIRE(m1);
+    RascalOptions opts;
+    opts.similarityThreshold = 0.5;
+    opts.allBestMCESs = false;
+    opts.exactConnectionsMatch = true;
+
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.front().getNumFrags() == 2);
   }
 }
 
