@@ -44,6 +44,9 @@
 #include <GraphMol/RascalMCES/RascalResult.h>
 #include <GraphMol/RascalMCES/RascalDetails.h>
 
+using Clock = std::chrono::steady_clock;
+using TimePoint = std::chrono::time_point<Clock>;
+
 namespace RDKit {
 namespace RascalMCES {
 class TimedOutException : public std::exception {
@@ -978,21 +981,15 @@ void updateMaxClique(const std::vector<unsigned int> &clique, bool deltaYPoss,
 
 // If the current time is beyond the timeout limit, throws a
 // TimedOutException.
-void checkTimeout(
-    const std::chrono::time_point<std::chrono::high_resolution_clock>
-        &startTime,
-    const RascalOptions &opts, const std::vector<unsigned int> &clique,
-    std::vector<std::vector<unsigned int>> &maxCliques,
-    unsigned long long &numSteps) {
+void checkTimeout(const TimePoint &startTime, const TimePoint *endTime,
+                  const std::vector<unsigned int> &clique,
+                  std::vector<std::vector<unsigned int>> &maxCliques,
+                  unsigned long long &numSteps) {
   ++numSteps;
   if (numSteps == 100) {
     // This clock is very convenient, but seems quite expensive.  Calling it
     // every step added 10% to the runtime.
-    auto currTime = std::chrono::high_resolution_clock::now();
-    auto runTime =
-        std::chrono::duration_cast<std::chrono::seconds>(currTime - startTime)
-            .count();
-    if (runTime > opts.timeout) {
+    if (endTime != nullptr && Clock::now() > *endTime) {
       if (maxCliques.empty()) {
         maxCliques.push_back(clique);
       } else {
@@ -1003,6 +1000,10 @@ void checkTimeout(
           maxCliques.push_back(clique);
         }
       }
+      auto currTime = std::chrono::high_resolution_clock::now();
+      auto runTime =
+          std::chrono::duration_cast<std::chrono::seconds>(currTime - startTime)
+              .count();
       throw TimedOutException(runTime, maxCliques);
     }
     numSteps = 0ULL;
@@ -1058,12 +1059,8 @@ bool checkEquivalentsAllowed(const ROMol &mol) {
   return true;
 }
 
-void explorePartitions(
-    RascalStartPoint &starter,
-    const std::chrono::time_point<std::chrono::high_resolution_clock>
-        &startTime,
-    const RascalOptions &opts,
-    std::vector<std::vector<unsigned int>> &maxCliques) {
+void explorePartitions(RascalStartPoint &starter, const RascalOptions &opts,
+                       std::vector<std::vector<unsigned int>> &maxCliques) {
   unsigned long long numSteps = 0ULL;
   std::vector<std::shared_ptr<PartitionSet>> parts(1, starter.d_partSet);
   std::vector<unsigned int> clique;
@@ -1073,9 +1070,17 @@ void explorePartitions(
     canDoEquivs = checkEquivalentsAllowed(*starter.d_mol1) &&
                   checkEquivalentsAllowed(*starter.d_mol2);
   }
+  const TimePoint *endTime = nullptr;
+  TimePoint endTimePt;
+  if (opts.timeout > 0) {
+    endTimePt = Clock::now() + std::chrono::seconds(opts.timeout);
+    endTime = &endTimePt;
+  }
+
+  const TimePoint startTime = Clock::now();
   while (!parts.empty()) {
     if (opts.timeout != -1) {
-      checkTimeout(startTime, opts, clique, maxCliques, numSteps);
+      checkTimeout(startTime, endTime, clique, maxCliques, numSteps);
     }
     auto part = parts.back();
     bool goDeeper = false;
@@ -1468,14 +1473,13 @@ std::vector<RascalResult> findMCES(RascalStartPoint &starter,
                                    const RascalOptions &opts) {
   std::vector<unsigned int> clique;
   std::vector<std::vector<unsigned int>> maxCliques;
-  auto startTime = std::chrono::high_resolution_clock::now();
   bool timedOut = false;
   RascalOptions tmpOpts{opts};
   if (opts.singleLargestFrag) {
     tmpOpts.allBestMCESs = true;
   }
   try {
-    explorePartitions(starter, startTime, tmpOpts, maxCliques);
+    explorePartitions(starter, tmpOpts, maxCliques);
   } catch (TimedOutException &e) {
     BOOST_LOG(rdWarningLog) << e.what() << std::endl;
     maxCliques = e.d_cliques;
