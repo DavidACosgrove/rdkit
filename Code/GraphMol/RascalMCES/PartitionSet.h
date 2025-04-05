@@ -38,6 +38,12 @@ class PartitionSet {
       const std::vector<boost::dynamic_bitset<>> &uniqueAtomLabels,
       const std::vector<boost::dynamic_bitset<>> &uniqueBondLabels,
       unsigned int lowerBound);
+  PartitionSet(const PartitionSet &other) = default;
+  PartitionSet(PartitionSet &&other) = default;
+  ~PartitionSet() = default;
+
+  PartitionSet &operator=(const PartitionSet &other) = default;
+  PartitionSet &operator=(PartitionSet &&other) = default;
 
   bool isEmpty() const { return d_parts.empty(); }
 

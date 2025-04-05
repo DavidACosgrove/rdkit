@@ -301,9 +301,8 @@ void reassessVertexInMoreThanOneClass(
         if (seenVtx[i]) {
           vtxInMoreThanOneClass = true;
           return;
-        } else {
-          seenVtx[i] = true;
         }
+        seenVtx[i] = true;
       }
     }
   }
@@ -318,7 +317,7 @@ void PartitionSet::decrementVertexCounts(int vtxNum) {
   // a type.  If it has, the upperBound will have changed.
   if (!d_vtx1Counts[(*d_VtxPairs)[vtxNum].first]) {
     for (size_t i = 0; i < d_vtx1TypeCountVtxes.size(); i++) {
-      if (d_vtx1TypeCountVtxes[i].size()) {
+      if (d_vtx1TypeCounts[i] && d_vtx1TypeCountVtxes[i].size()) {
         d_vtx1TypeCountVtxes[i][(*d_VtxPairs)[vtxNum].first] = false;
         d_vtx1TypeCounts[i] = static_cast<int>(d_vtx1TypeCountVtxes[i].count());
         reassess = true;
@@ -328,7 +327,7 @@ void PartitionSet::decrementVertexCounts(int vtxNum) {
   --d_vtx2Counts[(*d_VtxPairs)[vtxNum].second];
   if (!d_vtx2Counts[(*d_VtxPairs)[vtxNum].second]) {
     for (size_t i = 0; i < d_vtx2TypeCountVtxes.size(); i++) {
-      if (d_vtx2TypeCountVtxes[i].size()) {
+      if (d_vtx2TypeCounts[i] && d_vtx2TypeCountVtxes[i].size()) {
         d_vtx2TypeCountVtxes[i][(*d_VtxPairs)[vtxNum].second] = false;
         d_vtx2TypeCounts[i] = static_cast<int>(d_vtx2TypeCountVtxes[i].count());
         reassess = true;
