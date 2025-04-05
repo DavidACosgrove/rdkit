@@ -17,6 +17,9 @@
 #include <GraphMol/RascalMCES/RascalOptions.h>
 #include <GraphMol/RascalMCES/RascalResult.h>
 
+#define COMPARE_FUNC_NAME "__call__"
+#define CALLBACK_FUNC_NAME "__call__"
+
 namespace python = boost::python;
 
 namespace {
@@ -153,6 +156,228 @@ python::list rascalButinaClusterWrapper(python::object mols,
   return packOutputMols(clusters);
 }
 
+struct PyAtomCompareUserData {
+  const void *userData;
+  python::object pyUserData;
+};
+
+struct PyCompareFunctionWrapper
+    : public boost::python::wrapper<PyCompareFunctionWrapper> {
+  PyCompareFunctionWrapper() {}
+  PyCompareFunctionWrapper(PyObject *py_obj) {
+    PRECONDITION(py_obj, "PyObject* must not be NULL");
+    d_pyObject.reset(
+        new python::object(python::handle<>(python::borrowed(py_obj))));
+  }
+  virtual ~PyCompareFunctionWrapper() {}
+  virtual const char *subclassName() const {
+    throw std::invalid_argument(
+        "subclassName() must be overridden in the "
+        "derived class");
+  }
+  const python::object &pyObject() const { return *d_pyObject; }
+
+ protected:
+  void failedToExtractPyObject() const {
+    std::stringstream ss;
+    ss << "Failed to extract object from " << subclassName() << " subclass";
+    PyErr_SetString(PyExc_RuntimeError, ss.str().c_str());
+    python::throw_error_already_set();
+  }
+  void errorNotOverridden() const {
+    std::stringstream ss;
+    ss << "The " COMPARE_FUNC_NAME "() method must be overridden in the rdFMCS."
+       << subclassName() << " subclass";
+    PyErr_SetString(PyExc_AttributeError, ss.str().c_str());
+    python::throw_error_already_set();
+  }
+  void errorNotDefined() const {
+    // should never happen as the method is virtual but not pure in the C++
+    // class
+    std::stringstream ss;
+    ss << "The " CALLBACK_FUNC_NAME
+          "() method must be defined "
+          "in the "
+       << subclassName() << " subclass";
+    PyErr_SetString(PyExc_AttributeError, ss.str().c_str());
+    python::throw_error_already_set();
+  }
+  void errorNotCallable() const {
+    std::stringstream ss;
+    ss << "The " COMPARE_FUNC_NAME " attribute in the " << subclassName()
+       << " subclass is not a callable method";
+    PyErr_SetString(PyExc_TypeError, ss.str().c_str());
+    python::throw_error_already_set();
+  }
+  virtual bool hasPythonOverride(const char *attrName) const {
+    auto obj = get_override(attrName);
+    return PyCallable_Check(obj.ptr());
+  }
+
+  void extractPyMCSWrapper() {
+    d_pyObjectExtractor.reset(
+        new python::extract<PyCompareFunctionWrapper *>(*d_pyObject));
+    if (d_pyObjectExtractor->check()) {
+      PyObject *callable =
+          PyObject_GetAttrString(d_pyObject->ptr(), CALLBACK_FUNC_NAME);
+      if (!callable) {
+        errorNotDefined();
+      }
+      if (!PyCallable_Check(callable)) {
+        errorNotCallable();
+      }
+      if (!pyObjectExtract()->hasPythonOverride(CALLBACK_FUNC_NAME)) {
+        errorNotOverridden();
+      }
+    } else {
+      std::stringstream ss;
+      ss << "expected an instance of the rdFMCS." << subclassName()
+         << " subclass";
+      PyErr_SetString(PyExc_TypeError, ss.str().c_str());
+      python::throw_error_already_set();
+    }
+  }
+  PyCompareFunctionWrapper *pyObjectExtract() const {
+    return (*d_pyObjectExtractor)();
+  }
+
+ private:
+  std::unique_ptr<python::object> d_pyObject;
+  std::unique_ptr<python::extract<PyCompareFunctionWrapper *>>
+      d_pyObjectExtractor;
+};
+
+struct PyAtomCompareFunction : PyCompareFunctionWrapper {
+  PyAtomCompareFunction() {}
+  PyAtomCompareFunction(PyObject *py_obj) : PyCompareFunctionWrapper(py_obj) {}
+  ~PyAtomCompareFunction() {}
+
+  PyAtomCompareFunction *extractPyObject() const {
+    auto res = dynamic_cast<PyAtomCompareFunction *>(pyObjectExtract());
+    if (!res) {
+      failedToExtractPyObject();
+    }
+    return res;
+  }
+
+  const char *subclassName() const { return "PyAtomCompareFunction"; }
+  virtual bool operator()(const ROMol &, unsigned int, const ROMol &,
+                          unsigned) const {
+    errorNotOverridden();
+    return false;
+  }
+};
+
+class PyRascalOptions : public boost::noncopyable {
+ public:
+  PyRascalOptions() : d_rascalOptions(new RascalMCES::RascalOptions()) {}
+  ~PyRascalOptions() = default;
+
+  const RascalMCES::RascalOptions *get() const { return d_rascalOptions.get(); }
+  double getSimilarityThreshold() const {
+    return d_rascalOptions->similarityThreshold;
+  }
+  void setSimilarityThreshold(double val) {
+    d_rascalOptions->similarityThreshold = val;
+  }
+  bool getSingleLargestFrag() const {
+    return d_rascalOptions->singleLargestFrag;
+  }
+  void setSingleLargestFrag(bool val) {
+    d_rascalOptions->singleLargestFrag = val;
+  }
+  bool getCompleteAromaticRings() const {
+    return d_rascalOptions->completeAromaticRings;
+  }
+  void setCompleteAromaticRings(bool val) {
+    d_rascalOptions->completeAromaticRings = val;
+  }
+  bool getRingMatchesRingOnly() const {
+    return d_rascalOptions->ringMatchesRingOnly;
+  }
+  void setRingMatchesRingOnly(bool val) {
+    d_rascalOptions->ringMatchesRingOnly = val;
+  }
+  bool getCompleteSmallestRings() const {
+    return d_rascalOptions->completeSmallestRings;
+  }
+  void setCompleteSmallestRings(bool val) {
+    d_rascalOptions->completeSmallestRings = val;
+  }
+  bool getExactConnectionsMatch() const {
+    return d_rascalOptions->exactConnectionsMatch;
+  }
+  void setExactConnectionsMatch(bool val) {
+    d_rascalOptions->exactConnectionsMatch = val;
+  }
+  int getMinFragSize() const { return d_rascalOptions->minFragSize; }
+  void setMinFragSize(const int val) { d_rascalOptions->minFragSize = val; }
+  int getMaxFragSeparation() const {
+    return d_rascalOptions->maxFragSeparation;
+  }
+  void setMaxFragSeparation(const int val) {
+    d_rascalOptions->maxFragSeparation = val;
+  }
+  bool getAllBestMCESs() const { return d_rascalOptions->allBestMCESs; }
+  void setAllBestMCESs(const bool val) { d_rascalOptions->allBestMCESs = val; }
+  bool getReturnEmptyMCES() const { return d_rascalOptions->returnEmptyMCES; }
+  void setReturnEmptyMCES(const bool val) {
+    d_rascalOptions->returnEmptyMCES = val;
+  }
+  int getTimeout() const { return d_rascalOptions->timeout; }
+  void setTimeout(const int val) { d_rascalOptions->timeout = val; }
+  unsigned int getMaxBondMatchPairs() const {
+    return d_rascalOptions->maxBondMatchPairs;
+  }
+  void setMaxBondMatchPairs(const unsigned int val) {
+    d_rascalOptions->maxBondMatchPairs = val;
+  }
+  std::string getEquivalentAtoms() const {
+    return d_rascalOptions->equivalentAtoms;
+  }
+  void setEquivalentAtoms(const std::string &val) {
+    d_rascalOptions->equivalentAtoms = val;
+  }
+  bool getIgnoreBondOrders() const { return d_rascalOptions->ignoreBondOrders; }
+  void setIgnoreBondOrders(const bool val) {
+    d_rascalOptions->ignoreBondOrders = val;
+  }
+  bool ignoreAtomAromaticity() const {
+    return d_rascalOptions->ignoreAtomAromaticity;
+  }
+  void setIgnoreAtomAromaticity(const bool val) {
+    d_rascalOptions->ignoreAtomAromaticity = val;
+  }
+  unsigned int getMinCliqueSize() const {
+    return d_rascalOptions->minCliqueSize;
+  }
+  void setMinCliqueSize(const unsigned int val) {
+    d_rascalOptions->minCliqueSize = val;
+  }
+  python::object getAtomCompareFunction() const {
+    python::object atomCompareFunction;
+    if (!d_rascalOptions->atomCompareFunction) {
+    }
+    return atomCompareFunction;
+  }
+  void setAtomCompareFunction(PyObject *atomComp) {
+    d_rascalOptions->atomCompareFunction = AtomComparePyFunction;
+  }
+
+ private:
+  static bool AtomComparePyFunction(const ROMol &mol1, unsigned int atom1,
+                                    const ROMol &mol2, unsigned int atom2,
+                                    void *userData) {
+    PRECONDITION(userData, "userData must not be NULL");
+    bool res = false;
+    res =
+        python::call_method<bool>(nullptr, COMPARE_FUNC_NAME, boost::ref(mol1),
+                                  atom1, boost::ref(mol2), atom2);
+    return res;
+  }
+  std::unique_ptr<RascalMCES::RascalOptions> d_rascalOptions;
+};
+
 BOOST_PYTHON_MODULE(rdRascalMCES) {
   python::scope().attr("__doc__") =
       "Module containing implementation of RASCAL Maximum Common Edge Substructure algorithm.";
@@ -173,12 +398,14 @@ BOOST_PYTHON_MODULE(rdRascalMCES) {
           "completeAromaticRings",
           &RDKit::RascalMCES::RascalOptions::completeAromaticRings,
           "If True (default), partial aromatic rings won't be returned.")
-      .def_readwrite("ringMatchesRingOnly",
-                     &RDKit::RascalMCES::RascalOptions::ringMatchesRingOnly,
-                     "If True (default is False), ring bonds won't match non-ring bonds.")
-      .def_readwrite("completeSmallestRings",
-                     &RDKit::RascalMCES::RascalOptions::completeSmallestRings,
-                     "If True (default is False), only complete rings present in both input molecule's RingInfo will be returned. Implies completeAromaticRings and ringMatchesRingOnly.")
+      .def_readwrite(
+          "ringMatchesRingOnly",
+          &RDKit::RascalMCES::RascalOptions::ringMatchesRingOnly,
+          "If True (default is False), ring bonds won't match non-ring bonds.")
+      .def_readwrite(
+          "completeSmallestRings",
+          &RDKit::RascalMCES::RascalOptions::completeSmallestRings,
+          "If True (default is False), only complete rings present in both input molecule's RingInfo will be returned. Implies completeAromaticRings and ringMatchesRingOnly.")
       .def_readwrite(
           "exactConnectionsMatch",
           &RDKit::RascalMCES::RascalOptions::exactConnectionsMatch,
@@ -232,7 +459,14 @@ BOOST_PYTHON_MODULE(rdRascalMCES) {
                      " is > 0, it will over-ride the"
                      " similarityThreshold."
                      "  Note that this refers to the"
-                     " minimum number of BONDS in the MCES. Default=0.");
+                     " minimum number of BONDS in the MCES. Default=0.")
+      .def_readwrite(
+          "atomCompareFunction", &RDKit::PyAtomCompareFunction::operator(),
+          "Function to be used to compare atoms in 2 molecules.  Must"
+          " be an instance of a user-defined subclass of rdRascalMCES.AtomCompareFunction.")
+      .def_readwrite("atomCompareFunctionUserData",
+                     &RDKit::RascalMCES::RascalOptions::atomCompareUserData,
+                     "Optional user data for use in atomCompareFunction.");
 
   docString =
       "Find one or more MCESs between the 2 molecules given.  Returns a list of "
@@ -301,6 +535,17 @@ BOOST_PYTHON_MODULE(rdRascalMCES) {
   python::def("RascalButinaCluster", &RDKit::rascalButinaClusterWrapper,
               (python::arg("mols"), python::arg("opts") = python::object()),
               docString.c_str());
+
+  python::class_<RDKit::PyAtomCompareFunction, boost::noncopyable>(
+      "AtomCompareFunction",
+      "Base class.  Subclass and override AtomCompareFunction." COMPARE_FUNC_NAME
+      "()"
+      "to define custom atom comparison functions, then set"
+      " RascalOptions.atomCompareFunction to an instance of the subclass.")
+      .def(COMPARE_FUNC_NAME, &RDKit::PyAtomCompareFunction::operator(),
+           (python::arg("self"), python::arg("mol1"), python::arg("atom1"),
+            python::arg("mol2"), python::arg("atom2")),
+           "override to implement custom atom comparison");
 }
 
 }  // namespace RDKit
