@@ -538,7 +538,7 @@ bool bondsMatch(const Bond &bond1, const Bond &bond2,
   if (opts.bondCompareFunction) {
     if (!opts.bondCompareFunction(bond1.getOwningMol(), bond1.getIdx(),
                                   bond2.getOwningMol(), bond2.getIdx(),
-                                  nullptr)) {
+                                  opts.bondCompareUserData)) {
       return false;
     }
   } else {
@@ -592,18 +592,18 @@ bool bondsMatch(const Bond &bond1, const Bond &bond2,
   if (opts.atomCompareFunction) {
     if (opts.atomCompareFunction(bond1.getOwningMol(), bond1.getBeginAtomIdx(),
                                  bond2.getOwningMol(), bond2.getBeginAtomIdx(),
-                                 nullptr) &&
+                                 opts.atomCompareUserData) &&
         opts.atomCompareFunction(bond1.getOwningMol(), bond1.getEndAtomIdx(),
                                  bond2.getOwningMol(), bond2.getEndAtomIdx(),
-                                 nullptr)) {
+                                 opts.atomCompareUserData)) {
       return true;
     }
     if (opts.atomCompareFunction(bond1.getOwningMol(), bond1.getBeginAtomIdx(),
                                  bond2.getOwningMol(), bond2.getEndAtomIdx(),
-                                 nullptr) &&
+                                 opts.atomCompareUserData) &&
         opts.atomCompareFunction(bond1.getOwningMol(), bond1.getEndAtomIdx(),
                                  bond2.getOwningMol(), bond2.getBeginAtomIdx(),
-                                 nullptr)) {
+                                 opts.atomCompareUserData)) {
       return true;
     }
   }
@@ -1312,7 +1312,7 @@ void makeBondBitstrings(const ROMol &mol1, const ROMol &mol2,
   for (auto bond1 : mol1.bonds()) {
     for (auto bond2 : mol2.bonds()) {
       if (opts.bondCompareFunction(mol1, bond1->getIdx(), mol2, bond2->getIdx(),
-                                   nullptr)) {
+                                   opts.bondCompareUserData)) {
         bondLabels1[bond1->getIdx()][lastBit] = true;
         bondLabels2[bond2->getIdx()][lastBit] = true;
       }
