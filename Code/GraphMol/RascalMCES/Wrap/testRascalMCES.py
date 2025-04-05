@@ -222,6 +222,25 @@ class TestCase(unittest.TestCase):
     results = rdRascalMCES.FindMCES(mol1, mol2, opts)
     self.assertFalse(results)
 
+  def testAtomCompareFunction(self):
+    opts = rdRascalMCES.RascalOptions()
+    mol1 = Chem.MolFromSmiles('C1CCOCC1')
+    mol2 = Chem.MolFromSmiles('C1CC[14O]CC1')
+    results = rdRascalMCES.FindMCES(mol1, mol2, opts)
+    self.assertEqual(len(results), 1)
+    print(f'Number of results : {len(results)}')
+    print(results[0].smartsString)
+
+    class CompareIsotopes(rdRascalMCES.AtomCompareFunction):
+      def __call__(self, mol1, atom1, mol2, atom2):
+        a1 = mol1.GetAtomWithIdx(atom1)
+        a2 = mol2.GetAtomWithIdx(atom2)
+        return a1.GetIsotope() == a2.GetIsotope()
+
+    opts.atomCompareFunction = CompareIsotopes()
+    results = rdRascalMCES.FindMCES(mol1, mol2, opts)
+    print(f'Number of results : {len(results)}')
+        
     
 if __name__ == "__main__":
   unittest.main()
