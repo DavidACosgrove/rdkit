@@ -306,6 +306,13 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   void buildSynthonFingerprints(
       const FingerprintGenerator<std::uint64_t> &fpGen);
 
+  /*!
+   * Create conformers for the synthons ready for shape searching.
+   *
+   * @param numConfs: Maximum number of conformers per synthon.
+   */
+  void buildSynthonConformers(unsigned int numConfs = 10, int numThreads = 1);
+
  protected:
   unsigned int getMaxNumSynthons() const { return d_maxNumSynthons; }
 
@@ -383,7 +390,8 @@ RDKIT_SYNTHONSPACESEARCH_EXPORT void convertTextToDBFile(
  *
  * @return std::string
  */
-RDKIT_SYNTHONSPACESEARCH_EXPORT std::string formattedIntegerString(std::int64_t value);
+RDKIT_SYNTHONSPACESEARCH_EXPORT std::string formattedIntegerString(
+    std::int64_t value);
 
 }  // namespace SynthonSpaceSearch
 }  // namespace RDKit

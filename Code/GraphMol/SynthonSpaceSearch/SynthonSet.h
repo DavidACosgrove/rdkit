@@ -99,6 +99,13 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   void buildAddAndSubtractFPs(const FingerprintGenerator<std::uint64_t> &fpGen,
                               unsigned int numBits);
 
+  /*!
+   * Create conformers for the synthons ready for shape searching.
+   *
+   * @param numConfs: Maximum number of conformers per synthon.
+   */
+  void buildSynthonConformers(unsigned int numConfs, int numThreads);
+
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as
   // d_synthons.
@@ -146,6 +153,10 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
 
   // The number of connectors in the synthons in each synthon set.
   std::vector<int> d_numConnectors;
+
+  // Synthons are shared, so sometimes we need to copy the molecules into a
+  // new set that we can fiddle with without upsetting anything else.
+  std::vector<std::vector<std::unique_ptr<RWMol>>> copySynthons() const;
 };
 
 }  // namespace SynthonSpaceSearch

@@ -609,6 +609,16 @@ void SynthonSpace::buildSynthonFingerprints(
   }
 }
 
+void SynthonSpace::buildSynthonConformers(unsigned int numConfs,
+                                          int numThreads) {
+  for (const auto &[id, synthSet] : d_reactions) {
+    if (ControlCHandler::getGotSignal()) {
+      return;
+    }
+    synthSet->buildSynthonConformers(numConfs, numThreads);
+  }
+}
+
 bool SynthonSpace::hasAddAndSubstractFingerprints() const {
   if (d_reactions.empty()) {
     return false;

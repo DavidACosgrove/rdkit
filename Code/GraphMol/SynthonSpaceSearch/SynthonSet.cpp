@@ -22,13 +22,15 @@
 #include <boost/random/discrete_distribution.hpp>
 
 #include <DataStructs/ExplicitBitVect.h>
+#include <GraphMol/atomic_data.h>
 #include <GraphMol/MolPickler.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
+#include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <../External/pubchem_shape/PubChemShape.hpp>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
-
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 #include <RDGeneral/ControlCHandler.h>
 
@@ -261,6 +263,19 @@ std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
   }
   return sampleMolecules;
 }
+
+int findMolNumFrag(const std::vector<std::unique_ptr<ROMol>> &molFrags,
+                   size_t molNum) {
+  for (size_t i = 0; i < molFrags.size(); ++i) {
+    for (const auto &atom : molFrags[i]->atoms()) {
+      if (atom->hasProp("molNum") &&
+          atom->getProp<unsigned int>("molNum") == molNum) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
 }  // namespace
 
 void SynthonSet::makeSynthonSearchMols() {
@@ -270,26 +285,7 @@ void SynthonSet::makeSynthonSearchMols() {
   // when a query molecule is split up, the fragments should be
   // consistent with those of the corresponding synthons.
 
-  // Synthons are shared, so we need to copy the molecules into a new
-  // set that we can fiddle with without upsetting anything else.
-  std::vector<std::vector<std::unique_ptr<RWMol>>> synthonMolCopies(
-      d_synthons.size());
-  for (size_t i = 0; i < d_synthons.size(); ++i) {
-    synthonMolCopies[i].reserve(d_synthons[i].size());
-    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
-      synthonMolCopies[i].emplace_back(
-          new RWMol(*d_synthons[i][j].second->getOrigMol().get()));
-      for (auto &atom : synthonMolCopies[i][j]->atoms()) {
-        atom->setProp<int>("molNum", i);
-        atom->setProp<int>("idx", atom->getIdx());
-      }
-      for (auto &bond : synthonMolCopies[i][j]->bonds()) {
-        bond->setProp<int>("molNum", i);
-        bond->setProp<int>("idx", bond->getIdx());
-      }
-    }
-  }
-
+  auto synthonMolCopies = copySynthons();
   std::vector<std::pair<unsigned int, unsigned int>> dummyLabels;
   for (unsigned int i = 1; i <= MAX_CONNECTOR_NUM; ++i) {
     dummyLabels.emplace_back(i, i);
@@ -311,19 +307,7 @@ void SynthonSet::makeSynthonSearchMols() {
           *sampleMols[j], splitBonds, true, &dummyLabels));
       std::vector<std::unique_ptr<ROMol>> molFrags;
       MolOps::getMolFrags(*fragMol, molFrags, false);
-      int fragWeWant = -1;
-      for (size_t i = 0; i < molFrags.size(); ++i) {
-        for (const auto &atom : molFrags[i]->atoms()) {
-          if (atom->hasProp("molNum") &&
-              atom->getProp<unsigned int>("molNum") == synthSetNum) {
-            fragWeWant = i;
-            break;
-          }
-        }
-        if (fragWeWant != -1) {
-          break;
-        }
-      }
+      int fragWeWant = findMolNumFrag(molFrags, synthSetNum);
       unsigned int otf;
       sanitizeMol(*static_cast<RWMol *>(molFrags[fragWeWant].get()), otf,
                   MolOps::SANITIZE_SYMMRINGS);
@@ -536,6 +520,62 @@ void SynthonSet::buildAddAndSubtractFPs(
   *d_subtractFP = ~(*d_subtractFP);
 }
 
+void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
+  // Each synthon is built into a product, its conformers generated
+  // and then split out again into the original pieces.
+  auto synthonMolCopies = copySynthons();
+  std::vector<std::pair<unsigned int, unsigned int>> dummyLabels;
+  for (unsigned int i = 1; i <= MAX_CONNECTOR_NUM; ++i) {
+    dummyLabels.emplace_back(i, i);
+  }
+
+  // Now build sets of sample molecules using each synthon set in turn.
+  for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
+    auto sampleMols =
+        buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
+    auto dgParams = DGeomHelpers::ETKDGv3;
+    dgParams.numThreads = numThreads;
+    for (size_t j = 0; j < sampleMols.size(); ++j) {
+      std::cout << synthSetNum << " of " << d_synthons.size() << " and " << j
+                << " of " << sampleMols.size() << std::endl;
+      auto sampleMolHs = MolOps::addHs(*sampleMols[j]);
+      DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
+
+      std::vector<unsigned int> splitBonds;
+      for (const auto &bond : sampleMols[j]->bonds()) {
+        if (!bond->hasProp("molNum")) {
+          splitBonds.push_back(bond->getIdx());
+        }
+      }
+      const std::unique_ptr<ROMol> fragMol(MolFragmenter::fragmentOnBonds(
+          *sampleMolHs, splitBonds, true, &dummyLabels));
+      std::vector<std::unique_ptr<ROMol>> molFrags;
+      MolOps::getMolFrags(*fragMol, molFrags, false);
+      int fragWeWant = findMolNumFrag(molFrags, synthSetNum);
+      unsigned int otf;
+      sanitizeMol(*static_cast<RWMol *>(molFrags[fragWeWant].get()), otf,
+                  MolOps::SANITIZE_SYMMRINGS);
+      // Change the dummy atom of attachment to a Fr (atomic number 87), which
+      // is the largest radius that the Shape code recognises.  It rejects
+      // dummy atoms.
+      for (auto &atom : molFrags[fragWeWant]->atoms()) {
+        if (!atom->getAtomicNum() && atom->getIsotope() <= MAX_CONNECTOR_NUM) {
+          atom->setAtomicNum(87);
+        }
+      }
+      std::cout << "fragWeWant = " << fragWeWant << std::endl;
+      for (unsigned int i = 0u; i < molFrags[fragWeWant]->getNumConformers();
+           ++i) {
+        std::cout << " making shape for " << i << " of "
+                  << molFrags[fragWeWant]->getNumConformers() << std::endl;
+        std::unique_ptr<ShapeInput> shape(
+            new ShapeInput(PrepareConformer(*molFrags[fragWeWant], i, true)));
+      }
+    }
+  }
+  std::cout << "done and out" << std::endl;
+}
+
 std::string SynthonSet::buildProductName(
     const std::vector<size_t> &synthNums) const {
   std::vector<std::string> synths(synthNums.size());
@@ -552,6 +592,30 @@ std::unique_ptr<ROMol> SynthonSet::buildProduct(
     synths[i] = d_synthons[i][synthNums[i]].second->getOrigMol().get();
   }
   return details::buildProduct(synths);
+}
+
+std::vector<std::vector<std::unique_ptr<RWMol>>> SynthonSet::copySynthons()
+    const {
+  // Synthons are shared, so we need to copy the molecules into a new
+  // set that we can fiddle with without upsetting anything else.
+  std::vector<std::vector<std::unique_ptr<RWMol>>> synthonMolCopies(
+      d_synthons.size());
+  for (size_t i = 0; i < d_synthons.size(); ++i) {
+    synthonMolCopies[i].reserve(d_synthons[i].size());
+    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
+      synthonMolCopies[i].emplace_back(
+          new RWMol(*d_synthons[i][j].second->getOrigMol().get()));
+      for (auto &atom : synthonMolCopies[i][j]->atoms()) {
+        atom->setProp<int>("molNum", i);
+        atom->setProp<int>("idx", atom->getIdx());
+      }
+      for (auto &bond : synthonMolCopies[i][j]->bonds()) {
+        bond->setProp<int>("molNum", i);
+        bond->setProp<int>("idx", bond->getIdx());
+      }
+    }
+  }
+  return synthonMolCopies;
 }
 
 }  // namespace RDKit::SynthonSpaceSearch

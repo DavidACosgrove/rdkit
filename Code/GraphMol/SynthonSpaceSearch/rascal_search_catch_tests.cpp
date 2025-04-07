@@ -84,9 +84,6 @@ TEST_CASE("RASCAL Small tests") {
   RascalOptions rascalOptions;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    // if (i != 0) {
-    // continue;
-    // }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
