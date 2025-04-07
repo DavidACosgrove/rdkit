@@ -35,13 +35,13 @@ class RDKIT_RASCALMCES_EXPORT RascalResult {
                const std::vector<unsigned int> &clique,
                const std::vector<std::pair<int, int>> &vtx_pairs, bool timedOut,
                bool swapped, double tier1Sim, double tier2Sim,
-               bool ringMatchesRingOnly, bool singleLargestFrag, int minFragSep,
-               bool exactConnectionsMatch = false,
+               bool ringMatchesRingOnly, bool singleLargestFrag, int maxFragSep,
+               bool cancelled, bool exactConnectionsMatch = false,
                const std::string &equivalentAtoms = "",
                bool ignoreBondOrders = false);
   // For when the tier[12]Sim didn't hit the threshold, but it
   // might be of interest what the estimates of similarity were.
-  RascalResult(double tier1Sim, double tier2Sim);
+  RascalResult(double tier1Sim, double tier2Sim, bool cancelled = false);
 
   RascalResult(const RascalResult &other);
 
@@ -66,7 +66,7 @@ class RDKIT_RASCALMCES_EXPORT RascalResult {
   std::vector<std::pair<int, int>> getAtomMatches() const {
     return d_atomMatches;
   }
-
+  bool getCancelled() const { return d_cancelled; }
   // The following 5 functions are used in resultCompare to rank
   // 2 MCES of the same size for the same pair of molecules.
   // returns the number of contiguous fragments in the MCES.
@@ -115,6 +115,7 @@ class RDKIT_RASCALMCES_EXPORT RascalResult {
   double d_tier2Sim;
   bool d_ringMatchesRingOnly{false};
   int d_maxFragSep{-1};
+  bool d_cancelled{false};
   bool d_exactConnectionsMatch{false};
   std::string d_equivalentAtoms{""};
   bool d_ignoreBondOrders{false};

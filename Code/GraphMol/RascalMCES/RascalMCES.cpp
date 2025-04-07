@@ -44,6 +44,8 @@
 #include <GraphMol/RascalMCES/RascalResult.h>
 #include <GraphMol/RascalMCES/RascalDetails.h>
 
+#include <RDGeneral/ControlCHandler.h>
+
 using Clock = std::chrono::steady_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 
@@ -1060,7 +1062,8 @@ bool checkEquivalentsAllowed(const ROMol &mol) {
 }
 
 void explorePartitions(RascalStartPoint &starter, const RascalOptions &opts,
-                       std::vector<std::vector<unsigned int>> &maxCliques) {
+                       std::vector<std::vector<unsigned int>> &maxCliques,
+                       bool &cancelled) {
   unsigned long long numSteps = 0ULL;
   std::vector<std::shared_ptr<PartitionSet>> parts(1, starter.d_partSet);
   std::vector<unsigned int> clique;
@@ -1077,10 +1080,15 @@ void explorePartitions(RascalStartPoint &starter, const RascalOptions &opts,
     endTime = &endTimePt;
   }
 
+  ControlCHandler::reset();
   const TimePoint startTime = Clock::now();
   while (!parts.empty()) {
     if (opts.timeout != -1) {
       checkTimeout(startTime, endTime, clique, maxCliques, numSteps);
+    }
+    if (ControlCHandler::getGotSignal()) {
+      cancelled = true;
+      break;
     }
     auto part = parts.back();
     bool goDeeper = false;
@@ -1478,22 +1486,27 @@ std::vector<RascalResult> findMCES(RascalStartPoint &starter,
   if (opts.singleLargestFrag) {
     tmpOpts.allBestMCESs = true;
   }
+  bool cancelled = false;
   try {
-    explorePartitions(starter, tmpOpts, maxCliques);
+    explorePartitions(starter, tmpOpts, maxCliques, cancelled);
   } catch (TimedOutException &e) {
     BOOST_LOG(rdWarningLog) << e.what() << std::endl;
     maxCliques = e.d_cliques;
     timedOut = true;
   }
+  if (cancelled && maxCliques.empty()) {
+    return std::vector<RascalResult>(
+        1, RascalResult(starter.d_tier1Sim, starter.d_tier2Sim, cancelled));
+  }
   std::vector<RascalResult> results;
   for (const auto &c : maxCliques) {
-    results.push_back(
-        RascalResult(*starter.d_mol1, *starter.d_mol2, starter.d_adjMatrix1,
-                     starter.d_adjMatrix2, c, starter.d_vtxPairs, timedOut,
-                     starter.d_swapped, starter.d_tier1Sim, starter.d_tier2Sim,
-                     opts.ringMatchesRingOnly, opts.singleLargestFrag,
-                     opts.maxFragSeparation, opts.exactConnectionsMatch,
-                     opts.equivalentAtoms, opts.ignoreBondOrders));
+    results.push_back(RascalResult(
+        *starter.d_mol1, *starter.d_mol2, starter.d_adjMatrix1,
+        starter.d_adjMatrix2, c, starter.d_vtxPairs, timedOut,
+        starter.d_swapped, starter.d_tier1Sim, starter.d_tier2Sim,
+        opts.ringMatchesRingOnly, opts.singleLargestFrag,
+        opts.maxFragSeparation, cancelled, opts.exactConnectionsMatch,
+        opts.equivalentAtoms, opts.ignoreBondOrders));
   }
   if (opts.singleLargestFrag) {
     std::sort(

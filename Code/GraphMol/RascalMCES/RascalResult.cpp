@@ -38,13 +38,15 @@ RascalResult::RascalResult(
     const std::vector<unsigned int> &clique,
     const std::vector<std::pair<int, int>> &vtx_pairs, bool timedOut,
     bool swapped, double tier1Sim, double tier2Sim, bool ringMatchesRingOnly,
-    bool singleLargestFrag, int maxFragSep, bool exactConnectionsMatch,
-    const std::string &equivalentAtoms, bool ignoreBondOrders)
+    bool singleLargestFrag, int maxFragSep, bool cancelled,
+    bool exactConnectionsMatch, const std::string &equivalentAtoms,
+    bool ignoreBondOrders)
     : d_timedOut(timedOut),
       d_tier1Sim(tier1Sim),
       d_tier2Sim(tier2Sim),
       d_ringMatchesRingOnly(ringMatchesRingOnly),
       d_maxFragSep(maxFragSep),
+      d_cancelled(cancelled),
       d_exactConnectionsMatch(exactConnectionsMatch),
       d_equivalentAtoms(equivalentAtoms),
       d_ignoreBondOrders(ignoreBondOrders) {
@@ -74,8 +76,8 @@ RascalResult::RascalResult(
   }
 }
 
-RascalResult::RascalResult(double tier1Sim, double tier2Sim)
-    : d_tier1Sim(tier1Sim), d_tier2Sim(tier2Sim) {}
+RascalResult::RascalResult(double tier1Sim, double tier2Sim, bool cancelled)
+    : d_tier1Sim(tier1Sim), d_tier2Sim(tier2Sim), d_cancelled(cancelled) {}
 
 RascalResult::RascalResult(const RascalResult &other)
     : d_bondMatches(other.d_bondMatches),

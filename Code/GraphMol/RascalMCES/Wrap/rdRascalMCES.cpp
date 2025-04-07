@@ -93,6 +93,14 @@ python::list findMCESWrapper(const ROMol &mol1, const ROMol &mol2,
     NOGIL gil;
     results = RascalMCES::rascalMCES(mol1, mol2, opts);
   }
+  // If the search was cancelled, there will be at least an empty
+  // result with the cancelled flag set.  There may be the best
+  // MCES found so far as well, as with a timeout, but that's going
+  // to be ignored.
+  if (results.front().getCancelled()) {
+    throw_runtime_error("Rascal cancelled.");
+  }
+
   python::list pyres;
   for (auto &res : results) {
     pyres.append(res);
