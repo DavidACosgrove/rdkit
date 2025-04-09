@@ -16,6 +16,7 @@
 // https://eprints.whiterose.ac.uk/3568/1/willets3.pdf
 
 #include <chrono>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <regex>
@@ -97,6 +98,7 @@ struct RascalStartPoint {
   std::unique_ptr<ROMol> d_mol1;
   std::unique_ptr<ROMol> d_mol2;
 
+  // The line graphs of the 2 molecules as adjacency matrices
   std::vector<std::vector<const boost::dynamic_bitset<> *>> d_adjMatrix1,
       d_adjMatrix2;
   std::vector<std::pair<int, int>> d_vtxPairs;
@@ -205,6 +207,8 @@ unsigned int calcCost(
   return std::min({cost, atomiDegree, atomjDegree});
 }
 
+// assign the costs of matching each atom in atomDegrees1 to each atom in
+// atomDegrees2.
 void assignCosts(const std::vector<std::pair<int, int>> &atomDegrees1,
                  const std::vector<std::pair<int, int>> &atomDegrees2,
                  const std::vector<boost::dynamic_bitset<>> atomLabels1,
@@ -673,6 +677,34 @@ void buildPairs(const ROMol &mol1,
   }
 }
 
+// Use the Floyd-Warshall algorithm to compute the distance matrix from the
+// adjacency matrix.
+// Adapted from https://en.wikipedia.org/wiki/Floyd–Warshall_algorithm
+void calcDistMatrix(
+    const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix,
+    std::vector<std::vector<int>> &distMatrix) {
+  distMatrix = std::vector<std::vector<int>>(
+      adjMatrix.size(),
+      std::vector<int>(adjMatrix.size(), adjMatrix.size() + 1));
+  for (size_t i = 0u; i < adjMatrix.size(); ++i) {
+    distMatrix[i][i] = 0;
+    for (size_t j = 0u; j < adjMatrix.size(); ++j) {
+      if (i != j && adjMatrix[i][j]) {
+        distMatrix[i][j] = 1;
+      }
+    }
+  }
+  for (size_t k = 0u; k < adjMatrix.size(); ++k) {
+    for (size_t i = 0u; i < adjMatrix.size(); ++i) {
+      for (size_t j = 0u; j < adjMatrix.size(); ++j) {
+        if (distMatrix[i][j] > distMatrix[i][k] + distMatrix[k][j]) {
+          distMatrix[i][j] = distMatrix[i][k] + distMatrix[k][j];
+        }
+      }
+    }
+  }
+}
+
 // Make the modular product between the 2 graphs passed in.  Each node in the
 // graph is a pair of vertices, one from the first graph, the other from the
 // second, whose labels match.  Two vertices are connected in the modular
@@ -682,13 +714,11 @@ void makeModularProduct(
     const ROMol &mol1,
     const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix1,
     const std::vector<boost::dynamic_bitset<>> &vtxLabels1,
-    const std::vector<boost::dynamic_bitset<>> &edgeLabels1,
-    const std::vector<std::vector<int>> &distMatrix1, const ROMol &mol2,
+    const std::vector<boost::dynamic_bitset<>> &edgeLabels1, const ROMol &mol2,
     const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix2,
     const std::vector<boost::dynamic_bitset<>> &vtxLabels2,
     const std::vector<boost::dynamic_bitset<>> &edgeLabels2,
-    const std::vector<std::vector<int>> &distMatrix2, const RascalOptions &opts,
-    std::vector<std::pair<int, int>> &vtxPairs,
+    const RascalOptions &opts, std::vector<std::pair<int, int>> &vtxPairs,
     std::vector<boost::dynamic_bitset<>> &modProd) {
   buildPairs(mol1, vtxLabels1, edgeLabels1, mol2, vtxLabels2, edgeLabels2, opts,
              vtxPairs);
@@ -703,6 +733,12 @@ void makeModularProduct(
     modProd.clear();
     return;
   }
+  std::vector<std::vector<int>> distMatrix1, distMatrix2;
+  if (opts.maxFragSeparation > -1) {
+    calcDistMatrix(adjMatrix1, distMatrix1);
+    calcDistMatrix(adjMatrix2, distMatrix2);
+  }
+
   modProd = std::vector<boost::dynamic_bitset<>>(
       vtxPairs.size(), boost::dynamic_bitset<>(vtxPairs.size()));
   for (auto i = 0u; i < vtxPairs.size() - 1; ++i) {
@@ -718,11 +754,6 @@ void makeModularProduct(
             opts.maxFragSeparation) {
           distsOk = false;
         }
-      }
-      if (opts.singleLargestFrag &&
-          distMatrix1[vtxPairs[i].first][vtxPairs[j].first] !=
-              distMatrix2[vtxPairs[i].second][vtxPairs[j].second]) {
-        distsOk = false;
       }
       if (distsOk && (!adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &&
                       !adjMatrix2[vtxPairs[i].second][vtxPairs[j].second]) ||
@@ -1193,34 +1224,6 @@ void findEquivalentBonds(const ROMol &mol, std::vector<int> &equivBonds) {
   }
 }
 
-// Use the Floyd-Warshall algorithm to compute the distance matrix from the
-// adjacency matrix.
-// Adapted from https://en.wikipedia.org/wiki/Floyd–Warshall_algorithm
-void calcDistMatrix(
-    const std::vector<std::vector<const boost::dynamic_bitset<> *>> &adjMatrix,
-    std::vector<std::vector<int>> &distMatrix) {
-  distMatrix = std::vector<std::vector<int>>(
-      adjMatrix.size(),
-      std::vector<int>(adjMatrix.size(), adjMatrix.size() + 1));
-  for (size_t i = 0u; i < adjMatrix.size(); ++i) {
-    distMatrix[i][i] = 0;
-    for (size_t j = 0u; j < adjMatrix.size(); ++j) {
-      if (i != j && adjMatrix[i][j]) {
-        distMatrix[i][j] = 1;
-      }
-    }
-  }
-  for (size_t k = 0u; k < adjMatrix.size(); ++k) {
-    for (size_t i = 0u; i < adjMatrix.size(); ++i) {
-      for (size_t j = 0u; j < adjMatrix.size(); ++j) {
-        if (distMatrix[i][j] > distMatrix[i][k] + distMatrix[k][j]) {
-          distMatrix[i][j] = distMatrix[i][k] + distMatrix[k][j];
-        }
-      }
-    }
-  }
-}
-
 namespace details {
 // Set a bit in the bitset for each atom for its atomic number OR
 // all the equivalent atom classes it is in.  If an O atom in one
@@ -1423,19 +1426,13 @@ RascalStartPoint makeInitialPartitionSet(const ROMol *mol1, const ROMol *mol2,
   makeLineGraph(*starter.d_mol1, atomLabels1, starter.d_adjMatrix1);
   makeLineGraph(*starter.d_mol2, atomLabels2, starter.d_adjMatrix2);
 
-  std::vector<std::vector<int>> distMat1, distMat2;
-  if (opts.maxFragSeparation > -1 || opts.singleLargestFrag) {
-    calcDistMatrix(starter.d_adjMatrix1, distMat1);
-    calcDistMatrix(starter.d_adjMatrix2, distMat2);
-  }
-
   // pairs are vertices in the 2 line graphs that are the same type.
   // d_modProd is the modular product/correspondence graph of the two
   // line graphs.
   makeModularProduct(*starter.d_mol1, starter.d_adjMatrix1, atomLabels1,
-                     bondStrings1, distMat1, *starter.d_mol2,
-                     starter.d_adjMatrix2, atomLabels2, bondStrings2, distMat2,
-                     opts, starter.d_vtxPairs, starter.d_modProd);
+                     bondStrings1, *starter.d_mol2, starter.d_adjMatrix2,
+                     atomLabels2, bondStrings2, opts, starter.d_vtxPairs,
+                     starter.d_modProd);
   if (starter.d_modProd.empty()) {
     return starter;
   }

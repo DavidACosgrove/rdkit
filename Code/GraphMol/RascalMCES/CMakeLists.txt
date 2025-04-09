@@ -13,6 +13,7 @@ rdkit_catch_test(testRascalCluster mces_cluster_catch.cpp LINK_LIBRARIES RascalM
 if (RDK_BUILD_LONG_RUNNING_TESTS)
     rdkit_catch_test(testRascalMCESLONG_TEST LONG_TEST_mces_catch.cpp LINK_LIBRARIES RascalMCES)
 endif ()
+
 if (RDK_BUILD_PYTHON_WRAPPERS)
     add_subdirectory(Wrap)
 endif ()

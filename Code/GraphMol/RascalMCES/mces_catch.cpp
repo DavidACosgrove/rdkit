@@ -509,10 +509,10 @@ TEST_CASE("single fragment") {
   RascalOptions opts;
   std::vector<std::tuple<std::string, std::string, unsigned int, unsigned int>>
       tests = {
-          {"C1CC1CCC1NC1", "C1CC1CCCCC1NC1", 8, 6},
-          {"c1cnccc1CCc1ncccc1", "c1cnccc1CCCCCCc1ncccc1", 14, 9},
+          {"C1CC1CCC1NC1", "C1CC1CCCCC1NC1", 8, 5},
+          {"c1cnccc1CCc1ncccc1", "c1cnccc1CCCCCCc1ncccc1", 14, 8},
           {"c1ccccc1c1cccc(c1)CCc1ccccc1", "c1ccccc1c1cccc(c1)CCCCCc1ccccc1",
-           21, 16},
+           21, 15},
           {"Cc1cc2nc(-c3cccc(NC(=O)CSc4ccc(Cl)cc4)c3)oc2cc1C  CHEMBL1398008",
            "COc1ccc2oc(-c3ccc(C)c(NC(=O)COc4cc(C)cc(C)c4)c3)nc2c1  CHEMBL1436972",
            27, 21}};
@@ -1445,41 +1445,6 @@ TEST_CASE("Order of atoms in bond labels must be consistent - Github 8198.") {
   }
 }
 
-TEST_CASE("Duplicate Single Largest Frag") {
-  {
-    auto m1 = "c1ccc2c(c1)c(ncn2)CNCc3ccc(cc3)Cl"_smiles;
-    REQUIRE(m1);
-    auto m2 = "c1ccc2c(c1)c(ncn2)CCCc3ccc(cc3)Cl"_smiles;
-    REQUIRE(m2);
-    RascalOptions opts;
-    opts.singleLargestFrag = true;
-    opts.allBestMCESs = true;
-    auto res = rascalMCES(*m1, *m2, opts);
-    REQUIRE(res.size() == 1);
-    CHECK(res.front().getAtomMatches().size() == 11);
-    CHECK(res.front().getBondMatches().size() == 12);
-  }
-  {
-    // Without the fix, there were 156 results sets, with different breaks
-    // in the long chain giving different numbers of atoms in the largest
-    // fragment.
-    auto m1 = "CN(C)c1ccc(CC(=O)NCCCCCCCCCCNC23CC4CC(C2)CC(C3)C4)cc1"_smiles;
-    REQUIRE(m1);
-    auto m2 = "CN(C)c1ccc(CC(=O)NCCCCCCCCCCCCNC23CC4CC(C2)CC(C3)C4)cc1"_smiles;
-    REQUIRE(m2);
-    RascalOptions opts;
-    opts.singleLargestFrag = true;
-    opts.allBestMCESs = true;
-    auto res = rascalMCES(*m1, *m2, opts);
-    REQUIRE(!res.empty());
-    CHECK(res.size() == 4);
-    CHECK(res.front().getAtomMatches().size() == 23);
-    CHECK(res.front().getBondMatches().size() == 23);
-    CHECK(res.back().getAtomMatches().size() == 23);
-    CHECK(res.back().getBondMatches().size() == 23);
-  }
-}
-
 TEST_CASE(
     "Github 8246 - equivalentAtoms SMARTS not translated back in the SMARTS string") {
   auto m1 = "COC1=CC2(Oc3ccc(-c4ccc(OC)c(OC)c4)cc3C2=O)C(OC)=CC1O"_smiles;
@@ -1514,6 +1479,43 @@ TEST_CASE("Specify minimum clique size directly.") {
   REQUIRE(res2.empty());
 }
 
+TEST_CASE("Duplicate Single Largest Frag") {
+  {
+    auto m1 = "c1ccc2c(c1)c(ncn2)CNCc3ccc(cc3)Cl"_smiles;
+    REQUIRE(m1);
+    auto m2 = "c1ccc2c(c1)c(ncn2)CCCc3ccc(cc3)Cl"_smiles;
+    REQUIRE(m2);
+    RascalOptions opts;
+    opts.singleLargestFrag = true;
+    opts.allBestMCESs = true;
+    opts.timeout = -1;
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(res.size() == 1);
+    CHECK(res.front().getAtomMatches().size() == 11);
+    CHECK(res.front().getBondMatches().size() == 12);
+  }
+  {
+    // Without the fix, there were 156 results sets, with different breaks
+    // in the long chain giving different numbers of atoms in the largest
+    // fragment.
+    auto m1 = "CN(C)c1ccc(CC(=O)NCCCCCCCCCCNC23CC4CC(C2)CC(C3)C4)cc1"_smiles;
+    REQUIRE(m1);
+    auto m2 = "CN(C)c1ccc(CC(=O)NCCCCCCCCCCCCNC23CC4CC(C2)CC(C3)C4)cc1"_smiles;
+    REQUIRE(m2);
+    RascalOptions opts;
+    opts.singleLargestFrag = true;
+    opts.allBestMCESs = true;
+    opts.timeout = -1;
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.size() == 4);
+    CHECK(res.front().getAtomMatches().size() == 23);
+    CHECK(res.front().getBondMatches().size() == 23);
+    CHECK(res.back().getAtomMatches().size() == 23);
+    CHECK(res.back().getBondMatches().size() == 23);
+  }
+}
+
 TEST_CASE("Github8255 - incorrect MCES with singleLargestFrag=true") {
   RascalOptions opts;
   opts.singleLargestFrag = true;
@@ -1529,8 +1531,8 @@ TEST_CASE("Github8255 - incorrect MCES with singleLargestFrag=true") {
     auto res = rascalMCES(*m1, *m2, opts);
     CHECK(res.size() == 3);
     for (auto &r : res) {
-      CHECK(r.getAtomMatches().size() == 20);
-      CHECK(r.getBondMatches().size() == 21);
+      CHECK(r.getAtomMatches().size() == 22);
+      CHECK(r.getBondMatches().size() == 24);
     }
   }
   {
@@ -1543,6 +1545,38 @@ TEST_CASE("Github8255 - incorrect MCES with singleLargestFrag=true") {
     for (auto &r : res) {
       CHECK(r.getAtomMatches().size() == 20);
       CHECK(r.getBondMatches().size() == 22);
+    }
+  }
+}
+
+TEST_CASE("Github8360 - another incorrect MCES with singleLargestFrag=true") {
+  RascalOptions opts;
+  opts.singleLargestFrag = true;
+  opts.allBestMCESs = true;
+  opts.completeAromaticRings = false;
+  {
+    auto m2 = "c1ccc(cn1)-c1ccc2ccccc2n1"_smiles;
+    REQUIRE(m2);
+    auto m1 = "c1ccc(cn1)-c1cc2ccccc2[nH]1"_smiles;
+    REQUIRE(m1);
+    auto res = rascalMCES(*m1, *m2, opts);
+    CHECK(res.size() == 3);
+    for (auto &r : res) {
+      CHECK(r.getAtomMatches().size() == 15);
+      CHECK(r.getBondMatches().size() == 16);
+    }
+  }
+  {
+    auto m1 = "C=CCCC=CCCC1CNCCC1"_smiles;
+    REQUIRE(m1);
+    auto m2 = "C=CCC=CCCCC1CNCCC1"_smiles;
+    REQUIRE(m2);
+    auto res = rascalMCES(*m1, *m2, opts);
+    REQUIRE(!res.empty());
+    CHECK(res.size() == 1);
+    for (auto &r : res) {
+      CHECK(r.getAtomMatches().size() == 9);
+      CHECK(r.getBondMatches().size() == 9);
     }
   }
 }
