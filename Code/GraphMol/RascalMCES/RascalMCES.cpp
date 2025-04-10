@@ -752,13 +752,13 @@ void makeModularProduct(
           distsOk = false;
         }
       }
-      if (distsOk && (!adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &&
-                      !adjMatrix2[vtxPairs[i].second][vtxPairs[j].second]) ||
-          (adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &&
-           adjMatrix2[vtxPairs[i].second][vtxPairs[j].second] &&
-           (*adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &
-            *adjMatrix2[vtxPairs[i].second][vtxPairs[j].second])
-               .count())) {
+      if (distsOk && ((!adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &&
+                       !adjMatrix2[vtxPairs[i].second][vtxPairs[j].second]) ||
+                      (adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &&
+                       adjMatrix2[vtxPairs[i].second][vtxPairs[j].second] &&
+                       (*adjMatrix1[vtxPairs[i].first][vtxPairs[j].first] &
+                        *adjMatrix2[vtxPairs[i].second][vtxPairs[j].second])
+                           .count()))) {
         modProd[i][j] = modProd[j][i] = true;
       }
     }
@@ -1030,7 +1030,7 @@ void checkTimeout(const TimePoint &startTime, const TimePoint *endTime,
           maxCliques.push_back(clique);
         }
       }
-      auto currTime = std::chrono::high_resolution_clock::now();
+      TimePoint currTime = Clock::now();
       auto runTime =
           std::chrono::duration_cast<std::chrono::seconds>(currTime - startTime)
               .count();
