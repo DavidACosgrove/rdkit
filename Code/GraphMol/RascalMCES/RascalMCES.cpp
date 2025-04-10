@@ -546,8 +546,7 @@ bool bondsMatch(const Bond &bond1, const Bond &bond2,
                 const RascalOptions &opts) {
   if (opts.bondCompareFunction) {
     if (!opts.bondCompareFunction(bond1.getOwningMol(), bond1.getIdx(),
-                                  bond2.getOwningMol(), bond2.getIdx(),
-                                  opts.bondCompareUserData)) {
+                                  bond2.getOwningMol(), bond2.getIdx())) {
       return false;
     }
   } else {
@@ -600,19 +599,17 @@ bool bondsMatch(const Bond &bond1, const Bond &bond2,
   }
   if (opts.atomCompareFunction) {
     if (opts.atomCompareFunction(bond1.getOwningMol(), bond1.getBeginAtomIdx(),
-                                 bond2.getOwningMol(), bond2.getBeginAtomIdx(),
-                                 opts.atomCompareUserData) &&
+                                 bond2.getOwningMol(),
+                                 bond2.getBeginAtomIdx()) &&
         opts.atomCompareFunction(bond1.getOwningMol(), bond1.getEndAtomIdx(),
-                                 bond2.getOwningMol(), bond2.getEndAtomIdx(),
-                                 opts.atomCompareUserData)) {
+                                 bond2.getOwningMol(), bond2.getEndAtomIdx())) {
       return true;
     }
     if (opts.atomCompareFunction(bond1.getOwningMol(), bond1.getBeginAtomIdx(),
-                                 bond2.getOwningMol(), bond2.getEndAtomIdx(),
-                                 opts.atomCompareUserData) &&
+                                 bond2.getOwningMol(), bond2.getEndAtomIdx()) &&
         opts.atomCompareFunction(bond1.getOwningMol(), bond1.getEndAtomIdx(),
-                                 bond2.getOwningMol(), bond2.getBeginAtomIdx(),
-                                 opts.atomCompareUserData)) {
+                                 bond2.getOwningMol(),
+                                 bond2.getBeginAtomIdx())) {
       return true;
     }
   }
@@ -1290,8 +1287,8 @@ void makeAtomLabels(const ROMol &mol1, const ROMol &mol2,
   const unsigned int lastBit = atomLabels1.front().size() - 1;
   for (auto atom1 : mol1.atoms()) {
     for (auto atom2 : mol2.atoms()) {
-      if (opts.atomCompareFunction(mol1, atom1->getIdx(), mol2, atom2->getIdx(),
-                                   nullptr)) {
+      if (opts.atomCompareFunction(mol1, atom1->getIdx(), mol2,
+                                   atom2->getIdx())) {
         atomLabels1[atom1->getIdx()][lastBit] = true;
         atomLabels1[atom1->getIdx()][atom1->getAtomicNum()] = false;
         atomLabels2[atom2->getIdx()][lastBit] = true;
@@ -1327,8 +1324,8 @@ void makeBondBitstrings(const ROMol &mol1, const ROMol &mol2,
   const unsigned int lastBit = bondLabels1.front().size() - 1;
   for (auto bond1 : mol1.bonds()) {
     for (auto bond2 : mol2.bonds()) {
-      if (opts.bondCompareFunction(mol1, bond1->getIdx(), mol2, bond2->getIdx(),
-                                   opts.bondCompareUserData)) {
+      if (opts.bondCompareFunction(mol1, bond1->getIdx(), mol2,
+                                   bond2->getIdx())) {
         bondLabels1[bond1->getIdx()][lastBit] = true;
         bondLabels2[bond2->getIdx()][lastBit] = true;
       }

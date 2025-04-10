@@ -1621,7 +1621,7 @@ TEST_CASE("Overlapping matches for equivalentAtoms") {
 TEST_CASE("User comparison functions") {
   // This one is from testFMCS_Unit.cpp
   auto atomCompare = [](const ROMol &mol1, unsigned int atom1,
-                        const ROMol &mol2, unsigned int atom2, void *) -> bool {
+                        const ROMol &mol2, unsigned int atom2) -> bool {
     const auto a1 = mol1.getAtomWithIdx(atom1);
     const auto a2 = mol2.getAtomWithIdx(atom2);
     // If one's a dummy and the other isn't, the dummy should
@@ -1645,7 +1645,7 @@ TEST_CASE("User comparison functions") {
   };
 
   auto bondCompare = [](const ROMol &mol1, unsigned int bond1,
-                        const ROMol &mol2, unsigned int bond2, void *) -> bool {
+                        const ROMol &mol2, unsigned int bond2) -> bool {
     const auto b1 = mol1.getBondWithIdx(bond1);
     const auto b2 = mol2.getBondWithIdx(bond2);
     if (b1->getBondType() == b2->getBondType()) {

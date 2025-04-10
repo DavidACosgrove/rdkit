@@ -21,10 +21,10 @@ namespace RascalMCES {
 // be considered equivalent.  The unsigned ints are the atom or bond indices
 // of the atoms or bonds in question, and the void * is for user data in
 // whatever format the user has cooked up.
-using AtomCompareFunction = std::function<bool(
-    const ROMol &, unsigned int, const ROMol &, unsigned int, void *)>;
-using BondCompareFunction = std::function<bool(
-    const ROMol &, unsigned int, const ROMol &, unsigned int, void *)>;
+using AtomCompareFunction = std::function<bool(const ROMol &, unsigned int,
+                                               const ROMol &, unsigned int)>;
+using BondCompareFunction = std::function<bool(const ROMol &, unsigned int,
+                                               const ROMol &, unsigned int)>;
 
 struct RDKIT_RASCALMCES_EXPORT RascalOptions {
   double similarityThreshold =
@@ -34,9 +34,9 @@ struct RDKIT_RASCALMCES_EXPORT RascalOptions {
   bool ringMatchesRingOnly =
       false;  // if true, ring bonds won't match non-ring bonds
   bool completeSmallestRings =
-      false;  /* if true, only complete rings present in both input molecule's
-                 RingInfo will be returned. Implies completeAromaticRings and
-                 ringMatchesRingOnly. */
+      false; /* if true, only complete rings present in both input molecule's
+                RingInfo will be returned. Implies completeAromaticRings and
+                ringMatchesRingOnly. */
   bool exactConnectionsMatch =
       false; /* if true, atoms will only match atoms if they have the same
       number of explicit connections.  E.g. the central atom of
@@ -78,16 +78,14 @@ struct RDKIT_RASCALMCES_EXPORT RascalOptions {
                               atomic number; if false, will treat
                               aromatic and aliphatic as different. */
   unsigned int minCliqueSize = 0;    /* Normally, the minimum clique size is
-                                 specified via the similarityThreshold.
-                                 Sometimes it's more convenient to
-                                 specify it directly.  If this is > 0,
-                                 it will over-ride the similarityThreshold.
-                                 Note that this refers to the minimum
-                                 number of BONDS in the MCES. */
-  AtomCompareFunction atomCompareFunction = nullptr;
-  void *atomCompareUserData = nullptr;
-  BondCompareFunction bondCompareFunction = nullptr;
-  void *bondCompareUserData = nullptr;
+                                    specified via the similarityThreshold.
+                                    Sometimes it's more convenient to
+                                    specify it directly.  If this is > 0,
+                                    it will over-ride the similarityThreshold.
+                                    Note that this refers to the minimum
+                                    number of BONDS in the MCES. */
+  AtomCompareFunction atomCompareFunction{nullptr};
+  BondCompareFunction bondCompareFunction{nullptr};
 };
 }  // namespace RascalMCES
 }  // namespace RDKit
