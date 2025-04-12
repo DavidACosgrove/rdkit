@@ -2,11 +2,47 @@
 #include <map>
 #include <vector>
 
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/vector.hpp>
+
 #ifndef RDKIT_PUBCHEMSHAPE_GUARD
 #define RDKIT_PUBCHEMSHAPE_GUARD
 
 //! The input for the pubchem shape alignment code
 struct RDKIT_PUBCHEMSHAPE_EXPORT ShapeInput {
+  ShapeInput() = default;
+  ShapeInput(const std::string &str) {
+    std::stringstream ss(str);
+    boost::archive::text_iarchive ia(ss);
+    ia &*this;
+  }
+  ShapeInput(const ShapeInput &other) = default;
+  ShapeInput(ShapeInput &&other) = default;
+  ShapeInput &operator=(const ShapeInput &other) = default;
+  ShapeInput &operator=(ShapeInput &&other) = default;
+  ~ShapeInput() = default;
+
+  std::string toString() const {
+    std::stringstream ss;
+    boost::archive::text_oarchive oa(ss);
+    oa &*this;
+    return ss.str();
+  }
+
+  template <class Archive>
+  void serialize(Archive &ar, const unsigned int) {
+    ar & coord;
+    ar & alpha_vector;
+    ar & atom_type_vector;
+    ar & volumeAtomIndexVector;
+    ar & colorAtomType2IndexVectorMap;
+    ar & shift;
+    ar & sov;
+    ar & sof;
+  }
+
   std::vector<float> coord;
   std::vector<double> alpha_vector;
   std::vector<unsigned int> atom_type_vector;
