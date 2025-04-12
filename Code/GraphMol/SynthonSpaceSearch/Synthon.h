@@ -13,6 +13,7 @@
 
 #include <string>
 
+#include <../External/pubchem_shape/PubChemShape.hpp>
 #include <RDGeneral/export.h>
 
 namespace RDKit {
@@ -44,10 +45,12 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   const std::vector<std::shared_ptr<ROMol>> &getConnRegions() const;
   void setSearchMol(std::unique_ptr<ROMol> mol);
   void setFP(std::unique_ptr<ExplicitBitVect> fp);
+  void addShape(std::unique_ptr<ShapeInput> shape);
+  const std::vector<std::unique_ptr<ShapeInput>> &getShapes() const;
 
   // Writes to/reads from a binary stream.
   void writeToDBStream(std::ostream &os) const;
-  void readFromDBStream(std::istream &is);
+  void readFromDBStream(std::istream &is, const std::uint32_t version);
 
  private:
   std::string d_smiles;
@@ -65,6 +68,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   // searching.  Its type is known by the SynthonSpace that holds the
   // Synthon.
   std::unique_ptr<ExplicitBitVect> dp_FP{nullptr};
+  std::vector<std::unique_ptr<ShapeInput>> dp_shapes;
+
   // SMILES strings of any connector regions.  Normally there will only
   // be 1 or 2.  These are derived from the search mol.
   std::vector<std::shared_ptr<ROMol>> d_connRegions;

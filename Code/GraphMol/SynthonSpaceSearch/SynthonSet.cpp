@@ -21,12 +21,12 @@
 
 #include <boost/random/discrete_distribution.hpp>
 
+#include <../External/pubchem_shape/PubChemShape.hpp>
 #include <DataStructs/ExplicitBitVect.h>
 #include <GraphMol/atomic_data.h>
 #include <GraphMol/MolPickler.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
-#include <../External/pubchem_shape/PubChemShape.hpp>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
@@ -536,8 +536,6 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = numThreads;
     for (size_t j = 0; j < sampleMols.size(); ++j) {
-      std::cout << synthSetNum << " of " << d_synthons.size() << " and " << j
-                << " of " << sampleMols.size() << std::endl;
       auto sampleMolHs = MolOps::addHs(*sampleMols[j]);
       DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
 
@@ -557,23 +555,23 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
                   MolOps::SANITIZE_SYMMRINGS);
       // Change the dummy atom of attachment to a Fr (atomic number 87), which
       // is the largest radius that the Shape code recognises.  It rejects
-      // dummy atoms.
+      // dummy atoms.  This is so there's a fat blob to try and anchor
+      // attachment points to each other when doing a shape overlay.
       for (auto &atom : molFrags[fragWeWant]->atoms()) {
         if (!atom->getAtomicNum() && atom->getIsotope() <= MAX_CONNECTOR_NUM) {
           atom->setAtomicNum(87);
         }
       }
-      std::cout << "fragWeWant = " << fragWeWant << std::endl;
+      // Put ShapeInput objects in the Synthon.  The conformations aren't
+      // needed at the moment.
       for (unsigned int i = 0u; i < molFrags[fragWeWant]->getNumConformers();
            ++i) {
-        std::cout << " making shape for " << i << " of "
-                  << molFrags[fragWeWant]->getNumConformers() << std::endl;
         std::unique_ptr<ShapeInput> shape(
             new ShapeInput(PrepareConformer(*molFrags[fragWeWant], i, true)));
+        d_synthons[synthSetNum][j].second->addShape(std::move(shape));
       }
     }
   }
-  std::cout << "done and out" << std::endl;
 }
 
 std::string SynthonSet::buildProductName(

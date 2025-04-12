@@ -8,6 +8,7 @@
 //  of the RDKit source tree.
 //
 
+#include <../External/pubchem_shape/PubChemShape.hpp>
 #include <DataStructs/ExplicitBitVect.h>
 #include <GraphMol/MolOps.h>
 #include <GraphMol/MolPickler.h>
@@ -112,6 +113,14 @@ void Synthon::setFP(std::unique_ptr<ExplicitBitVect> fp) {
   dp_FP = std::move(fp);
 }
 
+void Synthon::addShape(std::unique_ptr<ShapeInput> shape) {
+  dp_shapes.push_back(std::move(shape));
+}
+
+const std::vector<std::unique_ptr<ShapeInput>> &Synthon::getShapes() const {
+  return dp_shapes;
+}
+
 void Synthon::writeToDBStream(std::ostream &os) const {
   streamWrite(os, d_smiles);
   MolPickler::pickleMol(*dp_origMol, os, PicklerOps::AllProps);
@@ -128,9 +137,13 @@ void Synthon::writeToDBStream(std::ostream &os) const {
   } else {
     streamWrite(os, false);
   }
+  streamWrite(os, std::uint64_t(dp_shapes.size()));
+  for (const auto &shape : dp_shapes) {
+    streamWrite(os, shape->toString());
+  }
 }
 
-void Synthon::readFromDBStream(std::istream &is) {
+void Synthon::readFromDBStream(std::istream &is, const std::uint32_t version) {
   streamRead(is, d_smiles, 0);
   dp_origMol = std::make_unique<ROMol>();
   MolPickler::molFromPickle(is, *dp_origMol);
@@ -152,6 +165,16 @@ void Synthon::readFromDBStream(std::istream &is) {
     std::string pickle;
     streamRead(is, pickle, 0);
     dp_FP = std::make_unique<ExplicitBitVect>(pickle);
+  }
+  if (version > 3000) {
+    std::uint64_t numShapes;
+    streamRead(is, numShapes);
+    if (numShapes) {
+      dp_shapes.reserve(numShapes);
+      std::string pickle;
+      streamRead(is, pickle, 0);
+      dp_shapes.emplace_back(new ShapeInput(pickle));
+    }
   }
 }
 
