@@ -130,33 +130,6 @@ class SynthonSpaceSearcher {
       const std::string &reaction_id) const;
 };
 
-#if 0
-  // Build the molecules from the synthons identified in hitsets.
-  // Checks that all the results produced match the
-  // query.  totHits is the maximum number of hits that are possible from
-  // the hitsets, including duplicates.  Duplicates by name are not returned,
-  // but duplicate SMILES from different reactions will be.  Hitsets will
-  // be re-ordered on exit.
-  void buildHits(std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
-                 size_t totHits, const TimePoint *endTime, bool &timedOut,
-                 std::vector<std::unique_ptr<ROMol>> &results) const;
-  void buildAllHits(
-      const std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
-      std::set<std::string> &resultsNames, const TimePoint *endTime,
-      bool &timedOut, std::vector<std::unique_ptr<ROMol>> &results) const;
-  void buildRandomHits(
-      const std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
-      size_t totHits, std::set<std::string> &resultsNames,
-      const TimePoint *endTime, bool &timedOut,
-      std::vector<std::unique_ptr<ROMol>> &results) const;
-  // get the subset of synthons for the given reaction to use for this
-  // enumeration.
-  std::vector<std::vector<ROMol *>> getSynthonsToUse(
-      const std::vector<boost::dynamic_bitset<>> &synthonsToUse,
-      const std::string &reaction_id) const;
-};
-#endif
-
 }  // namespace SynthonSpaceSearch
 }  // namespace RDKit
 #endif  // SYNTHONSPACESEARCHER_H
