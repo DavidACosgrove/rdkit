@@ -19,14 +19,13 @@
 #include <random>
 #include <regex>
 
-#include <boost/random/discrete_distribution.hpp>
-
 #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <DataStructs/ExplicitBitVect.h>
 #include <GraphMol/atomic_data.h>
 #include <GraphMol/MolPickler.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
@@ -536,8 +535,9 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = numThreads;
     for (size_t j = 0; j < sampleMols.size(); ++j) {
-      auto sampleMolHs = MolOps::addHs(*sampleMols[j]);
+      auto sampleMolHs = std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[j]));
       DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
+      MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
 
       std::vector<unsigned int> splitBonds;
       for (const auto &bond : sampleMols[j]->bonds()) {
@@ -564,6 +564,7 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
       }
       // Put ShapeInput objects in the Synthon.  The conformations aren't
       // needed at the moment.
+      d_synthons[synthSetNum][j].second->clearShapes();
       for (unsigned int i = 0u; i < molFrags[fragWeWant]->getNumConformers();
            ++i) {
         std::unique_ptr<ShapeInput> shape(
