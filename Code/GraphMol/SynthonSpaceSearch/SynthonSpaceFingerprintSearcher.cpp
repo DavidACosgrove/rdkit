@@ -258,7 +258,7 @@ bool SynthonSpaceFingerprintSearcher::quickVerify(
          getParams().similarityCutoff - getParams().approxSimilarityAdjuster;
 }
 
-bool SynthonSpaceFingerprintSearcher::verifyHit(const ROMol &hit) const {
+bool SynthonSpaceFingerprintSearcher::verifyHit(ROMol &hit) const {
   const std::unique_ptr<ExplicitBitVect> fp(d_fpGen.getFingerprint(hit));
   if (const auto sim = TanimotoSimilarity(*fp, *d_queryFP);
       sim >= getParams().similarityCutoff) {

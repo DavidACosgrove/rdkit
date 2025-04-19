@@ -109,6 +109,8 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
              // appropriate for Morgan fingerprints.  With RDKit fingerprints,
              // 0.05 is adequate, and higher than that has been seen to
              // produce long run times.
+  unsigned int numConformers{10};  // When doing a shape search, the number of
+                                   // conformers to use for each molecule.
   std::uint64_t timeOut{600};  // Maximum number of seconds to spend on a single
                                // search.  0 means no maximum.
   int numThreads = 1;  // The number of threads to use.  If > 0, will use that
@@ -125,6 +127,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   friend class SynthonSpaceSearcher;
   friend class SynthonSpaceFingerprintSearcher;
   friend class SynthonSpaceRascalSearcher;
+  friend class SynthonSpaceShapeSearcher;
 
  public:
   explicit SynthonSpace() = default;
@@ -211,10 +214,9 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
       const ROMol &query, const FingerprintGenerator<std::uint64_t> &fpGen,
       const SynthonSpaceSearchParams &params = SynthonSpaceSearchParams());
 
-  // Perform a RASCAL similarity search with the given query molecule
-  // across the synthonspace library.  Duplicate SMILES strings produced by
-  // different reactions will be returned.
-  /*!
+  /*! Perform a RASCAL similarity search with the given query molecule
+   * across the synthonspace library.  Duplicate SMILES strings produced by
+   * different reactions will be returned.
    *
    * @param query : query molecule
    * @param rascalOptions: RASCAL options.  The similarityThreshold value
@@ -228,6 +230,18 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    */
   SearchResults rascalSearch(
       const ROMol &query, const RascalMCES::RascalOptions &rascalOptions,
+      const SynthonSpaceSearchParams &params = SynthonSpaceSearchParams());
+
+  /*! Perform a shape similarity search with the given query molecule
+   * across the synthonspace library.  Duplicate SMILES strings produced by
+   * different reactions will be returned.
+   *
+   * @param query : query molecule
+   * @param params : (optional) settings for the search
+   * @return : the hits as a SearchResults object.
+   */
+  SearchResults shapeSearch(
+      const ROMol &query,
       const SynthonSpaceSearchParams &params = SynthonSpaceSearchParams());
 
   /*!
@@ -320,6 +334,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
 
   bool hasAddAndSubstractFingerprints() const;
 
+  unsigned int getNumConformers() const;
+
   // Take the SMILES for a Synthon and if it's not in
   // d_synthonPool make it and add it.  If it is in the pool,
   // just look it up.  Either way, return a pointer to the
@@ -343,8 +359,9 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   unsigned int d_maxNumSynthons{0};
   std::uint64_t d_numProducts{0};
 
-  // This is actually 1000 * major version + 10 * minor version
-  // and hence the full version number.
+  // This is actually 1000 * major version + 10 * minor
+  // versionPrepareConformer(*molFrags[fragWeWant], i, true) and hence the full
+  // version number.
   std::int32_t d_fileMajorVersion{-1};
 
   // The pool of all synthons, keyed on SMILES string.  Synthons
@@ -353,9 +370,13 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   // for via first, which is its SMILES string.
   std::vector<std::pair<std::string, std::unique_ptr<Synthon>>> d_synthonPool;
 
-  // For the similarity search, this records the generator used for
-  // creating synthon fingerprints that are read from a binary file.
+  // For the fingerprint similarity search, this records the generator
+  // used for creating synthon fingerprints that are read from a binary file.
   std::string d_fpType;
+  // For the shape similarity search, this records the number of conformers
+  // used.  It's not necessarily the same as the number of conformers each
+  // synthon has.
+  unsigned int d_numConformers{0};
 
   SearchResults extendedSearch(const MolBundle &query,
                                const SubstructMatchParameters &matchParams,

@@ -2,14 +2,16 @@
 rdkit_library(SynthonSpaceSearch
         SynthonSpaceSearch_details.cpp SynthonSpace.cpp SynthonSet.cpp Synthon.cpp
         SynthonSpaceSearcher.cpp SynthonSpaceSubstructureSearcher.cpp SynthonSpaceFingerprintSearcher.cpp
-        SynthonSpaceRascalSearcher.cpp SynthonSpaceHitSet.cpp SearchResults.cpp MemoryMappedFileReader.cpp
+        SynthonSpaceRascalSearcher.cpp SynthonSpaceShapeSearcher.cpp
+        SynthonSpaceHitSet.cpp SearchResults.cpp MemoryMappedFileReader.cpp
         LINK_LIBRARIES SmilesParse FileParsers ChemTransforms Fingerprints SubstructMatch GraphMol RascalMCES
-        GeneralizedSubstruct DistGeomHelpers DistGeometry PubChemShape)
+        GeneralizedSubstruct DistGeomHelpers DistGeometry
+        PubChemShape)
 target_compile_definitions(SynthonSpaceSearch PRIVATE RDKIT_SYNTHONSPACESEARCH_BUILD)
 
 rdkit_headers(SynthonSpace.h SynthonSet.h Synthon.h SearchResults.h
         SynthonSpaceSearcher.h SynthonSpaceSubstructureSearcher.h SynthonSpaceFingerprintSearcher.h
-        SynthonSpaceRascalSearcher.h DEST GraphMol/SynthonSpaceSearch)
+        SynthonSpaceRascalSearcher.h SynthonSpaceShapeSearcher.h DEST GraphMol/SynthonSpaceSearch)
 
 rdkit_catch_test(testSynthonSpaceSubstructureSearch substructure_search_catch_tests.cpp
         LINK_LIBRARIES SubstructMatch SubstructLibrary SynthonSpaceSearch)

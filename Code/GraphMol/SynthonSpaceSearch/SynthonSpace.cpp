@@ -31,6 +31,7 @@
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceFingerprintSearcher.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceRascalSearcher.h>
+#include <GraphMol/SynthonSpaceSearch/SynthonSpaceShapeSearcher.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSubstructureSearcher.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
@@ -166,7 +167,14 @@ SearchResults SynthonSpace::rascalSearch(
     const ROMol &query, const RascalMCES::RascalOptions &rascalOptions,
     const SynthonSpaceSearchParams &params) {
   PRECONDITION(query.getNumAtoms() != 0, "Search query must contain atoms.");
-  SynthonSpaceRascalSearcher ssss(query, rascalOptions, params, *this);
+  SynthonSpaceRascalSearcher ssrs(query, rascalOptions, params, *this);
+  return ssrs.search();
+}
+
+SearchResults SynthonSpace::shapeSearch(
+    const ROMol &query, const SynthonSpaceSearchParams &params) {
+  PRECONDITION(query.getNumAtoms() != 0, "Search query must contain atoms.");
+  SynthonSpaceShapeSearcher ssss(query, params, *this);
   return ssss.search();
 }
 
@@ -312,6 +320,7 @@ void SynthonSpace::writeDBFile(const std::string &outFilename) const {
   if (hasFingerprints()) {
     streamWrite(os, d_fpType);
   }
+  streamWrite(os, d_numConformers);
   streamWrite(os, static_cast<std::uint64_t>(d_synthonPool.size()));
   streamWrite(os, static_cast<std::uint64_t>(d_reactions.size()));
   streamWrite(os, d_numProducts);
@@ -469,6 +478,9 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
   if (hasFPs) {
     streamRead(is, d_fpType, 0);
   }
+  if (d_fileMajorVersion > 3000) {
+    streamRead(is, d_numConformers);
+  }
   std::uint64_t numSynthons;
   std::uint64_t numReactions;
   streamRead(is, numSynthons);
@@ -582,6 +594,7 @@ void SynthonSpace::writeEnumeratedFile(const std::string &outFilename) const {
 }
 
 bool SynthonSpace::hasFingerprints() const { return !d_fpType.empty(); }
+unsigned int SynthonSpace::getNumConformers() const { return d_numConformers; }
 
 void SynthonSpace::buildSynthonFingerprints(
     const FingerprintGenerator<std::uint64_t> &fpGen) {
@@ -610,6 +623,14 @@ void SynthonSpace::buildSynthonFingerprints(
 
 void SynthonSpace::buildSynthonConformers(unsigned int numConfs,
                                           int numThreads) {
+  if (d_numConformers == numConfs) {
+    BOOST_LOG(rdWarningLog) << "SynthonSpace has already been built with "
+                            << numConfs << " conformers." << std::endl;
+    return;
+  }
+  BOOST_LOG(rdWarningLog) << "Building the conformers may take some time."
+                          << std::endl;
+  d_numConformers = numConfs;
   for (const auto &[id, synthSet] : d_reactions) {
     if (ControlCHandler::getGotSignal()) {
       return;

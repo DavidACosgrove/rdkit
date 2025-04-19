@@ -174,7 +174,7 @@ bool SynthonSpaceRascalSearcher::quickVerify(
   return bestSim >= d_rascalOptions.similarityThreshold;
 }
 
-bool SynthonSpaceRascalSearcher::verifyHit(const ROMol &hit) const {
+bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) const {
   auto res = RascalMCES::rascalMCES(hit, getQuery(), d_rascalOptions);
   // Rascal reports all matches that proceed to full MCES elucidation,
   // even if the final similarity value ends up below the threshold.

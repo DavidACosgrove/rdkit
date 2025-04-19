@@ -117,6 +117,8 @@ void Synthon::addShape(std::unique_ptr<ShapeInput> shape) {
   dp_shapes.push_back(std::move(shape));
 }
 
+void Synthon::clearShapes() { dp_shapes.clear(); }
+
 const std::vector<std::unique_ptr<ShapeInput>> &Synthon::getShapes() const {
   return dp_shapes;
 }
@@ -171,9 +173,11 @@ void Synthon::readFromDBStream(std::istream &is, const std::uint32_t version) {
     streamRead(is, numShapes);
     if (numShapes) {
       dp_shapes.reserve(numShapes);
-      std::string pickle;
-      streamRead(is, pickle, 0);
-      dp_shapes.emplace_back(new ShapeInput(pickle));
+      for (std::uint64_t i = 0; i < numShapes; ++i) {
+        std::string pickle;
+        streamRead(is, pickle, 0);
+        addShape(std::make_unique<ShapeInput>(pickle));
+      }
     }
   }
 }

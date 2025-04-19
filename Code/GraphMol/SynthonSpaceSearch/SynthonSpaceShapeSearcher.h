@@ -1,5 +1,5 @@
 //
-// Copyright (C) David Cosgrove 2024.
+// Copyright (C) David Cosgrove 2025.
 //
 //   @@ All Rights Reserved @@
 //  This file is part of the RDKit.
@@ -9,47 +9,40 @@
 //
 
 // This file declares a concrete class derived from SynthonSpaceSearcher
-// that does RASCAL similarity searching of the SynthonSpace.
+// that does shape similarity searching of the SynthonSpace using the
+// PubChem code.
 
-#ifndef SYNTHONSPACERASCALSEARCHER_H
-#define SYNTHONSPACERASCALSEARCHER_H
+#ifndef SYNTHONSPACESHAPESEARCHER_H
+#define SYNTHONSPACESHAPESEARCHER_H
 
 #include <RDGeneral/export.h>
-
-#include <GraphMol/RascalMCES/RascalOptions.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearcher.h>
-
-namespace RDKit::RascalMCES {
-struct RascalOptions;
-}
 
 namespace RDKit::SynthonSpaceSearch {
 
-class SynthonSpaceRascalSearcher : public SynthonSpaceSearcher {
+// Concrete class that does the search by fingerprint similarity.
+class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
  public:
-  SynthonSpaceRascalSearcher() = delete;
-  SynthonSpaceRascalSearcher(const ROMol &query,
-                             const RascalMCES::RascalOptions &options,
-                             const SynthonSpaceSearchParams &params,
-                             SynthonSpace &space);
+  SynthonSpaceShapeSearcher() = delete;
+  SynthonSpaceShapeSearcher(const ROMol &query,
+                            const SynthonSpaceSearchParams &params,
+                            SynthonSpace &space);
 
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> searchFragSet(
       const std::vector<std::unique_ptr<ROMol>> &fragSet,
       const SynthonSet &reaction) const override;
 
  private:
+  std::vector<std::unique_ptr<ShapeInput>> d_queryShapes;
+  std::vector<std::vector<std::vector<std::unique_ptr<ShapeInput>>>>
+      d_fragShapes;
+
   void extraSearchSetup(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
 
   bool quickVerify(const SynthonSpaceHitSet *hitset,
                    const std::vector<size_t> &synthNums) const override;
-
   bool verifyHit(ROMol &hit) const override;
-
-  const RascalMCES::RascalOptions &d_rascalOptions;
-  RascalMCES::RascalOptions d_rascalFragOptions;
 };
-
 }  // namespace RDKit::SynthonSpaceSearch
-
-#endif  // SYNTHONSPACERASCALSEARCHER_H
+#endif  // SYNTHONSPACESHAPESEARCHER_H

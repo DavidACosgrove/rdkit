@@ -45,6 +45,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   const std::vector<std::shared_ptr<ROMol>> &getConnRegions() const;
   void setSearchMol(std::unique_ptr<ROMol> mol);
   void setFP(std::unique_ptr<ExplicitBitVect> fp);
+  void clearShapes();
   void addShape(std::unique_ptr<ShapeInput> shape);
   const std::vector<std::unique_ptr<ShapeInput>> &getShapes() const;
 

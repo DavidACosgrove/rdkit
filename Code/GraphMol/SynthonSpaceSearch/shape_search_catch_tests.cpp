@@ -54,7 +54,9 @@ TEST_CASE("Shape Small tests") {
     synthonspace.buildSynthonConformers();
 
     SynthonSpaceSearchParams params;
+    params.similarityCutoff = 1.4;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
+    auto results = synthonspace.shapeSearch(*queryMol, params);
   }
 }
 

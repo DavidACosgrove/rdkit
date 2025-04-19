@@ -97,8 +97,10 @@ class SynthonSpaceSearcher {
     return true;
   }
   // Checks that the given molecule is definitely a hit according to
-  // the derived class' criteria.
-  virtual bool verifyHit(const ROMol &mol) const = 0;
+  // the derived class' criteria.  Some sub-classes will alter the
+  // molecule, for example the shape search will return it overlaid
+  // on the query.
+  virtual bool verifyHit(ROMol &mol) const = 0;
 
   // Build the molecules from the synthons identified in hitsets.
   // Checks that all the results produced match the
