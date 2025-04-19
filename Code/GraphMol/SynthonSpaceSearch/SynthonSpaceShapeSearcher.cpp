@@ -106,6 +106,12 @@ std::vector<std::vector<size_t>> getHitSynthons(
       return retSynthons;
     }
   }
+
+  // Fill in any synthons where they all didn't match because there were
+  // fewer fragments than synthons.
+  details::expandBitSet(synthonsToUse);
+  details::bitSetsToVectors(synthonsToUse, retSynthons);
+
   // Now order the synthons in descending order of their similarity to
   // the corresponding fragFP.
   for (size_t i = 0; i < fragShapes.size(); i++) {
@@ -242,6 +248,7 @@ ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag) {
           std::cout << "Dummy atom " << nbrNbr->getIdx() << std::endl;
           fragAtoms.emplace_back(nbrNbr->getIdx());
           dummyRadii.emplace_back(nbrNbr->getIdx(), 2.16);
+          notColorAtoms.emplace_back(nbrNbr->getIdx());
         }
       }
     }
@@ -256,6 +263,7 @@ ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag) {
   ShapeInputOptions opts;
   opts.atomSubset = fragAtoms;
   opts.atomRadii = dummyRadii;
+  opts.notColorAtoms = notColorAtoms;
   shapes.resize(queryConfs.getNumConformers());
   for (unsigned int k = 0u; k < queryConfs.getNumConformers(); ++k) {
     auto shape = PrepareConformer(queryConfs, k, opts);
@@ -338,17 +346,20 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   auto hitMolHs = MolOps::addHs(hit);
   DGeomHelpers::EmbedMultipleConfs(*hitMolHs, getParams().numConformers,
                                    dgParams);
-  MolOps::removeHs(*hitMolHs);
-  std::vector<float> matrix;
+  MolOps::removeHs(*static_cast<RWMol *>(hitMolHs));
+  std::vector<float> matrix(12, 0.0);
+  std::cout << "Verifying hit for " << MolToSmiles(hit) << std::endl;
   for (const auto &qshape : d_queryShapes) {
     for (unsigned int i = 0u; i < hitMolHs->getNumConformers(); ++i) {
+      std::cout << "Checking conf " << i << std::endl;
       auto sims = AlignMolecule(*qshape, *hitMolHs, matrix, i);
+      std::cout << "simes : " << sims.first << ", " << sims.second << std::endl;
       if (sims.first + sims.second >= getParams().similarityCutoff) {
         hit.setProp<double>("Similarity", sims.first + sims.second);
         auto coords = hitMolHs->getConformer(i).getPositions();
-        for (unsigned int j = 0u; j < coords.size(); ++j) {
-          hit.getConformer().setAtomPos(j, coords[j]);
-        }
+        std::cout << "transfering coords" << std::endl;
+        hit.addConformer(new Conformer(hitMolHs->getConformer(i)));
+        std::cout << "transferred" << std::endl;
         return true;
       }
     }
