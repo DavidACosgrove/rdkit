@@ -17,6 +17,7 @@
 
 #include <RDGeneral/export.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearcher.h>
+#include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 
 namespace RDKit::SynthonSpaceSearch {
 
@@ -34,8 +35,13 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
 
  private:
   std::vector<std::unique_ptr<ShapeInput>> d_queryShapes;
-  std::vector<std::vector<std::vector<std::unique_ptr<ShapeInput>>>>
-      d_fragShapes;
+  // These are the fragment shapes for this search, derived from
+  // d_query.  The shapes in d_fragShapes are keyed on the address
+  // of the corresponding fragment.  d_fragShapesPool is never read,
+  // it is just used a repository of the shapes for the duration of
+  // the search.
+  std::vector<ShapeSet> d_fragShapesPool;
+  std::vector<std::pair<void *, ShapeSet *>> d_fragShapes;
 
   void extraSearchSetup(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;

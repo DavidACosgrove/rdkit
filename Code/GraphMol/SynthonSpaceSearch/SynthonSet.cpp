@@ -528,13 +528,19 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
     dummyLabels.emplace_back(i, i);
   }
 
+  ShapeInputOptions shapeOpts;
+  shapeOpts.includeDummies = true;
+  shapeOpts.dummyRadius = 2.16;
   // Now build sets of sample molecules using each synthon set in turn.
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
     auto sampleMols =
         buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = numThreads;
+    dgParams.pruneRmsThresh = 1.0;
     for (size_t j = 0; j < sampleMols.size(); ++j) {
+      std::cout << "Sample mol " << j << " : " << MolToSmiles(*sampleMols[j])
+                << std::endl;
       auto sampleMolHs = std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[j]));
       DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
       MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
@@ -545,6 +551,9 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
           splitBonds.push_back(bond->getIdx());
         }
       }
+      // TODO: maybe use new PrepareConformer method that takes a subset
+      // of atoms with dummy radii so as not to have to create and sanitize
+      // the fragment molecules.
       const std::unique_ptr<ROMol> fragMol(MolFragmenter::fragmentOnBonds(
           *sampleMolHs, splitBonds, true, &dummyLabels));
       std::vector<std::unique_ptr<ROMol>> molFrags;
@@ -553,22 +562,17 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
       unsigned int otf;
       sanitizeMol(*static_cast<RWMol *>(molFrags[fragWeWant].get()), otf,
                   MolOps::SANITIZE_SYMMRINGS);
-      // Change the dummy atom of attachment to a Fr (atomic number 87), which
-      // is the largest radius that the Shape code recognises.  It rejects
-      // dummy atoms.  This is so there's a fat blob to try and anchor
-      // attachment points to each other when doing a shape overlay.
-      for (auto &atom : molFrags[fragWeWant]->atoms()) {
-        if (!atom->getAtomicNum() && atom->getIsotope() <= MAX_CONNECTOR_NUM) {
-          atom->setAtomicNum(87);
-        }
-      }
+      std::cout << "fragment " << MolToSmiles(*molFrags[fragWeWant])
+                << std::endl;
       // Put ShapeInput objects in the Synthon.  The conformations aren't
       // needed at the moment.
       d_synthons[synthSetNum][j].second->clearShapes();
       for (unsigned int i = 0u; i < molFrags[fragWeWant]->getNumConformers();
            ++i) {
-        std::unique_ptr<ShapeInput> shape(
-            new ShapeInput(PrepareConformer(*molFrags[fragWeWant], i, true)));
+        std::unique_ptr<ShapeInput> shape(new ShapeInput(
+            PrepareConformer(*molFrags[fragWeWant], i, shapeOpts)));
+        std::cout << i << " : " << shape->sov << ", " << shape->sof << " : "
+                  << shape->coord.size() / 3 << std::endl;
         d_synthons[synthSetNum][j].second->addShape(std::move(shape));
       }
     }

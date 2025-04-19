@@ -847,7 +847,7 @@ std::map<std::string, std::vector<ROMol *>> mapFragsBySmiles(
         cancelled = true;
         return fragSmiToFrag;
       }
-      // For the fingerprints, ring info is required.
+      // For the fingerprints and shapes, ring info is required.
       unsigned int otf;
       sanitizeMol(*static_cast<RWMol *>(frag.get()), otf,
                   MolOps::SANITIZE_SYMMRINGS);

@@ -5,6 +5,7 @@
 
 #include <GraphMol/RWMol.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
+#include <GraphMol/SmilesParse/SmartsWrite.h>
 #include <GraphMol/Substruct/SubstructMatch.h>
 
 #include <RDGeneral/BoostStartInclude.h>
@@ -225,6 +226,7 @@ std::vector<std::pair<std::vector<unsigned int>, unsigned int>> extractFeatures(
 
       DEBUG_MSG("# features: " << feature_idx_type.size());
     } else {
+      std::cout << "RDKIT features" << std::endl;
       const auto pattVects = getPh4Patterns();
       feature_idx_type.clear();
 
@@ -234,9 +236,12 @@ std::vector<std::pair<std::vector<unsigned int>, unsigned int>> extractFeatures(
           auto matches = SubstructMatch(mol, *patt);
           for (auto match : matches) {
             std::vector<unsigned int> ats;
+            std::cout << "match for " << MolToSmarts(*patt) << " : ";
             for (const auto &pr : match) {
               ats.push_back(pr.second);
+              std::cout << pr.second << " ";
             }
+            std::cout << std::endl;
             feature_idx_type.emplace_back(ats, pattIdx);
           }
         }
@@ -329,11 +334,18 @@ void extractFeatureCoords(
     std::vector<double> &rad_vector) {
   // get feature coordinates - simply the average of coords of all atoms in the
   // feature
+  std::cout << "subset atoms : ";
+  for (auto a : shapeOpts.atomSubset) {
+    std::cout << a << " ";
+  }
+  std::cout << std::endl;
   for (unsigned i = 0; i < feature_idx_type.size(); ++i) {
     RDGeom::Point3D floc;
     unsigned int nSel = 0;
+    std::cout << "coords for feature " << i << " :: ";
     for (unsigned int j = 0; j < feature_idx_type[i].first.size(); ++j) {
       unsigned int idx = feature_idx_type[i].first[j];
+      std::cout << idx << " ";
       if (!atomInSubset(idx, shapeOpts)) {
         continue;
       }
@@ -344,6 +356,7 @@ void extractFeatureCoords(
       floc += conformer.getAtomPos(idx);
       ++nSel;
     }
+    std::cout << " :: " << nSel << std::endl;
     if (nSel) {
       floc /= nSel;
       floc -= ave;

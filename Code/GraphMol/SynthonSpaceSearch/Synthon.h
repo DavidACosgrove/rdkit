@@ -15,6 +15,7 @@
 
 #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <RDGeneral/export.h>
+#include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearchHelpers.h>
 
 namespace RDKit {
 class Atom;
@@ -47,7 +48,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   void setFP(std::unique_ptr<ExplicitBitVect> fp);
   void clearShapes();
   void addShape(std::unique_ptr<ShapeInput> shape);
-  const std::vector<std::unique_ptr<ShapeInput>> &getShapes() const;
+  const ShapeSet &getShapes() const;
 
   // Writes to/reads from a binary stream.
   void writeToDBStream(std::ostream &os) const;
@@ -69,7 +70,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   // searching.  Its type is known by the SynthonSpace that holds the
   // Synthon.
   std::unique_ptr<ExplicitBitVect> dp_FP{nullptr};
-  std::vector<std::unique_ptr<ShapeInput>> dp_shapes;
+  ShapeSet dp_shapes;
 
   // SMILES strings of any connector regions.  Normally there will only
   // be 1 or 2.  These are derived from the search mol.

@@ -36,7 +36,7 @@ class SynthonSpaceFingerprintSearcher : public SynthonSpaceSearcher {
 
   const FingerprintGenerator<std::uint64_t> &d_fpGen;
   // These are the fingerprints for the fragments in this search.
-  // The fingerprint in d_fragFPs are keyed on the addresses of the
+  // The fingerprints in d_fragFPs are keyed on the addresses of the
   // corresponding fragment.  There are usually multiple fragments
   // with the same SMILES and this way the fingerprints are
   // generated the minimum number of times.

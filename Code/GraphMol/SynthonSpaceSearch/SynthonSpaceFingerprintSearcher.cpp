@@ -9,6 +9,7 @@
 //
 
 #include <algorithm>
+#include <ranges>
 
 #include <DataStructs/BitOps.h>
 #include <GraphMol/MolOps.h>
@@ -99,14 +100,13 @@ std::vector<std::vector<size_t>> getHitSynthons(
         fragSims[i][j] = std::make_pair(j, 0.0);
       }
     } else {
-      std::sort(
+      std::ranges::sort(
           fragSims[i].begin(), fragSims[i].end(),
           [](const auto &a, const auto &b) { return a.second > b.second; });
     }
     retSynthons[i].clear();
-    std::transform(fragSims[i].begin(), fragSims[i].end(),
-                   std::back_inserter(retSynthons[i]),
-                   [](const auto &fs) { return fs.first; });
+    std::ranges::transform(fragSims[i], std::back_inserter(retSynthons[i]),
+                           [](const auto &fs) { return fs.first; });
   }
   return retSynthons;
 }
@@ -131,7 +131,7 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
     return;
   }
 
-  // Now generate the fingerprints for the fragments.  This is the
+  // Generate the fingerprints for the fragments.  This is the
   // time-consuming bit that will be threaded.
   d_fragFPPool.resize(fragSmiToFrag.size());
   unsigned int fragNum = 0;
@@ -142,7 +142,7 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
     d_fragFPPool[fragNum++].reset(d_fpGen.getFingerprint(*frags.front()));
   }
 
-  // Now use the pooled fps to populate the vectors for each fragSet.
+  // Use the pooled fps to populate the vectors for each fragSet.
   fragNum = 0;
   d_fragFPs.reserve(fragSmiToFrag.size());
   for (auto &[fragSmi, frags] : fragSmiToFrag) {
@@ -151,10 +151,9 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
     }
     ++fragNum;
   }
-  std::sort(d_fragFPs.begin(), d_fragFPs.end(),
-            [](const auto &p1, const auto &p2) -> bool {
-              return p1.first > p2.first;
-            });
+  std::ranges::sort(d_fragFPs, [](const auto &p1, const auto &p2) -> bool {
+    return p1.first > p2.first;
+  });
 }
 
 std::vector<std::unique_ptr<SynthonSpaceHitSet>>
@@ -176,11 +175,10 @@ SynthonSpaceFingerprintSearcher::searchFragSet(
   fragFPs.reserve(fragSet.size());
   for (auto &frag : fragSet) {
     std::pair<void *, ExplicitBitVect *> tmp{frag.get(), nullptr};
-    const auto it =
-        std::lower_bound(d_fragFPs.begin(), d_fragFPs.end(), tmp,
-                         [](const auto &p1, const auto &p2) -> bool {
-                           return p1.first > p2.first;
-                         });
+    const auto it = std::ranges::lower_bound(
+        d_fragFPs, tmp, [](const auto &p1, const auto &p2) -> bool {
+          return p1.first > p2.first;
+        });
     fragFPs.push_back(it->second);
   }
 
