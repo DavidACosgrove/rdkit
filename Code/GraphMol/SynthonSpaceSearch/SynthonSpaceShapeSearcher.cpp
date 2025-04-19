@@ -230,6 +230,7 @@ ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag) {
   }
   std::cout << std::endl;
   std::vector<std::pair<unsigned int, double>> dummyRadii;
+  std::vector<unsigned int> notColorAtoms;
   for (auto atom : frag.atoms()) {
     if (atom->getAtomicNum() == 0 && atom->getIsotope() >= 1 &&
         atom->getIsotope() <= MAX_CONNECTOR_NUM) {

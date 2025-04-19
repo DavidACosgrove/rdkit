@@ -226,7 +226,6 @@ std::vector<std::pair<std::vector<unsigned int>, unsigned int>> extractFeatures(
 
       DEBUG_MSG("# features: " << feature_idx_type.size());
     } else {
-      std::cout << "RDKIT features" << std::endl;
       const auto pattVects = getPh4Patterns();
       feature_idx_type.clear();
 
@@ -236,12 +235,9 @@ std::vector<std::pair<std::vector<unsigned int>, unsigned int>> extractFeatures(
           auto matches = SubstructMatch(mol, *patt);
           for (auto match : matches) {
             std::vector<unsigned int> ats;
-            std::cout << "match for " << MolToSmarts(*patt) << " : ";
             for (const auto &pr : match) {
               ats.push_back(pr.second);
-              std::cout << pr.second << " ";
             }
-            std::cout << std::endl;
             feature_idx_type.emplace_back(ats, pattIdx);
           }
         }
@@ -256,8 +252,13 @@ bool atomInSubset(unsigned int atomIdx, const ShapeInputOptions &shapeOpts) {
   if (shapeOpts.atomSubset.empty()) {
     return true;
   }
-  return (std::ranges::find(shapeOpts.atomSubset, atomIdx) !=
-          shapeOpts.atomSubset.end());
+  return std::ranges::find(shapeOpts.atomSubset, atomIdx) !=
+         shapeOpts.atomSubset.end();
+}
+bool atomAllowedInColor(unsigned int atomIdx,
+                        const ShapeInputOptions &shapeOpts) {
+  return std::ranges::find(shapeOpts.notColorAtoms, atomIdx) ==
+         shapeOpts.notColorAtoms.end();
 }
 
 double getAtomRadius(unsigned int atomIdx, const ShapeInputOptions &shapeOpts) {
@@ -334,19 +335,13 @@ void extractFeatureCoords(
     std::vector<double> &rad_vector) {
   // get feature coordinates - simply the average of coords of all atoms in the
   // feature
-  std::cout << "subset atoms : ";
-  for (auto a : shapeOpts.atomSubset) {
-    std::cout << a << " ";
-  }
-  std::cout << std::endl;
   for (unsigned i = 0; i < feature_idx_type.size(); ++i) {
     RDGeom::Point3D floc;
     unsigned int nSel = 0;
-    std::cout << "coords for feature " << i << " :: ";
     for (unsigned int j = 0; j < feature_idx_type[i].first.size(); ++j) {
       unsigned int idx = feature_idx_type[i].first[j];
-      std::cout << idx << " ";
-      if (!atomInSubset(idx, shapeOpts)) {
+      if (!atomInSubset(idx, shapeOpts) ||
+          !atomAllowedInColor(idx, shapeOpts)) {
         continue;
       }
       if (idx >= nAtoms ||
@@ -356,8 +351,7 @@ void extractFeatureCoords(
       floc += conformer.getAtomPos(idx);
       ++nSel;
     }
-    std::cout << " :: " << nSel << std::endl;
-    if (nSel) {
+    if (nSel == feature_idx_type[i].first.size()) {
       floc /= nSel;
       floc -= ave;
       DEBUG_MSG("feature type " << feature_idx_type[i].second << " (" << floc
