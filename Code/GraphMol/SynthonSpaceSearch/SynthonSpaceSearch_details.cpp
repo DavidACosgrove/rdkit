@@ -878,7 +878,7 @@ void pruneShapes(ShapeSet &shapeSet, double simThreshold) {
     ~DistFunctor() = default;
     double operator()(unsigned int i, unsigned int j) {
       auto keepCoord = d_shapes[j]->coord;
-      auto [st, ct] = AlignShapes(*d_shapes[i], *d_shapes[j], d_matrix);
+      auto [st, ct] = AlignShape(*d_shapes[i], *d_shapes[j], d_matrix);
       d_shapes[j]->coord = keepCoord;
       double res = 2.0 - (st + ct);
       return res;

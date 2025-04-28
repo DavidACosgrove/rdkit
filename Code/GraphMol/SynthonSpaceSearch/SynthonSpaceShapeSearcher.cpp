@@ -71,7 +71,7 @@ double bestShapeMatch(const ShapeSet &shapeSet1, const ShapeSet &shapeSet2,
       if (maxSim > similarityCutoff) {
         // We want the score, but want the shape in the same place afterwards.
         auto keepCoord = shape2->coord;
-        auto [sov, sof] = AlignShapes(*shape1, *shape2, matrix);
+        auto [sov, sof] = AlignShape(*shape1, *shape2, matrix);
         shape2->coord = keepCoord;
         if (sov + sof > bestSim) {
           bestSim = sov + sof;

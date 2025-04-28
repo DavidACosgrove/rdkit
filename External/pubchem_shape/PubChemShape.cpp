@@ -27,8 +27,11 @@ using namespace RDKit;
 // Bondi radii
 //  can find more of these in Table 12 of this publication:
 //   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3658832/
+// The dummy atom radius (atomic number 0) is set to
+// 2.16 in ShapeInputOptions and may be varied there, as
+// may all the other radii if required, including the
+// addition of atoms not covered here.
 const std::map<unsigned int, double> vdw_radii = {
-    {0, 1.10},   // dummy atom (value copied from H)
     {1, 1.10},   // H
     {2, 1.40},   // He
     {3, 1.81},   // Li
@@ -265,11 +268,9 @@ double getAtomRadius(unsigned int atomIdx, const ShapeInputOptions &shapeOpts) {
   auto it = std::ranges::find_if(
       shapeOpts.atomRadii,
       [atomIdx](const auto &p) -> bool { return p.first == atomIdx; });
-  if (it == shapeOpts.atomRadii.end()) {
-    return -1.0;
-  }
-  return it->second;
+  return it == shapeOpts.atomRadii.end() ? -1.0 : it->second;
 }
+
 // Get the atom radii.  rad_vector is expected to be big enough to hold them
 // all.  Also computes the average coordinates of the selected atoms.
 void extractAtomRadii(const Conformer &conformer, unsigned int nAtoms,
@@ -282,7 +283,7 @@ void extractAtomRadii(const Conformer &conformer, unsigned int nAtoms,
       continue;
     }
     double rad = getAtomRadius(i, shapeOpts);
-    if (rad != -1.0) {
+    if (rad > 0.0) {
       rad_vector[nSelectedAtoms++] = rad;
       ave += conformer.getAtomPos(i);
     } else {
@@ -435,12 +436,12 @@ ShapeInput PrepareConformer(const ROMol &mol, int confId,
   return res;
 }
 
-std::pair<double, double> AlignShapes(const ShapeInput &refShape,
-                                      ShapeInput &fitShape,
-                                      std::vector<float> &matrix,
-                                      double opt_param,
-                                      unsigned int max_preiters,
-                                      unsigned int max_postiters) {
+std::pair<double, double> AlignShape(const ShapeInput &refShape,
+                                     ShapeInput &fitShape,
+                                     std::vector<float> &matrix,
+                                     double opt_param,
+                                     unsigned int max_preiters,
+                                     unsigned int max_postiters) {
   std::set<unsigned int> jointColorAtomTypeSet;
   Align3D::getJointColorTypeSet(
       refShape.atom_type_vector.data(), refShape.atom_type_vector.size(),
@@ -448,8 +449,8 @@ std::pair<double, double> AlignShapes(const ShapeInput &refShape,
       jointColorAtomTypeSet);
   auto mapCp = refShape.colorAtomType2IndexVectorMap;
   Align3D::restrictColorAtomType2IndexVectorMap(mapCp, jointColorAtomTypeSet);
-  // Take copies of the color atom mappings so as not to alter the input shape
-  // which might be re-used somewhere.
+  // Take copy of the color atom mappings so as not to alter the input shape
+  // which might be re-used.
   auto fitMapCp = fitShape.colorAtomType2IndexVectorMap;
   Align3D::restrictColorAtomType2IndexVectorMap(fitMapCp,
                                                 jointColorAtomTypeSet);
@@ -476,7 +477,7 @@ std::pair<double, double> AlignShapes(const ShapeInput &refShape,
   return std::make_pair(nbr_st, nbr_ct);
 }
 
-void TransformConformer(const ShapeInput &refShape,
+void TransformConformer(const std::vector<double> &finalTrans,
                         const std::vector<float> &matrix, ShapeInput &fitShape,
                         Conformer &fitConf) {
   const unsigned int nAtoms = fitConf.getOwningMol().getNumAtoms();
@@ -493,23 +494,21 @@ void TransformConformer(const ShapeInput &refShape,
 
   std::vector<float> transformed(nAtoms * 3);
   Align3D::VApplyRotTransMatrix(transformed.data(), fitShape.coord.data(),
-                                nAtoms, matrix.data());
+                                fitConf.getOwningMol().getNumAtoms(),
+                                matrix.data());
+
   for (unsigned i = 0; i < nAtoms; ++i) {
-    // both conformers have been translated to the origin, translate the fit
-    // conformer back to the steric center of the reference.
     RDGeom::Point3D &pos = fitConf.getAtomPos(i);
-    pos.x = transformed[i * 3] - refShape.shift[0];
-    pos.y = transformed[(i * 3) + 1] - refShape.shift[1];
-    pos.z = transformed[(i * 3) + 2] - refShape.shift[2];
+    pos.x = transformed[i * 3] - finalTrans[0];
+    pos.y = transformed[(i * 3) + 1] - finalTrans[1];
+    pos.z = transformed[(i * 3) + 2] - finalTrans[2];
   }
 }
 
-std::pair<double, double> AlignMolecule(const ShapeInput &refShape, ROMol &fit,
-                                        std::vector<float> &matrix,
-                                        int fitConfId, bool useColors,
-                                        double opt_param,
-                                        unsigned int max_preiters,
-                                        unsigned int max_postiters) {
+std::pair<double, double> AlignMolecule(
+    const ShapeInput &refShape, ROMol &fit, std::vector<float> &matrix,
+    int fitConfId, bool useColors, double opt_param, unsigned int max_preiters,
+    unsigned int max_postiters, bool applyRefShift) {
   PRECONDITION(matrix.size() == 12, "bad matrix size");
   Align3D::setUseCutOff(true);
 
@@ -517,12 +516,16 @@ std::pair<double, double> AlignMolecule(const ShapeInput &refShape, ROMol &fit,
   ShapeInputOptions shapeOpts;
   shapeOpts.useColors = useColors;
   auto fitShape = PrepareConformer(fit, fitConfId, shapeOpts);
-  auto tanis = AlignShapes(refShape, fitShape, matrix, opt_param, max_preiters,
-                           max_postiters);
+  auto tanis = AlignShape(refShape, fitShape, matrix, opt_param, max_preiters,
+                          max_postiters);
 
   // transform fit coords
   Conformer &fit_conformer = fit.getConformer(fitConfId);
-  TransformConformer(refShape, matrix, fitShape, fit_conformer);
+  std::vector<double> finalTrans{0.0, 0.0, 0.0};
+  if (applyRefShift) {
+    finalTrans = refShape.shift;
+  }
+  TransformConformer(finalTrans, matrix, fitShape, fit_conformer);
   fit.setProp("shape_align_shape_tanimoto", tanis.first);
   fit.setProp("shape_align_color_tanimoto", tanis.second);
 
@@ -542,6 +545,7 @@ std::pair<double, double> AlignMolecule(const ROMol &ref, ROMol &fit,
   shapeOpts.useColors = useColors;
   auto refShape = PrepareConformer(ref, refConfId, shapeOpts);
 
-  return AlignMolecule(refShape, fit, matrix, fitConfId, useColors, opt_param,
-                       max_preiters, max_postiters);
+  auto scores = AlignMolecule(refShape, fit, matrix, fitConfId, useColors,
+                              opt_param, max_preiters, max_postiters, true);
+  return scores;
 }
