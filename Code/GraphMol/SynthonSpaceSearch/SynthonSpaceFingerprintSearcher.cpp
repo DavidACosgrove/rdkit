@@ -89,6 +89,21 @@ std::vector<std::vector<size_t>> getHitSynthons(
   details::expandBitSet(synthonsToUse);
   details::bitSetsToVectors(synthonsToUse, retSynthons);
 
+  std::cout << "fragSims : " << fragSims.size() << std::endl;
+  for (const auto &frs : fragSims) {
+    for (const auto &fr : frs) {
+      std::cout << "fr " << fr.first << " : " << fr.second << " :: ";
+    }
+    std::cout << std::endl;
+  }
+  std::cout << "retSynthons : " << retSynthons.size() << std::endl;
+  for (auto so : retSynthons) {
+    for (auto r : so) {
+      std::cout << r << " ";
+    }
+    std::cout << std::endl;
+  }
+
   // Now order the synthons in descending order of their similarity to
   // the corresponding fragFP.
   for (size_t i = 0; i < fragFPs.size(); i++) {

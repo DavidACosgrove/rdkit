@@ -104,7 +104,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
    *
    * @param numConfs: Maximum number of conformers per synthon.
    */
-  void buildSynthonConformers(unsigned int numConfs, int numThreads);
+  void buildSynthonShapes(unsigned int numConfs, int numThreads);
 
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as

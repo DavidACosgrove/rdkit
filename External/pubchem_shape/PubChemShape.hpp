@@ -2,6 +2,7 @@
 #define RDKIT_PUBCHEMSHAPE_GUARD
 
 #include <GraphMol/ROMol.h>
+#include <GraphMol/RWMol.h>
 #include <map>
 #include <vector>
 #include <boost/iostreams/filter/zlib.hpp>
@@ -57,6 +58,41 @@ struct RDKIT_PUBCHEMSHAPE_EXPORT ShapeInput {
     ar & sof;
   }
 #endif
+
+  // Mock a molecule up from the shape for visual inspection.  No bonds.
+  // Atoms are C, features are N.
+  std::unique_ptr<RDKit::RWMol> toMol() const {
+    auto mol = std::make_unique<RDKit::RWMol>();
+    unsigned int numAtoms = coord.size() / 3;
+    for (unsigned int i = 0; i < numAtoms; i++) {
+      RDKit::Atom *atom = nullptr;
+      if (atom_type_vector[i]) {
+        atom = new RDKit::Atom(7);
+      } else {
+        atom = new RDKit::Atom(6);
+      }
+      mol->addAtom(atom, true, true);
+    }
+    RDKit::Conformer *conf = new RDKit::Conformer(numAtoms);
+    RDGeom::Point3D ave;
+    unsigned int nAves = 0;
+    for (unsigned int i = 0; i < numAtoms; i++) {
+      auto &pos = conf->getAtomPos(i);
+      pos.x = coord[3 * i];
+      pos.y = coord[3 * i + 1];
+      pos.z = coord[3 * i + 2];
+      if (!atom_type_vector[i]) {
+        ave += pos;
+        ++nAves;
+      }
+    }
+    ave /= nAves;
+    std::cout << "Average position: " << ave << " of " << nAves << std::endl;
+    std::cout << "shift : " << shift[0] << ", " << shift[1] << ", " << shift[2]
+              << std::endl;
+    mol->addConformer(conf, true);
+    return mol;
+  }
 
   std::vector<float> coord;
   std::vector<double> alpha_vector;

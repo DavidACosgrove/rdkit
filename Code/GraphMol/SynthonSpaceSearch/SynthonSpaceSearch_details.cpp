@@ -13,12 +13,14 @@
 #include <iostream>
 #include <list>
 #include <memory>
+#include <ranges>
 #include <regex>
 #include <thread>
 #include <vector>
 
 #include <boost/dynamic_bitset.hpp>
 
+#include <../External/pubchem_shape/PubChemShape.hpp>
 #include <RDGeneral/ControlCHandler.h>
 #include <GraphMol/MolOps.h>
 #include <GraphMol/QueryAtom.h>
@@ -31,6 +33,8 @@
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <RDGeneral/RDThreads.h>
+#include <SimDivPickers/DistPicker.h>
+#include <SimDivPickers/LeaderPicker.h>
 
 namespace RDKit::SynthonSpaceSearch::details {
 
@@ -860,6 +864,52 @@ std::map<std::string, std::vector<ROMol *>> mapFragsBySmiles(
     }
   }
   return fragSmiToFrag;
+}
+
+void pruneShapes(ShapeSet &shapeSet, double simThreshold) {
+  if (shapeSet.empty()) {
+    return;
+  }
+  class DistFunctor {
+   public:
+    DistFunctor(const ShapeSet &shapes) : d_shapes(shapes) {
+      d_matrix = std::vector<float>(12, 0.0);
+    }
+    ~DistFunctor() = default;
+    double operator()(unsigned int i, unsigned int j) {
+      auto keepCoord = d_shapes[j]->coord;
+      auto [st, ct] = AlignShapes(*d_shapes[i], *d_shapes[j], d_matrix);
+      d_shapes[j]->coord = keepCoord;
+      double res = 2.0 - (st + ct);
+      return res;
+    }
+    const ShapeSet &d_shapes;
+    std::vector<float> d_matrix;
+  };
+
+  RDPickers::LeaderPicker leaderPicker;
+  DistFunctor distFunctor(shapeSet);
+  auto picks = leaderPicker.lazyPick(distFunctor, shapeSet.size(), 0,
+                                     2.0 - simThreshold);
+  // Allow for mysterious LeaderPicker behaviour where it returns a full vector
+  // of 0s when it should only pick 1 shape.
+  if (picks.size() == shapeSet.size()) {
+    std::ranges::sort(picks);
+    auto [first, last] = std::ranges::unique(picks);
+    picks.erase(first, last);
+  }
+  std::cout << "Picks : " << picks.size() << " :: ";
+  for (auto p : picks) {
+    std::cout << p << " ";
+  }
+  std::cout << std::endl;
+  ShapeSet newShapes;
+  for (auto p : picks) {
+    newShapes.push_back(std::move(shapeSet[p]));
+  }
+  std::cout << shapeSet.size() << " pruned to " << newShapes.size()
+            << std::endl;
+  shapeSet = std::move(newShapes);
 }
 
 }  // namespace RDKit::SynthonSpaceSearch::details

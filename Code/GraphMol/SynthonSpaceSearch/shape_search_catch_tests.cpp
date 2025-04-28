@@ -9,6 +9,9 @@
 
 #include <cstdio>
 
+#include <../External/pubchem_shape/PubChemShape.hpp>
+#include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <GraphMol/FileParsers/MolSupplier.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SynthonSpaceSearch/SearchResults.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
@@ -20,6 +23,34 @@ using namespace RDKit::SynthonSpaceSearch;
 using namespace RDKit::RascalMCES;
 
 const char *rdbase = getenv("RDBASE");
+
+void prepareMolecule(RWMol *mol) {
+  MolOps::addHs(*mol);
+  auto dgParams = DGeomHelpers::ETKDGv3;
+  // dgParams.pruneRmsThresh = 1.0;
+  dgParams.randomSeed = 1;
+  DGeomHelpers::EmbedMultipleConfs(*mol, 100, dgParams);
+  MolOps::removeHs(*mol);
+}
+
+std::map<std::string, std::unique_ptr<ROMol>> loadLibrary(
+    const std::string inFilename) {
+  v2::FileParsers::SmilesMolSupplierParams params;
+  params.titleLine = false;
+  v2::FileParsers::SmilesMolSupplier suppl(inFilename, params);
+  std::map<std::string, std::unique_ptr<ROMol>> mols;
+  while (!suppl.atEnd()) {
+    auto mol = suppl.next();
+    if (mol) {
+      prepareMolecule(mol.get());
+      std::string molName = mol->getProp<std::string>(common_properties::_Name);
+      mols.insert(std::make_pair(
+          molName,
+          std::unique_ptr<ROMol>(static_cast<ROMol *>(mol.release()))));
+    }
+  }
+  return mols;
+};
 
 TEST_CASE("Shape Small tests") {
   REQUIRE(rdbase);
@@ -43,6 +74,8 @@ TEST_CASE("Shape Small tests") {
   };
 
   std::vector<size_t> expNumHits{6, 4, 1};
+  unsigned int numConfs = 100;
+  int numThreads = 1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
     if (i != 0) {
@@ -51,15 +84,48 @@ TEST_CASE("Shape Small tests") {
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
-    synthonspace.buildSynthonConformers();
+    synthonspace.buildSynthonShapes(numConfs, numThreads);
 
     SynthonSpaceSearchParams params;
     params.similarityCutoff = 1.4;
-    params.numConformers = 100;
+    params.numConformers = numConfs;
+    params.numThreads = numThreads;
+    params.timeOut = 0;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     auto results = synthonspace.shapeSearch(*queryMol, params);
     std::cout << "Num hits : " << results.getHitMolecules().size() << " : "
               << results.getMaxNumResults() << std::endl;
+    for (const auto &hit : results.getHitMolecules()) {
+      std::cout << hit->getProp<std::string>(common_properties::_Name) << " : "
+                << hit->getProp<double>("Similarity") << std::endl;
+    }
+
+#if 0
+    auto mols = loadLibrary(enumLibNames[i]);
+    prepareMolecule(queryMol.get());
+    std::vector<float> matrix(12, 0.0);
+    unsigned int numHits = 0;
+    for (auto &[smiles, mol] : mols) {
+      bool foundHit = false;
+      for (unsigned int i = 0; i < queryMol->getNumConformers(); ++i) {
+        for (unsigned int j = 0; j < mol->getNumConformers(); ++j) {
+          auto [st, ct] = AlignMolecule(*queryMol, *mol, matrix, i, j);
+          if (st + ct > params.similarityCutoff) {
+            std::cout << mol->getProp<std::string>(common_properties::_Name)
+                      << " hit at " << st << ", " << ct << " : " << st + ct
+                      << " for " << i << ", " << j << std::endl;
+            ++numHits;
+            foundHit = true;
+            break;
+          }
+        }
+        if (foundHit) {
+          break;
+        }
+      }
+    }
+    CHECK(results.getHitMolecules().size() == numHits);
+#endif
   }
 }
 
@@ -72,7 +138,7 @@ TEST_CASE("Shape DB Writer") {
   bool cancelled = false;
   synthonspace.readTextFile(libName, cancelled);
   CHECK(synthonspace.getNumReactions() == 1);
-  synthonspace.buildSynthonConformers();
+  synthonspace.buildSynthonShapes();
 
   auto spaceName = std::tmpnam(nullptr);
 

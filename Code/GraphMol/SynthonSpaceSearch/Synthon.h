@@ -49,6 +49,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   void clearShapes();
   void addShape(std::unique_ptr<ShapeInput> shape);
   const ShapeSet &getShapes() const;
+  // Cut the shapes down so that no pair is more similar than simThreshold.
+  void pruneShapes(double simThreshold);
 
   // Writes to/reads from a binary stream.
   void writeToDBStream(std::ostream &os) const;

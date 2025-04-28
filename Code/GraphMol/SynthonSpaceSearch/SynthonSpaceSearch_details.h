@@ -158,6 +158,10 @@ RDKIT_SYNTHONSPACESEARCH_EXPORT std::map<std::string, std::vector<ROMol *>>
 mapFragsBySmiles(std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
                  bool &cancelled);
 
+// Make sure the shapes are at least simThreshold combination tanimoto apart.
+RDKIT_SYNTHONSPACESEARCH_EXPORT void pruneShapes(ShapeSet &shapeSet,
+                                                 double simThreshold);
+
 }  // namespace SynthonSpaceSearch::details
 }  // namespace RDKit
 

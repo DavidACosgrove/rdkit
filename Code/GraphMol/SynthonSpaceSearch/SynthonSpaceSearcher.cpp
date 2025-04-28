@@ -337,7 +337,6 @@ void SynthonSpaceSearcher::buildAllHits(
     details::Stepper stepper(numSynthons);
 
     const auto &reaction = getSpace().getReaction(hitset->d_reaction->getId());
-    std::vector<size_t> theseSynthNums(reaction->getSynthons().size(), 0);
     // process the synthons
     while (stepper.d_currState[0] != numSynthons[0]) {
       toTry.emplace_back(hitset.get(), stepper.d_currState);

@@ -123,6 +123,10 @@ const std::vector<std::unique_ptr<ShapeInput>> &Synthon::getShapes() const {
   return dp_shapes;
 }
 
+void Synthon::pruneShapes(double simThreshold) {
+  details::pruneShapes(dp_shapes, simThreshold);
+}
+
 void Synthon::writeToDBStream(std::ostream &os) const {
   streamWrite(os, d_smiles);
   MolPickler::pickleMol(*dp_origMol, os, PicklerOps::AllProps);

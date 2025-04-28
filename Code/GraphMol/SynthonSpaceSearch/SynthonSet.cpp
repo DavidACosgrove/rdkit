@@ -519,7 +519,7 @@ void SynthonSet::buildAddAndSubtractFPs(
   *d_subtractFP = ~(*d_subtractFP);
 }
 
-void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
+void SynthonSet::buildSynthonShapes(unsigned int numConfs, int numThreads) {
   // Each synthon is built into a product, its conformers generated
   // and then split out again into the original pieces.
   auto synthonMolCopies = copySynthons();
@@ -532,19 +532,26 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
   shapeOpts.includeDummies = true;
   shapeOpts.dummyRadius = 2.16;
   // Now build sets of sample molecules using each synthon set in turn.
+  double volDiff = 0.0;
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
     auto sampleMols =
         buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = numThreads;
-    dgParams.pruneRmsThresh = 1.0;
+    // dgParams.pruneRmsThresh = 1.0;
     for (size_t j = 0; j < sampleMols.size(); ++j) {
-      std::cout << "Sample mol " << j << " : " << MolToSmiles(*sampleMols[j])
-                << std::endl;
       auto sampleMolHs = std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[j]));
       DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
       MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
-
+      std::cout << "Sample mol " << j << " : " << MolToSmiles(*sampleMols[j])
+                << "  Num confs = " << sampleMolHs->getNumConformers()
+                << std::endl;
+      // for (unsigned int k = 0; k < sampleMolHs->getNumConformers(); ++k) {
+      //   std::cout << "Sample mol " << j << " : " << k << " : "
+      //             << sampleMolHs->getNumConformers() << " : "
+      //             << MolToCXSmiles(ROMol(*sampleMolHs, false, k)) <<
+      //             std::endl;
+      // }
       std::vector<unsigned int> splitBonds;
       for (const auto &bond : sampleMols[j]->bonds()) {
         if (!bond->hasProp("molNum")) {
@@ -562,7 +569,9 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
       unsigned int otf;
       sanitizeMol(*static_cast<RWMol *>(molFrags[fragWeWant].get()), otf,
                   MolOps::SANITIZE_SYMMRINGS);
-      std::cout << "fragment " << MolToSmiles(*molFrags[fragWeWant])
+      std::cout << "fragment " << MolToSmiles(*molFrags[fragWeWant]) << " :: "
+                << molFrags[fragWeWant]->getProp<std::string>(
+                       "_smilesAtomOutputOrder")
                 << std::endl;
       // Put ShapeInput objects in the Synthon.  The conformations aren't
       // needed at the moment.
@@ -571,10 +580,25 @@ void SynthonSet::buildSynthonConformers(unsigned int numConfs, int numThreads) {
            ++i) {
         std::unique_ptr<ShapeInput> shape(new ShapeInput(
             PrepareConformer(*molFrags[fragWeWant], i, shapeOpts)));
-        std::cout << i << " : " << shape->sov << ", " << shape->sof << " : "
-                  << shape->coord.size() / 3 << std::endl;
+        // std::cout << i << " : " << shape->sov << ", " << shape->sof << " : "
+        //           << shape->coord.size() / 3 << std::endl;
+        // std::cout << shape->atom_type_vector.size() << " : ";
+        // for (auto t : shape->atom_type_vector) {
+        //   std::cout << t << ", ";
+        // }
+        // std::cout << std::endl;
+        // std::cout << shape->colorAtomType2IndexVectorMap.size() << " : ";
+        // for (auto cv : shape->colorAtomType2IndexVectorMap) {
+        //   std::cout << cv.first << " (";
+        //   for (const auto &it : cv.second) {
+        //     std::cout << it << ", ";
+        //   }
+        //   std::cout << ")  ";
+        // }
+        // std::cout << std::endl;
         d_synthons[synthSetNum][j].second->addShape(std::move(shape));
       }
+      d_synthons[synthSetNum][j].second->pruneShapes(1.9);
     }
   }
 }

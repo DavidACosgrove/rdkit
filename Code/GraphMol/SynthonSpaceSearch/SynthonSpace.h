@@ -325,7 +325,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    *
    * @param numConfs: Maximum number of conformers per synthon.
    */
-  void buildSynthonConformers(unsigned int numConfs = 10, int numThreads = 1);
+  void buildSynthonShapes(unsigned int numConfs = 10, int numThreads = 1);
 
  protected:
   unsigned int getMaxNumSynthons() const { return d_maxNumSynthons; }

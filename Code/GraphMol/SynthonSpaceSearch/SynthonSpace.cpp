@@ -621,8 +621,7 @@ void SynthonSpace::buildSynthonFingerprints(
   }
 }
 
-void SynthonSpace::buildSynthonConformers(unsigned int numConfs,
-                                          int numThreads) {
+void SynthonSpace::buildSynthonShapes(unsigned int numConfs, int numThreads) {
   if (d_numConformers == numConfs) {
     BOOST_LOG(rdWarningLog) << "SynthonSpace has already been built with "
                             << numConfs << " conformers." << std::endl;
@@ -635,7 +634,7 @@ void SynthonSpace::buildSynthonConformers(unsigned int numConfs,
     if (ControlCHandler::getGotSignal()) {
       return;
     }
-    synthSet->buildSynthonConformers(numConfs, numThreads);
+    synthSet->buildSynthonShapes(numConfs, numThreads);
   }
 }
 
