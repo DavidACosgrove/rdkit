@@ -38,6 +38,8 @@
 #include <GraphMol/MolStandardize/Tautomer.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
 #include <GraphMol/SynthonSpaceSearch/SearchResults.h>
+#include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
+#include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearchHelpers.h>
 
 namespace RDKit {
 class ROMol;
@@ -292,8 +294,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   std::uint64_t d_numProducts{0};
 
   // This is actually 1000 * major version + 10 * minor
-  // versionPrepareConformer(*molFrags[fragWeWant], i, true) and hence the full
-  // version number.
+  // and hence the full version number.
   std::int32_t d_fileMajorVersion{-1};
 
   // The pool of all synthons, keyed on SMILES string.  Synthons

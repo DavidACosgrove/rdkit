@@ -68,6 +68,20 @@ class SynthonSpaceSearcher {
       const SynthonSpaceHitSet *hitset,
       const std::vector<size_t> &synthNums) const;
 
+ protected:
+  // Checks that the given molecule is definitely a hit according to
+  // the derived class' criteria.  This function checks the chiralAtomCount
+  // if appropriate.
+  virtual bool verifyHit(ROMol &mol) const;
+
+  // Do a check against number of heavy atoms etc. if options call for it
+  // which can be done without having to build the full molecule from the
+  // synthons. Some of the search methods (fingerprints, for example) can do
+  // additional quick checks on whether this set of synthons can match the query
+  // without building the full molecule.
+  virtual bool quickVerify(const SynthonSpaceHitSet *hitset,
+                           const std::vector<size_t> &synthNums) const;
+
  private:
   std::unique_ptr<std::mt19937> d_randGen;
 
@@ -86,21 +100,6 @@ class SynthonSpaceSearcher {
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> doTheSearch(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
       const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits);
-
-  // Some of the search methods (fingerprints, for example) can do a quick
-  // check on whether this set of synthons can match the query without having to
-  // build the full molecule from the synthons.  They will over-ride this
-  // function which by default passes everything.
-  virtual bool quickVerify(
-      [[maybe_unused]] const SynthonSpaceHitSet *hitset,
-      [[maybe_unused]] const std::vector<size_t> &synthNums) const {
-    return true;
-  }
-  // Checks that the given molecule is definitely a hit according to
-  // the derived class' criteria.  Some sub-classes will alter the
-  // molecule, for example the shape search will return it overlaid
-  // on the query.
-  virtual bool verifyHit(ROMol &mol) const = 0;
 
   // Build the molecules from the synthons identified in hitsets.
   // Checks that all the results produced match the

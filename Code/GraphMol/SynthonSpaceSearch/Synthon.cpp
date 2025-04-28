@@ -10,8 +10,10 @@
 
 #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <DataStructs/ExplicitBitVect.h>
+#include <GraphMol/Descriptors/MolDescriptors.h>
 #include <GraphMol/MolOps.h>
 #include <GraphMol/MolPickler.h>
+#include <GraphMol/Descriptors/MolDescriptors.h>
 #include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/Fingerprints/Fingerprints.h>
 #include <GraphMol/SynthonSpaceSearch/Synthon.h>
@@ -143,6 +145,10 @@ void Synthon::writeToDBStream(std::ostream &os) const {
   } else {
     streamWrite(os, false);
   }
+  streamWrite(os, d_numDummies);
+  streamWrite(os, d_numHeavyAtoms);
+  streamWrite(os, d_numChiralAtoms);
+  streamWrite(os, d_molWt);
   streamWrite(os, std::uint64_t(dp_shapes.size()));
   for (const auto &shape : dp_shapes) {
     streamWrite(os, shape->toString());
@@ -173,6 +179,14 @@ void Synthon::readFromDBStream(std::istream &is, const std::uint32_t version) {
     dp_FP = std::make_unique<ExplicitBitVect>(pickle);
   }
   if (version > 3000) {
+    streamRead(is, d_numDummies);
+    streamRead(is, d_numHeavyAtoms);
+    streamRead(is, d_numChiralAtoms);
+    streamRead(is, d_molWt);
+  } else {
+    calcProperties();
+  }
+  if (version > 3010) {
     std::uint64_t numShapes;
     streamRead(is, numShapes);
     if (numShapes) {
@@ -198,4 +212,22 @@ void Synthon::finishInitialization() {
   }
 }
 
+void Synthon::calcProperties() {
+  d_numDummies = 0;
+  d_numHeavyAtoms = 0;
+  d_numChiralAtoms = 0;
+  d_molWt = 0;
+  MolOps::assignStereochemistry(*dp_origMol);
+  for (const auto atom : dp_origMol->atoms()) {
+    if (atom->getAtomicNum() == 0) {
+      d_numDummies++;
+    } else if (atom->getAtomicNum() > 1) {
+      d_numHeavyAtoms++;
+    }
+    if (atom->hasProp("_CIPCode") || atom->hasProp("_ChiralityPossible")) {
+      d_numChiralAtoms++;
+    }
+  }
+  d_molWt = Descriptors::calcExactMW(*dp_origMol);
+}
 }  // namespace RDKit::SynthonSpaceSearch

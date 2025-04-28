@@ -37,14 +37,15 @@ class SynthonSpaceRascalSearcher : public SynthonSpaceSearcher {
       const std::vector<std::unique_ptr<ROMol>> &fragSet,
       const SynthonSet &reaction) const override;
 
- private:
-  void extraSearchSetup(
-      std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
-
+ protected:
   bool quickVerify(const SynthonSpaceHitSet *hitset,
                    const std::vector<size_t> &synthNums) const override;
 
   bool verifyHit(ROMol &hit) const override;
+
+ private:
+  void extraSearchSetup(
+      std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
 
   const RascalMCES::RascalOptions &d_rascalOptions;
   RascalMCES::RascalOptions d_rascalFragOptions;

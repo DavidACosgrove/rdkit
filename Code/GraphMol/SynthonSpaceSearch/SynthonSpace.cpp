@@ -363,8 +363,8 @@ namespace {
 // Read the given synthons into array.  synthons is expected to be
 // large enough to accept everything.
 void readSynthons(
-    const std::uint32_t version, const size_t startNum, size_t endNum,
-    const char *fileMap, const std::vector<std::uint64_t> &synthonPos,
+    const size_t startNum, size_t endNum, const char *fileMap,
+    const std::vector<std::uint64_t> &synthonPos, std::uint32_t version,
     std::vector<std::pair<std::string, std::unique_ptr<Synthon>>> &synthons) {
   if (endNum > synthons.size()) {
     endNum = synthons.size();
@@ -382,16 +382,16 @@ void readSynthons(
 }
 
 void threadedReadSynthons(
-    std::int32_t version, const char *fileMap,
-    const std::vector<std::uint64_t> &synthonPos, unsigned int numThreads,
+    const char *fileMap, const std::vector<std::uint64_t> &synthonPos,
+    unsigned int numThreads, std::uint32_t version,
     std::vector<std::pair<std::string, std::unique_ptr<Synthon>>> &synthons) {
   size_t eachThread = 1 + (synthonPos.size() / numThreads);
   size_t start = 0;
   std::vector<std::thread> threads;
   for (unsigned int i = 0U; i < numThreads; ++i, start += eachThread) {
-    threads.push_back(std::thread(readSynthons, version, start,
-                                  start + eachThread, fileMap,
-                                  std::ref(synthonPos), std::ref(synthons)));
+    threads.push_back(std::thread(readSynthons, start, start + eachThread,
+                                  fileMap, std::ref(synthonPos), version,
+                                  std::ref(synthons)));
   }
   for (auto &t : threads) {
     t.join();
@@ -478,7 +478,7 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
   if (hasFPs) {
     streamRead(is, d_fpType, 0);
   }
-  if (d_fileMajorVersion > 3000) {
+  if (d_fileMajorVersion > 3010) {
     streamRead(is, d_numConformers);
   }
   std::uint64_t numSynthons;
@@ -505,15 +505,15 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
 #if RDK_BUILD_THREADSAFE_SSS
   unsigned int numThreadsToUse = getNumThreadsToUse(numThreads);
   if (numThreadsToUse > 1) {
-    threadedReadSynthons(d_fileMajorVersion, fileMap.d_mappedMemory, synthonPos,
-                         numThreadsToUse, d_synthonPool);
+    threadedReadSynthons(fileMap.d_mappedMemory, synthonPos, numThreadsToUse,
+                         d_fileMajorVersion, d_synthonPool);
   } else {
-    readSynthons(d_fileMajorVersion, 0, numSynthons, fileMap.d_mappedMemory,
-                 synthonPos, d_synthonPool);
+    readSynthons(0, numSynthons, fileMap.d_mappedMemory, synthonPos,
+                 d_fileMajorVersion, d_synthonPool);
   }
 #else
-  readSynthons(d_fileMajorVersion, 0, numSynthons, fileMap.d_mappedMemory,
-               synthonPos, d_synthonPool);
+    readSynthons(0, numSynthons, fileMap.d_mappedMemory, synthonPos,
+                 d_fileMajorVersion, d_synthonPool);
 #endif
   if (!std::is_sorted(
           d_synthonPool.begin(), d_synthonPool.end(),

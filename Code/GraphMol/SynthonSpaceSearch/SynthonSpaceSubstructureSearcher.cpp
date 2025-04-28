@@ -400,6 +400,9 @@ SynthonSpaceSubstructureSearcher::searchFragSet(
 }
 
 bool SynthonSpaceSubstructureSearcher::verifyHit(ROMol &hit) const {
+  if (!SynthonSpaceSearcher::verifyHit(hit)) {
+    return false;
+  }
   return !SubstructMatch(hit, getQuery(), d_matchParams).empty();
 }
 

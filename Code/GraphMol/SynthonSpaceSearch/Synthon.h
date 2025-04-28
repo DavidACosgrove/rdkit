@@ -46,6 +46,10 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   const std::vector<std::shared_ptr<ROMol>> &getConnRegions() const;
   void setSearchMol(std::unique_ptr<ROMol> mol);
   void setFP(std::unique_ptr<ExplicitBitVect> fp);
+  unsigned int getNumDummies() const { return d_numDummies; }
+  unsigned int getNumHeavyAtoms() const { return d_numHeavyAtoms; }
+  unsigned int getNumChiralAtoms() const { return d_numChiralAtoms; }
+  double getMolWt() const { return d_molWt; }
   void clearShapes();
   void addShape(std::unique_ptr<ShapeInput> shape);
   const ShapeSet &getShapes() const;
@@ -54,7 +58,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
 
   // Writes to/reads from a binary stream.
   void writeToDBStream(std::ostream &os) const;
-  void readFromDBStream(std::istream &is, const std::uint32_t version);
+  void readFromDBStream(std::istream &is, std::uint32_t version);
 
  private:
   std::string d_smiles;
@@ -78,9 +82,16 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   // be 1 or 2.  These are derived from the search mol.
   std::vector<std::shared_ptr<ROMol>> d_connRegions;
 
+  unsigned int d_numDummies{0};
+  unsigned int d_numHeavyAtoms{0};
+  unsigned int d_numChiralAtoms{0};
+  double d_molWt{0.0};
+
   // Once the search molecule has been added, get the connector regions,
   // connector fingerprint etc.
   void finishInitialization();
+  // Calculate the number of dummy atoms etc.
+  void calcProperties();
 };
 
 }  // namespace SynthonSpaceSearch

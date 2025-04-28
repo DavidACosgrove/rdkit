@@ -76,6 +76,16 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
              // appropriate for Morgan fingerprints.  With RDKit fingerprints,
              // 0.05 is adequate, and higher than that has been seen to
              // produce long run times.
+  unsigned int minHitHeavyAtoms{0};  // Minimum number of heavy atoms in a hit.
+  unsigned int maxHitHeavyAtoms{0};  // Maximum number of heavy atoms in a hit.
+  // 0 means no maximum.
+  double minHitMolWt{0};  // Minimum molecular weight for a hit.
+  double maxHitMolWt{0};  // Maximum molecular weight for a hit.  0.0 means
+  // no maximum.
+  unsigned int minHitChiralAtoms{
+      0};  // Minimum number of chiral atoms in a hit.
+  unsigned int maxHitChiralAtoms{0};  // Maximum number of chiral atoms in a
+  // hit. 0 means no maximum.
   unsigned int numConformers{100};  // When doing a shape search, the number of
                                     // conformers to use for each molecule.
   double confRMSThreshold{1.0};  // When doing a shape search, the threshold to
