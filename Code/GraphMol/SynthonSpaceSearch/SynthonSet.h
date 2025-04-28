@@ -103,8 +103,12 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
    * Create conformers for the synthons ready for shape searching.
    *
    * @param numConfs: Maximum number of conformers per synthon.
+   * @param rmsThreshold: threshold for pruning conformations.  Passed directly
+   *                      to EmbedMultipleConfs.
+   * @param numThreads: number of threads to use in parallel steps.
    */
-  void buildSynthonShapes(unsigned int numConfs, int numThreads);
+  void buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
+                          int numThreads);
 
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as

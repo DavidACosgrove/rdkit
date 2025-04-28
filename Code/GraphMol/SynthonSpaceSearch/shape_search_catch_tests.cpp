@@ -67,6 +67,8 @@ TEST_CASE("Shape Small tests") {
       fullRoot + "urea_space_enum.smi",
   };
 
+  // The search of the enumerated libraries give 4, 8, 4 hits
+  // respectively.
   std::vector<std::string> querySmis{
       "c1ccccc1C(=O)N1CCCC1",
       "CC1CCN(c2nnc(CO)n2C2CCCC2)C1",
@@ -75,21 +77,23 @@ TEST_CASE("Shape Small tests") {
 
   std::vector<size_t> expNumHits{6, 4, 1};
   unsigned int numConfs = 100;
+  double rmsThreshold = 1.0;
   int numThreads = 1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    if (i != 0) {
+    if (i != 2) {
       continue;
     }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
-    synthonspace.buildSynthonShapes(numConfs, numThreads);
+    synthonspace.buildSynthonShapes(numConfs, rmsThreshold, numThreads);
 
     SynthonSpaceSearchParams params;
     params.similarityCutoff = 1.4;
     params.numConformers = numConfs;
     params.numThreads = numThreads;
+    params.confRMSThreshold = rmsThreshold;
     params.timeOut = 0;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     auto results = synthonspace.shapeSearch(*queryMol, params);

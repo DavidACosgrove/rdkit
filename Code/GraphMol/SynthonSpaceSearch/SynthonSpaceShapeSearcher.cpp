@@ -60,14 +60,13 @@ double bestShapeMatch(const ShapeSet &shapeSet1, const ShapeSet &shapeSet2,
   for (const auto &shape1 : shapeSet1) {
     for (const auto &shape2 : shapeSet2) {
       // The best score achievable is when the smaller volume is entirely inside
-      // the larger volume.  The Shape tanimoto the fraction of volume in
+      // the larger volume.  The Shape tanimoto  is the fraction of volume in
       // common.
       double maxSt = std::min(shape1->sov, shape2->sov) /
                      std::max(shape1->sov, shape2->sov);
       double maxCt = std::min(shape1->sof, shape2->sof) /
                      std::max(shape1->sof, shape2->sof);
       double maxSim = maxSt + maxCt;
-      std::cout << "maxSim : " << maxSim << std::endl;
       if (maxSim > similarityCutoff) {
         // We want the score, but want the shape in the same place afterwards.
         auto keepCoord = shape2->coord;
@@ -75,8 +74,6 @@ double bestShapeMatch(const ShapeSet &shapeSet1, const ShapeSet &shapeSet2,
         shape2->coord = keepCoord;
         if (sov + sof > bestSim) {
           bestSim = sov + sof;
-          std::cout << "maxSim : " << maxSim << " bestSim : " << bestSim
-                    << std::endl;
         }
       }
     }
@@ -259,18 +256,14 @@ ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag,
   fragAtoms.reserve(frag.getNumAtoms());
   boost::dynamic_bitset<> inFrag(queryConfs.getNumAtoms());
   std::cout << "\nGenerate shapes for " << MolToSmiles(frag) << " of "
-            << queryConfs.getNumConformers() << " conformers of "
-            << MolToCXSmiles(queryConfs) << std::endl;
-  std::cout << "frag atoms : ";
+            << queryConfs.getNumConformers() << " conformers" << std::endl;
   for (auto atom : frag.atoms()) {
     unsigned int origIdx;
     if (atom->getPropIfPresent<unsigned int>("ORIG_IDX", origIdx)) {
       fragAtoms.emplace_back(origIdx);
-      std::cout << fragAtoms.back() << " ";
       inFrag[origIdx] = true;
     }
   }
-  std::cout << std::endl;
   std::ranges::sort(fragAtoms);
   fragAtoms.erase(std::unique(fragAtoms.begin(), fragAtoms.end()),
                   fragAtoms.end());
@@ -284,7 +277,6 @@ ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag,
           queryConfs.getAtomWithIdx(nbr->getProp<unsigned int>("ORIG_IDX"));
       for (auto nbrNbr : queryConfs.atomNeighbors(origNbr)) {
         if (!inFrag[nbrNbr->getIdx()]) {
-          std::cout << "Dummy atom " << nbrNbr->getIdx() << std::endl;
           // fragAtoms.emplace_back(nbrNbr->getIdx());
           dummyRadii.emplace_back(nbrNbr->getIdx(), 2.16);
           notColorAtoms.emplace_back(nbrNbr->getIdx());
@@ -318,6 +310,9 @@ ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag,
   }
 
   details::pruneShapes(shapes, pruneThreshold);
+  std::ranges::sort(shapes, [](const auto &s1, const auto &s2) -> bool {
+    return s1->sov + s1->sof > s2->sov + s2->sof;
+  });
   return shapes;
 }
 }  // namespace
@@ -327,7 +322,7 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   auto queryMolHs = std::unique_ptr<ROMol>(MolOps::addHs(getQuery()));
   auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = getParams().numThreads;
-  // dgParams.pruneRmsThresh = 1.0;
+  dgParams.pruneRmsThresh = getParams().confRMSThreshold;
   // Build shapes for multiple conformations of the query molecule.
   DGeomHelpers::EmbedMultipleConfs(*queryMolHs, getParams().numConformers,
                                    dgParams);
@@ -383,6 +378,13 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
 bool SynthonSpaceShapeSearcher::quickVerify(
     const SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &synthNums) const {
+  double maxVol = 0.0;
+  // The synthon shapes are sorted in descending order of sov + sof.
+  // Assume therefore that the maximum volume of the hit is the sum
+  // of the sov's of the first shape in each synthon, minus the volume
+  // of their dummy atoms.
+  for (unsigned int i = 0u; i < synthNums.size(); ++i) {
+  }
   return true;
 }
 

@@ -44,7 +44,7 @@ namespace RDKit::SynthonSpaceSearch {
 
 // used for serialization
 constexpr int32_t versionMajor = 3;
-constexpr int32_t versionMinor = 1;
+constexpr int32_t versionMinor = 2;
 constexpr int32_t endianId = 0xa100f;
 
 size_t SynthonSpace::getNumReactions() const { return d_reactions.size(); }
@@ -621,7 +621,8 @@ void SynthonSpace::buildSynthonFingerprints(
   }
 }
 
-void SynthonSpace::buildSynthonShapes(unsigned int numConfs, int numThreads) {
+void SynthonSpace::buildSynthonShapes(unsigned int numConfs,
+                                      double rmsThreshold, int numThreads) {
   if (d_numConformers == numConfs) {
     BOOST_LOG(rdWarningLog) << "SynthonSpace has already been built with "
                             << numConfs << " conformers." << std::endl;
@@ -634,7 +635,7 @@ void SynthonSpace::buildSynthonShapes(unsigned int numConfs, int numThreads) {
     if (ControlCHandler::getGotSignal()) {
       return;
     }
-    synthSet->buildSynthonShapes(numConfs, numThreads);
+    synthSet->buildSynthonShapes(numConfs, rmsThreshold, numThreads);
   }
 }
 

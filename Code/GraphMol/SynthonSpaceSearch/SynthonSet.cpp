@@ -519,7 +519,8 @@ void SynthonSet::buildAddAndSubtractFPs(
   *d_subtractFP = ~(*d_subtractFP);
 }
 
-void SynthonSet::buildSynthonShapes(unsigned int numConfs, int numThreads) {
+void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
+                                    int numThreads) {
   // Each synthon is built into a product, its conformers generated
   // and then split out again into the original pieces.
   auto synthonMolCopies = copySynthons();
@@ -532,13 +533,12 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, int numThreads) {
   shapeOpts.includeDummies = true;
   shapeOpts.dummyRadius = 2.16;
   // Now build sets of sample molecules using each synthon set in turn.
-  double volDiff = 0.0;
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
     auto sampleMols =
         buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = numThreads;
-    // dgParams.pruneRmsThresh = 1.0;
+    dgParams.pruneRmsThresh = rmsThreshold;
     for (size_t j = 0; j < sampleMols.size(); ++j) {
       auto sampleMolHs = std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[j]));
       DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);

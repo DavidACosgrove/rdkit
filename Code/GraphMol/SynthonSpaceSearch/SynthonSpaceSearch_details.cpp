@@ -27,6 +27,7 @@
 #include <GraphMol/QueryBond.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/ChemTransforms/MolFragmenter.h>
+#include <GraphMol/MolAlign/AlignMolecules.h>
 #include <GraphMol/SmilesParse/SmartsWrite.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceHitSet.h>
@@ -870,6 +871,7 @@ void pruneShapes(ShapeSet &shapeSet, double simThreshold) {
   if (shapeSet.empty()) {
     return;
   }
+
   class DistFunctor {
    public:
     DistFunctor(const ShapeSet &shapes) : d_shapes(shapes) {
