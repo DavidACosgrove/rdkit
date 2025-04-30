@@ -19,12 +19,9 @@ namespace RDKit {
 namespace RascalMCES {
 // User-supplied functions for deciding if 2 atoms or 2 bonds should
 // be considered equivalent.  The unsigned ints are the atom or bond indices
-// of the atoms or bonds in question, and the void * is for user data in
-// whatever format the user has cooked up.
-using AtomCompareFunction = std::function<bool(const ROMol &, unsigned int,
-                                               const ROMol &, unsigned int)>;
-using BondCompareFunction = std::function<bool(const ROMol &, unsigned int,
-                                               const ROMol &, unsigned int)>;
+// of the atoms or bonds in question.
+using AtomBondCompareFunction = std::function<bool(
+    const ROMol &, unsigned int, const ROMol &, unsigned int)>;
 
 struct RDKIT_RASCALMCES_EXPORT RascalOptions {
   double similarityThreshold =
@@ -84,8 +81,10 @@ struct RDKIT_RASCALMCES_EXPORT RascalOptions {
                                     it will over-ride the similarityThreshold.
                                     Note that this refers to the minimum
                                     number of BONDS in the MCES. */
-  AtomCompareFunction atomCompareFunction{nullptr};
-  BondCompareFunction bondCompareFunction{nullptr};
+  AtomBondCompareFunction atomCompareFunction{nullptr}; /* A function to decide
+  if an atom in 1 molecule is equivalent to an atom in the other molecule. */
+  AtomBondCompareFunction bondCompareFunction{nullptr}; /* A function to decide
+  if a bond in 1 molecule is equivalent to a bond in the other molecule. */
 };
 }  // namespace RascalMCES
 }  // namespace RDKit

@@ -230,19 +230,11 @@ class TestCase(unittest.TestCase):
     print(f'Number of results : {len(results)}')
     print(results[0].smartsString)
 
-    # class CompareIsotopes(rdRascalMCES.AtomCompareFunction):
-    #   def __call__(self, mol1, atom1, mol2, atom2):
-    #     a1 = mol1.GetAtomWithIdx(atom1)
-    #     a2 = mol2.GetAtomWithIdx(atom2)
-    #     return a1.GetIsotope() == a2.GetIsotope()
-
     def compareIsotopes(mol1, atom1, mol2, atom2):
-      return False
       print(f"compare {atom1} and {atom2}") 
       a1 = mol1.GetAtomWithIdx(atom1)
       a2 = mol2.GetAtomWithIdx(atom2)
-      return a1.GetIsotope() == a2.GetIsotope()
-      
+      return a1.GetIsotope() == a2.GetIsotope()      
 
     opts.setAtomCompareFunction(compareIsotopes)
     results = rdRascalMCES.FindMCES(mol1, mol2, opts)

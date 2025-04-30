@@ -256,6 +256,12 @@ void setAtomCompareFunction(RascalMCES::RascalOptions &opts,
   opts.atomCompareFunction = pyobjFunctor(func);
   std::cout << "setAtomCompareFunction 2" << std::endl;
 }
+void setBondCompareFunction(RascalMCES::RascalOptions &opts,
+                            python::object func) {
+  std::cout << "setBondCompareFunction" << std::endl;
+  opts.bondCompareFunction = pyobjFunctor(func);
+  std::cout << "setBondCompareFunction 2" << std::endl;
+}
 }  // namespace
 
 BOOST_PYTHON_MODULE(rdRascalMCES) {
@@ -348,7 +354,11 @@ BOOST_PYTHON_MODULE(rdRascalMCES) {
       .def(
           "setAtomCompareFunction", setAtomCompareFunction,
           python::with_custodian_and_ward<1, 2>(), python::args("self", "func"),
-          "Function to compare 2 atoms in different molecules for equivalence.");
+          R"DOC(Function to compare 2 atoms in different molecules for equivalence.)DOC")
+      .def(
+          "setBondCompareFunction", setBondCompareFunction,
+          python::with_custodian_and_ward<1, 2>(), python::args("self", "func"),
+          R"DOC(Function to compare 2 bonds in different molecules for equivalence.)DOC");
 
   docString =
       "Find one or more MCESs between the 2 molecules given.  Returns a list of "
