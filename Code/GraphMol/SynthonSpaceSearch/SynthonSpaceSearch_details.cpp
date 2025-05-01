@@ -910,17 +910,10 @@ void pruneShapes(ShapeSet &shapeSet, double simThreshold) {
     auto [first, last] = std::ranges::unique(picks);
     picks.erase(first, last);
   }
-  std::cout << "Picks : " << picks.size() << " :: ";
-  for (auto p : picks) {
-    std::cout << p << " ";
-  }
-  std::cout << std::endl;
   ShapeSet newShapes;
   for (auto p : picks) {
     newShapes.push_back(std::move(shapeSet[p]));
   }
-  std::cout << shapeSet.size() << " pruned to " << newShapes.size()
-            << std::endl;
   shapeSet = std::move(newShapes);
 }
 

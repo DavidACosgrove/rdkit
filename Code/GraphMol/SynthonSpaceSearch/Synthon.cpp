@@ -115,15 +115,13 @@ void Synthon::setFP(std::unique_ptr<ExplicitBitVect> fp) {
   dp_FP = std::move(fp);
 }
 
-void Synthon::addShape(std::unique_ptr<ShapeInput> shape) {
+void Synthon::addShape(std::unique_ptr<SearchShapeInput> shape) {
   dp_shapes.push_back(std::move(shape));
 }
 
 void Synthon::clearShapes() { dp_shapes.clear(); }
 
-const std::vector<std::unique_ptr<ShapeInput>> &Synthon::getShapes() const {
-  return dp_shapes;
-}
+const ShapeSet &Synthon::getShapes() const { return dp_shapes; }
 
 void Synthon::pruneShapes(double simThreshold) {
   details::pruneShapes(dp_shapes, simThreshold);
@@ -194,7 +192,7 @@ void Synthon::readFromDBStream(std::istream &is, const std::uint32_t version) {
       for (std::uint64_t i = 0; i < numShapes; ++i) {
         std::string pickle;
         streamRead(is, pickle, 0);
-        addShape(std::make_unique<ShapeInput>(pickle));
+        addShape(std::make_unique<SearchShapeInput>(pickle));
       }
     }
   }

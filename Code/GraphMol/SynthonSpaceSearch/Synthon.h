@@ -51,7 +51,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   unsigned int getNumChiralAtoms() const { return d_numChiralAtoms; }
   double getMolWt() const { return d_molWt; }
   void clearShapes();
-  void addShape(std::unique_ptr<ShapeInput> shape);
+  void addShape(std::unique_ptr<SearchShapeInput> shape);
   const ShapeSet &getShapes() const;
   // Cut the shapes down so that no pair is more similar than simThreshold.
   void pruneShapes(double simThreshold);

@@ -131,10 +131,34 @@ SynthonSpaceSearch::SearchResults rascalSearch_helper(
     params = python::extract<SynthonSpaceSearch::SynthonSpaceSearchParams>(
         py_params);
   }
+  SynthonSpaceSearch::SearchResults results;
   {
     NOGIL gil;
-    return self.rascalSearch(query, rascalOptions, params);
+    results = self.rascalSearch(query, rascalOptions, params);
   }
+  if (results.getCancelled()) {
+    throw_runtime_error("RascalSearch cancelled");
+  }
+  return results;
+}
+
+SynthonSpaceSearch::SearchResults shapeSearch_helper(
+    SynthonSpaceSearch::SynthonSpace &self, const ROMol &query,
+    const python::object &py_params) {
+  SynthonSpaceSearch::SynthonSpaceSearchParams params;
+  if (!py_params.is_none()) {
+    params = python::extract<SynthonSpaceSearch::SynthonSpaceSearchParams>(
+        py_params);
+  }
+  SynthonSpaceSearch::SearchResults results;
+  {
+    NOGIL gil;
+    results = self.shapeSearch(query, params);
+  }
+  if (results.getCancelled()) {
+    throw_runtime_error("ShapeSearch cancelled");
+  }
+  return results;
 }
 
 void summariseHelper(SynthonSpaceSearch::SynthonSpace &self) {
@@ -269,6 +293,16 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           &SynthonSpaceSearch::SynthonSpaceSearchParams::maxHitChiralAtoms,
           "Maximum number of chiral atoms in a hit.  Default=0 means no maximum.")
       .def_readwrite(
+          "numConformers",
+          &SynthonSpaceSearch::SynthonSpaceSearchParams::numConformers,
+          "When doing a shape search, the number of conformers to generate"
+          " for molecules.  Default=100.")
+      .def_readwrite(
+          "confRMSThreshold",
+          &SynthonSpaceSearch::SynthonSpaceSearchParams::confRMSThreshold,
+          "When doing a shape search, the RMS threshold to use when pruning"
+          " conformers.  Default=1.0.")
+      .def_readwrite(
           "timeOut", &SynthonSpaceSearch::SynthonSpaceSearchParams::timeOut,
           "Time limit for search, in seconds.  Default is 600s, 0 means no"
           " timeout.  Requires an integer")
@@ -339,6 +373,10 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
            "Does a search using the Rascal similarity score.  The similarity"
            " threshold used is provided by rascalOptions, and the one in"
            " params is ignored.")
+      .def("ShapeSearch", &shapeSearch_helper,
+           (python::arg("self"), python::arg("query"),
+            python::arg("params") = python::object()),
+           "Does a search using the pubchem-align3d shape similarity metric.")
       .def(
           "BuildSynthonFingerprints",
           &SynthonSpaceSearch::SynthonSpace::buildSynthonFingerprints,
@@ -346,7 +384,14 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           "Build the synthon fingerprints ready for similarity searching.  This"
           " is done automatically when the first similarity search is done, but if"
           " converting a text file to binary format it might need to be done"
-          " explicitly.");
+          " explicitly.")
+      .def(
+          "BuildSynthonShapes",
+          &SynthonSpaceSearch::SynthonSpace::buildSynthonShapes,
+          (python::arg("self"), python::arg("numConfs") = 10,
+           python::arg("rmsThreshold") = 1.0, python::arg("numThreads") = 1),
+          "Build shapes for the synthons.  The conformations are generated, pruned"
+          " with the given threshold, which is passed directly to EmbedMultipleConfs.");
 
   docString =
       "Convert the text file into the binary DB file in our format."

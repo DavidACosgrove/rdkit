@@ -521,6 +521,7 @@ void SynthonSet::buildAddAndSubtractFPs(
 
 void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
                                     int numThreads) {
+  std::cout << "Building shapes for " << getId() << std::endl;
   // Each synthon is built into a product, its conformers generated
   // and then split out again into the original pieces.
   auto synthonMolCopies = copySynthons();
@@ -532,6 +533,9 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
   ShapeInputOptions shapeOpts;
   shapeOpts.includeDummies = true;
   shapeOpts.dummyRadius = 2.16;
+  ShapeInputOptions noDummyOpts;
+  noDummyOpts.includeDummies = false;
+
   // Now build sets of sample molecules using each synthon set in turn.
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
     auto sampleMols =
@@ -543,9 +547,9 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
       auto sampleMolHs = std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[j]));
       DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
       MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
-      std::cout << "Sample mol " << j << " : " << MolToSmiles(*sampleMols[j])
-                << "  Num confs = " << sampleMolHs->getNumConformers()
-                << std::endl;
+      // std::cout << "Sample mol " << j << " : " << MolToSmiles(*sampleMols[j])
+      // << "  Num confs = " << sampleMolHs->getNumConformers()
+      // << std::endl;
       // for (unsigned int k = 0; k < sampleMolHs->getNumConformers(); ++k) {
       //   std::cout << "Sample mol " << j << " : " << k << " : "
       //             << sampleMolHs->getNumConformers() << " : "
@@ -553,50 +557,54 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
       //             std::endl;
       // }
       std::vector<unsigned int> splitBonds;
+      std::vector<unsigned int> fragAtoms;
+      std::vector<unsigned int> dummies;
+      std::vector<std::pair<unsigned int, double>> dummyRadii;
       for (const auto &bond : sampleMols[j]->bonds()) {
         if (!bond->hasProp("molNum")) {
           splitBonds.push_back(bond->getIdx());
+          auto begMolNum =
+              bond->getBeginAtom()->getProp<unsigned int>("molNum");
+          auto endMolNum = bond->getEndAtom()->getProp<unsigned int>("molNum");
+          if (begMolNum == synthSetNum && endMolNum != synthSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+            dummies.push_back(bond->getEndAtomIdx());
+            dummyRadii.emplace_back(bond->getEndAtomIdx(), 2.16);
+          } else if (begMolNum != synthSetNum && endMolNum == synthSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+            dummies.push_back(bond->getBeginAtomIdx());
+            dummyRadii.emplace_back(bond->getBeginAtomIdx(), 2.16);
+          }
+        } else {
+          if (bond->getProp<unsigned int>("molNum") == synthSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+          }
         }
       }
-      // TODO: maybe use new PrepareConformer method that takes a subset
-      // of atoms with dummy radii so as not to have to create and sanitize
-      // the fragment molecules.
-      const std::unique_ptr<ROMol> fragMol(MolFragmenter::fragmentOnBonds(
-          *sampleMolHs, splitBonds, true, &dummyLabels));
-      std::vector<std::unique_ptr<ROMol>> molFrags;
-      MolOps::getMolFrags(*fragMol, molFrags, false);
-      int fragWeWant = findMolNumFrag(molFrags, synthSetNum);
-      unsigned int otf;
-      sanitizeMol(*static_cast<RWMol *>(molFrags[fragWeWant].get()), otf,
-                  MolOps::SANITIZE_SYMMRINGS);
-      std::cout << "fragment " << MolToSmiles(*molFrags[fragWeWant]) << " :: "
-                << molFrags[fragWeWant]->getProp<std::string>(
-                       "_smilesAtomOutputOrder")
-                << std::endl;
+      std::ranges::sort(fragAtoms);
+      fragAtoms.erase(std::unique(fragAtoms.begin(), fragAtoms.end()),
+                      fragAtoms.end());
+      std::ranges::sort(dummies);
+      dummies.erase(std::unique(dummies.begin(), dummies.end()), dummies.end());
+      shapeOpts.atomRadii = dummyRadii;
+      shapeOpts.notColorAtoms = dummies;
+      shapeOpts.atomSubset = fragAtoms;
+      noDummyOpts.atomSubset = fragAtoms;
       // Put ShapeInput objects in the Synthon.  The conformations aren't
       // needed at the moment.
       d_synthons[synthSetNum][j].second->clearShapes();
-      for (unsigned int i = 0u; i < molFrags[fragWeWant]->getNumConformers();
-           ++i) {
-        std::unique_ptr<ShapeInput> shape(new ShapeInput(
-            PrepareConformer(*molFrags[fragWeWant], i, shapeOpts)));
-        // std::cout << i << " : " << shape->sov << ", " << shape->sof << " : "
-        //           << shape->coord.size() / 3 << std::endl;
-        // std::cout << shape->atom_type_vector.size() << " : ";
-        // for (auto t : shape->atom_type_vector) {
-        //   std::cout << t << ", ";
-        // }
-        // std::cout << std::endl;
-        // std::cout << shape->colorAtomType2IndexVectorMap.size() << " : ";
-        // for (auto cv : shape->colorAtomType2IndexVectorMap) {
-        //   std::cout << cv.first << " (";
-        //   for (const auto &it : cv.second) {
-        //     std::cout << it << ", ";
-        //   }
-        //   std::cout << ")  ";
-        // }
-        // std::cout << std::endl;
-        d_synthons[synthSetNum][j].second->addShape(std::move(shape));
+      for (unsigned int i = 0u; i < sampleMolHs->getNumConformers(); ++i) {
+        SearchShapeInput *shape =
+            new SearchShapeInput(PrepareConformer(*sampleMolHs, i, shapeOpts));
+        ShapeInput noDummiesShape =
+            PrepareConformer(*sampleMolHs, i, noDummyOpts);
+        shape->dummyVol = shape->sov - noDummiesShape.sov;
+        shape->numDummies = dummyRadii.size();
+        d_synthons[synthSetNum][j].second->addShape(
+            std::unique_ptr<SearchShapeInput>(shape));
       }
       d_synthons[synthSetNum][j].second->pruneShapes(1.9);
     }

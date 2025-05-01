@@ -12,6 +12,7 @@
 #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
 #include <GraphMol/FileParsers/MolSupplier.h>
+#include <GraphMol/FileParsers/MolWriters.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SynthonSpaceSearch/SearchResults.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
@@ -66,6 +67,16 @@ TEST_CASE("Shape Small tests") {
       fullRoot + "triazole_space_enum.smi",
       fullRoot + "urea_space_enum.smi",
   };
+  std::vector<std::string> enumOutputNames{
+      "amide_space_enum_out.sdf",
+      "triazole_space_enum_out.sdf",
+      "urea_space_enum_out.sdf",
+  };
+  std::vector<std::string> searchOutputNames{
+      "amide_space_search_out.sdf",
+      "triazole_search_out.sdf",
+      "urea_space_search_out.sdf",
+  };
 
   // The search of the enumerated libraries give 4, 8, 4 hits
   // respectively.
@@ -75,10 +86,18 @@ TEST_CASE("Shape Small tests") {
       "C[C@@H]1CC(NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1",
   };
 
-  std::vector<size_t> expNumHits{6, 4, 1};
+  // The synthon search gives 1 hit for the urea space, where the
+  // brute-force search gives 4 because the fragment similarities fall
+  // below the threshold.  For example, comparing [2*]c1nccnc1F from
+  // the query with synthon N#CCc(cncc1)c1[2*] (689988332-107515102)
+  // when the dummy atoms are aligned, which they should be for a
+  // good synthon match, the feature score is low because the nitrogen
+  // acceptors don't align.  In the full molecule overlay, that is
+  // compensated for by other things.
+  std::vector<size_t> expNumHits{3, 8, 1};
   unsigned int numConfs = 100;
   double rmsThreshold = 1.0;
-  int numThreads = 1;
+  int numThreads = -1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
     if (i != 2) {
@@ -103,10 +122,15 @@ TEST_CASE("Shape Small tests") {
       std::cout << hit->getProp<std::string>(common_properties::_Name) << " : "
                 << hit->getProp<double>("Similarity") << std::endl;
     }
-
+    CHECK(expNumHits[i] == results.getHitMolecules().size());
+    RDKit::SDWriter sdw(searchOutputNames[i]);
+    for (const auto &hit : results.getHitMolecules()) {
+      sdw.write(*hit);
+    }
 #if 0
     auto mols = loadLibrary(enumLibNames[i]);
     prepareMolecule(queryMol.get());
+    RDKit::SDWriter sdw2(enumOutputNames[i]);
     std::vector<float> matrix(12, 0.0);
     unsigned int numHits = 0;
     for (auto &[smiles, mol] : mols) {
@@ -120,6 +144,7 @@ TEST_CASE("Shape Small tests") {
                       << " for " << i << ", " << j << std::endl;
             ++numHits;
             foundHit = true;
+            sdw2.write(*mol);
             break;
           }
         }
@@ -128,7 +153,6 @@ TEST_CASE("Shape Small tests") {
         }
       }
     }
-    CHECK(results.getHitMolecules().size() == numHits);
 #endif
   }
 }

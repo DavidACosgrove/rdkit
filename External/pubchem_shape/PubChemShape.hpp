@@ -32,7 +32,7 @@ struct RDKIT_PUBCHEMSHAPE_EXPORT ShapeInput {
   ShapeInput(ShapeInput &&other) = default;
   ShapeInput &operator=(const ShapeInput &other) = default;
   ShapeInput &operator=(ShapeInput &&other) = default;
-  ~ShapeInput() = default;
+  virtual ~ShapeInput() = default;
 
   std::string toString() const {
 #ifndef RDK_USE_BOOST_SERIALIZATION
@@ -87,9 +87,6 @@ struct RDKIT_PUBCHEMSHAPE_EXPORT ShapeInput {
       }
     }
     ave /= nAves;
-    std::cout << "Average position: " << ave << " of " << nAves << std::endl;
-    std::cout << "shift : " << shift[0] << ", " << shift[1] << ", " << shift[2]
-              << std::endl;
     mol->addConformer(conf, true);
     return mol;
   }

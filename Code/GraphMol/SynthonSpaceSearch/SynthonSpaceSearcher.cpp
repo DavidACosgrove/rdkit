@@ -49,6 +49,7 @@ SynthonSpaceSearcher::SynthonSpaceSearcher(
 }
 
 SearchResults SynthonSpaceSearcher::search() {
+  ControlCHandler::reset();
   std::vector<std::unique_ptr<ROMol>> results;
   const TimePoint *endTime = nullptr;
   TimePoint endTimePt;
@@ -64,6 +65,7 @@ SearchResults SynthonSpaceSearcher::search() {
     return SearchResults{std::move(results), 0ULL, timedOut,
                          ControlCHandler::getGotSignal()};
   }
+  std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
   extraSearchSetup(fragments);
   if (ControlCHandler::getGotSignal()) {
     return SearchResults{std::move(results), 0ULL, timedOut, true};
@@ -161,7 +163,6 @@ void processReactions(
 
   while (true) {
     std::int64_t thisR = ++mostRecentReaction;
-    // std::cout << thisR << " vs " << lastReaction << std::endl;
     if (thisR > lastReaction) {
       break;
     }
@@ -185,6 +186,8 @@ std::vector<std::unique_ptr<SynthonSpaceHitSet>>
 SynthonSpaceSearcher::doTheSearch(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
     const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits) {
+  std::cout << "Searching " << fragSets.size() << " fragment sets."
+            << std::endl;
   auto reactionNames = getSpace().getReactionNames();
   std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> reactionHits(
       reactionNames.size());

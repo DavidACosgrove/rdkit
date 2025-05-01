@@ -34,7 +34,7 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
       const SynthonSet &reaction) const override;
 
  private:
-  std::vector<std::unique_ptr<ShapeInput>> d_queryShapes;
+  ShapeSet d_queryShapes;
   // These are the fragment shapes for this search, derived from
   // d_query.  The shapes in d_fragShapes are keyed on the address
   // of the corresponding fragment.  d_fragShapesPool is never read,
