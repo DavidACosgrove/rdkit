@@ -32,6 +32,7 @@
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 #include <RDGeneral/ControlCHandler.h>
+#include <RDGeneral/RDThreads.h>
 
 namespace RDKit::SynthonSpaceSearch {
 
@@ -519,6 +520,105 @@ void SynthonSet::buildAddAndSubtractFPs(
   *d_subtractFP = ~(*d_subtractFP);
 }
 
+namespace {
+void makeShapesFromMol(
+    std::vector<std::unique_ptr<ROMol>> &sampleMols,
+    std::atomic<std::int64_t> &mostRecentMol, const size_t synthSetNum,
+    DGeomHelpers::EmbedParameters &dgParams, const unsigned int numConfs,
+    std::vector<std::vector<std::pair<std::string, Synthon *>>> &synthons) {
+  ShapeInputOptions shapeOpts;
+  shapeOpts.includeDummies = true;
+  shapeOpts.dummyRadius = 2.16;
+  ShapeInputOptions noDummyOpts;
+  noDummyOpts.includeDummies = false;
+
+  while (true) {
+    size_t molNum = ++mostRecentMol;
+    if (molNum >= sampleMols.size()) {
+      return;
+    }
+    auto sampleMolHs =
+        std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[molNum]));
+    DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
+    MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
+    std::vector<unsigned int> splitBonds;
+    std::vector<unsigned int> fragAtoms;
+    std::vector<unsigned int> dummies;
+    std::vector<std::pair<unsigned int, double>> dummyRadii;
+    for (const auto &bond : sampleMols[molNum]->bonds()) {
+      if (!bond->hasProp("molNum")) {
+        splitBonds.push_back(bond->getIdx());
+        auto begMolNum = bond->getBeginAtom()->getProp<unsigned int>("molNum");
+        auto endMolNum = bond->getEndAtom()->getProp<unsigned int>("molNum");
+        if (begMolNum == synthSetNum && endMolNum != synthSetNum) {
+          fragAtoms.push_back(bond->getBeginAtomIdx());
+          fragAtoms.push_back(bond->getEndAtomIdx());
+          dummies.push_back(bond->getEndAtomIdx());
+          dummyRadii.emplace_back(bond->getEndAtomIdx(), 2.16);
+        } else if (begMolNum != synthSetNum && endMolNum == synthSetNum) {
+          fragAtoms.push_back(bond->getBeginAtomIdx());
+          fragAtoms.push_back(bond->getEndAtomIdx());
+          dummies.push_back(bond->getBeginAtomIdx());
+          dummyRadii.emplace_back(bond->getBeginAtomIdx(), 2.16);
+        }
+      } else {
+        if (bond->getProp<unsigned int>("molNum") == synthSetNum) {
+          fragAtoms.push_back(bond->getBeginAtomIdx());
+          fragAtoms.push_back(bond->getEndAtomIdx());
+        }
+      }
+    }
+    std::ranges::sort(fragAtoms);
+    fragAtoms.erase(std::unique(fragAtoms.begin(), fragAtoms.end()),
+                    fragAtoms.end());
+    std::ranges::sort(dummies);
+    dummies.erase(std::unique(dummies.begin(), dummies.end()), dummies.end());
+    shapeOpts.atomRadii = dummyRadii;
+    shapeOpts.notColorAtoms = dummies;
+    shapeOpts.atomSubset = fragAtoms;
+    noDummyOpts.atomSubset = fragAtoms;
+    // Put ShapeInput objects in the Synthon.  The conformations aren't
+    // needed at the moment.
+    synthons[synthSetNum][molNum].second->clearShapes();
+    for (unsigned int i = 0u; i < sampleMolHs->getNumConformers(); ++i) {
+      SearchShapeInput *shape =
+          new SearchShapeInput(PrepareConformer(*sampleMolHs, i, shapeOpts));
+      ShapeInput noDummiesShape =
+          PrepareConformer(*sampleMolHs, i, noDummyOpts);
+      shape->dummyVol = shape->sov - noDummiesShape.sov;
+      shape->numDummies = dummyRadii.size();
+      synthons[synthSetNum][molNum].second->addShape(
+          std::unique_ptr<SearchShapeInput>(shape));
+    }
+    synthons[synthSetNum][molNum].second->pruneShapes(1.9);
+  }
+}
+
+void makeShapesFromMols(
+    std::vector<std::unique_ptr<ROMol>> &sampleMols, const size_t synthSetNum,
+    DGeomHelpers::EmbedParameters &dgParams, const unsigned int numConfs,
+    int numThreads,
+    std::vector<std::vector<std::pair<std::string, Synthon *>>> &synthons) {
+  std::atomic<std::int64_t> mostRecentMol = -1;
+  if (const auto numThreadsToUse = getNumThreadsToUse(numThreads);
+      numThreadsToUse > 1) {
+    std::vector<std::thread> threads;
+    for (unsigned int i = 0u;
+         i < std::min(static_cast<size_t>(numThreadsToUse), sampleMols.size());
+         ++i) {
+      threads.emplace_back(makeShapesFromMol, std::ref(sampleMols),
+                           std::ref(mostRecentMol), synthSetNum,
+                           std::ref(dgParams), numConfs, std::ref(synthons));
+    }
+    for (auto &t : threads) {
+      t.join();
+    }
+  } else {
+    makeShapesFromMol(sampleMols, mostRecentMol, synthSetNum, dgParams,
+                      numConfs, synthons);
+  }
+}
+}  // namespace
 void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
                                     int numThreads) {
   std::cout << "Building shapes for " << getId() << std::endl;
@@ -537,77 +637,14 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
   noDummyOpts.includeDummies = false;
 
   // Now build sets of sample molecules using each synthon set in turn.
+  auto dgParams = DGeomHelpers::ETKDGv3;
+  dgParams.numThreads = 1;
+  dgParams.pruneRmsThresh = rmsThreshold;
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
     auto sampleMols =
         buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
-    auto dgParams = DGeomHelpers::ETKDGv3;
-    dgParams.numThreads = numThreads;
-    dgParams.pruneRmsThresh = rmsThreshold;
-    for (size_t j = 0; j < sampleMols.size(); ++j) {
-      auto sampleMolHs = std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[j]));
-      DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
-      MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
-      // std::cout << "Sample mol " << j << " : " << MolToSmiles(*sampleMols[j])
-      // << "  Num confs = " << sampleMolHs->getNumConformers()
-      // << std::endl;
-      // for (unsigned int k = 0; k < sampleMolHs->getNumConformers(); ++k) {
-      //   std::cout << "Sample mol " << j << " : " << k << " : "
-      //             << sampleMolHs->getNumConformers() << " : "
-      //             << MolToCXSmiles(ROMol(*sampleMolHs, false, k)) <<
-      //             std::endl;
-      // }
-      std::vector<unsigned int> splitBonds;
-      std::vector<unsigned int> fragAtoms;
-      std::vector<unsigned int> dummies;
-      std::vector<std::pair<unsigned int, double>> dummyRadii;
-      for (const auto &bond : sampleMols[j]->bonds()) {
-        if (!bond->hasProp("molNum")) {
-          splitBonds.push_back(bond->getIdx());
-          auto begMolNum =
-              bond->getBeginAtom()->getProp<unsigned int>("molNum");
-          auto endMolNum = bond->getEndAtom()->getProp<unsigned int>("molNum");
-          if (begMolNum == synthSetNum && endMolNum != synthSetNum) {
-            fragAtoms.push_back(bond->getBeginAtomIdx());
-            fragAtoms.push_back(bond->getEndAtomIdx());
-            dummies.push_back(bond->getEndAtomIdx());
-            dummyRadii.emplace_back(bond->getEndAtomIdx(), 2.16);
-          } else if (begMolNum != synthSetNum && endMolNum == synthSetNum) {
-            fragAtoms.push_back(bond->getBeginAtomIdx());
-            fragAtoms.push_back(bond->getEndAtomIdx());
-            dummies.push_back(bond->getBeginAtomIdx());
-            dummyRadii.emplace_back(bond->getBeginAtomIdx(), 2.16);
-          }
-        } else {
-          if (bond->getProp<unsigned int>("molNum") == synthSetNum) {
-            fragAtoms.push_back(bond->getBeginAtomIdx());
-            fragAtoms.push_back(bond->getEndAtomIdx());
-          }
-        }
-      }
-      std::ranges::sort(fragAtoms);
-      fragAtoms.erase(std::unique(fragAtoms.begin(), fragAtoms.end()),
-                      fragAtoms.end());
-      std::ranges::sort(dummies);
-      dummies.erase(std::unique(dummies.begin(), dummies.end()), dummies.end());
-      shapeOpts.atomRadii = dummyRadii;
-      shapeOpts.notColorAtoms = dummies;
-      shapeOpts.atomSubset = fragAtoms;
-      noDummyOpts.atomSubset = fragAtoms;
-      // Put ShapeInput objects in the Synthon.  The conformations aren't
-      // needed at the moment.
-      d_synthons[synthSetNum][j].second->clearShapes();
-      for (unsigned int i = 0u; i < sampleMolHs->getNumConformers(); ++i) {
-        SearchShapeInput *shape =
-            new SearchShapeInput(PrepareConformer(*sampleMolHs, i, shapeOpts));
-        ShapeInput noDummiesShape =
-            PrepareConformer(*sampleMolHs, i, noDummyOpts);
-        shape->dummyVol = shape->sov - noDummiesShape.sov;
-        shape->numDummies = dummyRadii.size();
-        d_synthons[synthSetNum][j].second->addShape(
-            std::unique_ptr<SearchShapeInput>(shape));
-      }
-      d_synthons[synthSetNum][j].second->pruneShapes(1.9);
-    }
+    makeShapesFromMols(sampleMols, synthSetNum, dgParams, numConfs, numThreads,
+                       d_synthons);
   }
 }
 
