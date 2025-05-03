@@ -115,16 +115,14 @@ void Synthon::setFP(std::unique_ptr<ExplicitBitVect> fp) {
   dp_FP = std::move(fp);
 }
 
-void Synthon::addShape(std::unique_ptr<SearchShapeInput> shape) {
-  dp_shapes.push_back(std::move(shape));
+void Synthon::setShapes(std::unique_ptr<SearchShapeInput> shape) {
+  dp_shapes = std::move(shape);
 }
 
-void Synthon::clearShapes() { dp_shapes.clear(); }
+void Synthon::clearShapes() { dp_shapes.reset(); }
 
-const ShapeSet &Synthon::getShapes() const { return dp_shapes; }
-
-void Synthon::pruneShapes(double simThreshold) {
-  details::pruneShapes(dp_shapes, simThreshold);
+const std::unique_ptr<SearchShapeInput> &Synthon::getShapes() const {
+  return dp_shapes;
 }
 
 void Synthon::writeToDBStream(std::ostream &os) const {
@@ -147,9 +145,12 @@ void Synthon::writeToDBStream(std::ostream &os) const {
   streamWrite(os, d_numHeavyAtoms);
   streamWrite(os, d_numChiralAtoms);
   streamWrite(os, d_molWt);
-  streamWrite(os, std::uint64_t(dp_shapes.size()));
-  for (const auto &shape : dp_shapes) {
-    streamWrite(os, shape->toString());
+  if (dp_shapes) {
+    streamWrite(os, true);
+    auto pickle = dp_shapes->toString();
+    streamWrite(os, pickle);
+  } else {
+    streamWrite(os, false);
   }
 }
 
@@ -185,15 +186,12 @@ void Synthon::readFromDBStream(std::istream &is, const std::uint32_t version) {
     calcProperties();
   }
   if (version > 3010) {
-    std::uint64_t numShapes;
-    streamRead(is, numShapes);
-    if (numShapes) {
-      dp_shapes.reserve(numShapes);
-      for (std::uint64_t i = 0; i < numShapes; ++i) {
-        std::string pickle;
-        streamRead(is, pickle, 0);
-        addShape(std::make_unique<SearchShapeInput>(pickle));
-      }
+    bool haveShapes = false;
+    streamRead(is, haveShapes);
+    if (haveShapes) {
+      std::string pickle;
+      streamRead(is, pickle, 0);
+      dp_shapes = std::make_unique<SearchShapeInput>(pickle);
     }
   }
 }

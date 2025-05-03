@@ -7,13 +7,6 @@
 //  which is included in the file license.txt, found at the root
 //  of the RDKit source tree.
 //
-// The algorithm allows the substructure searching of a very large library
-// of structures that is described in synthon format (such as Enamine REAL)
-// without enumerating the individual structures during the search process.
-//
-// It is not a direct implementation of the published algorithm, as,
-// for example, it uses a different fingerprint for the initial synthon
-// screening.
 
 #include <cmath>
 #include <random>
@@ -21,7 +14,6 @@
 
 #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <DataStructs/ExplicitBitVect.h>
-#include <GraphMol/atomic_data.h>
 #include <GraphMol/MolPickler.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
@@ -532,7 +524,7 @@ void makeShapesFromMol(
   ShapeInputOptions noDummyOpts;
   noDummyOpts.includeDummies = false;
 
-  while (true) {
+  while (!ControlCHandler::getGotSignal()) {
     size_t molNum = ++mostRecentMol;
     if (molNum >= sampleMols.size()) {
       return;
@@ -577,20 +569,9 @@ void makeShapesFromMol(
     shapeOpts.notColorAtoms = dummies;
     shapeOpts.atomSubset = fragAtoms;
     noDummyOpts.atomSubset = fragAtoms;
-    // Put ShapeInput objects in the Synthon.  The conformations aren't
-    // needed at the moment.
-    synthons[synthSetNum][molNum].second->clearShapes();
-    for (unsigned int i = 0u; i < sampleMolHs->getNumConformers(); ++i) {
-      SearchShapeInput *shape =
-          new SearchShapeInput(PrepareConformer(*sampleMolHs, i, shapeOpts));
-      ShapeInput noDummiesShape =
-          PrepareConformer(*sampleMolHs, i, noDummyOpts);
-      shape->dummyVol = shape->sov - noDummiesShape.sov;
-      shape->numDummies = dummyRadii.size();
-      synthons[synthSetNum][molNum].second->addShape(
-          std::unique_ptr<SearchShapeInput>(shape));
-    }
-    synthons[synthSetNum][molNum].second->pruneShapes(1.9);
+
+    auto shapes = PrepareConformers(*sampleMolHs, shapeOpts, 1.9);
+    synthons[synthSetNum][molNum].second->setShapes(std::move(shapes));
   }
 }
 
@@ -645,6 +626,9 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
         buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
     makeShapesFromMols(sampleMols, synthSetNum, dgParams, numConfs, numThreads,
                        d_synthons);
+    if (ControlCHandler::getGotSignal()) {
+      return;
+    }
   }
 }
 

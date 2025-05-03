@@ -11,13 +11,15 @@
 #ifndef SYNTHONSPACESEARCHHELPERS_H
 #define SYNTHONSPACESEARCHHELPERS_H
 
-#include <../External/pubchem_shape/PubChemShape.hpp>
+#include <GraphMol/SynthonSpaceSearch/SearchShapeInput.h>
+
 #ifdef RDK_USE_BOOST_SERIALIZATION
 #include <RDGeneral/BoostStartInclude.h>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <RDGeneral/BoostEndInclude.h>
 #endif
+
 namespace RDKit::SynthonSpaceSearch {
 
 // This the maximum number of connectors that we can deal with at the moment.
@@ -103,50 +105,6 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
   // threads plus this number.  So if the number of
   // hardware threads is 8, and numThreads is -1, it will
   // use 7 threads.
-};
-
-// Make a subclass of ShapeInput with some extra info
-struct SearchShapeInput : ShapeInput {
-  SearchShapeInput() = default;
-  SearchShapeInput(const std::string &str) {
-#ifndef RDK_USE_BOOST_SERIALIZATION
-    PRECONDITION(0, "Boost SERIALIZATION is not enabled")
-#else
-    std::stringstream ss(str);
-    boost::archive::text_iarchive ia(ss);
-    ia &*this;
-#endif
-  }
-
-  SearchShapeInput(const ShapeInput &other) : ShapeInput(other) {}
-  SearchShapeInput(const SearchShapeInput &other) = default;
-  SearchShapeInput(SearchShapeInput &&other) = default;
-  SearchShapeInput &operator=(const SearchShapeInput &other) = default;
-  SearchShapeInput &operator=(SearchShapeInput &&other) = default;
-  ~SearchShapeInput() override = default;
-
-  std::string toString() const {
-#ifndef RDK_USE_BOOST_SERIALIZATION
-    PRECONDITION(0, "Boost SERIALIZATION is not enabled")
-#else
-    std::stringstream ss;
-    boost::archive::text_oarchive oa(ss);
-    oa &*this;
-    return ss.str();
-#endif
-  }
-
-#ifdef RDK_USE_BOOST_SERIALIZATION
-  template <class Archive>
-  void serialize(Archive &ar, const unsigned int) {
-    ar &boost::serialization::base_object<ShapeInput>(*this);
-    ar & numDummies;
-    ar & dummyVol;
-  }
-#endif
-
-  unsigned int numDummies{0};
-  double dummyVol{0.0};
 };
 
 using ShapeSet = std::vector<std::unique_ptr<SearchShapeInput>>;

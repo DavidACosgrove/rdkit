@@ -100,7 +100,7 @@ TEST_CASE("Shape Small tests") {
   int numThreads = -1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    if (i != 2) {
+    if (i != 0) {
       continue;
     }
     SynthonSpace synthonspace;
@@ -182,15 +182,15 @@ TEST_CASE("Shape DB Writer") {
   for (size_t i = 0; i < irxn->getSynthons().size(); ++i) {
     REQUIRE(irxn->getSynthons()[i].size() == orxn->getSynthons()[i].size());
     for (size_t j = 0; j < irxn->getSynthons().size(); ++j) {
-      REQUIRE(irxn->getSynthons()[i][j].second->getShapes().size() ==
-              orxn->getSynthons()[i][j].second->getShapes().size());
+      REQUIRE(
+          irxn->getSynthons()[i][j].second->getShapes()->confCoords.size() ==
+          orxn->getSynthons()[i][j].second->getShapes()->confCoords.size());
       for (size_t k = 0;
-           k < irxn->getSynthons()[i][j].second->getShapes().size(); ++k) {
-        const auto ishape =
-            irxn->getSynthons()[i][j].second->getShapes()[k].get();
-        const auto oshape =
-            orxn->getSynthons()[i][j].second->getShapes()[k].get();
-        CHECK(ishape->sov == Catch::Approx(oshape->sov));
+           k < irxn->getSynthons()[i][j].second->getShapes()->confCoords.size();
+           ++k) {
+        const auto ishape = irxn->getSynthons()[i][j].second->getShapes().get();
+        const auto oshape = orxn->getSynthons()[i][j].second->getShapes().get();
+        CHECK(ishape->sovs[k] == Catch::Approx(oshape->sovs[k]));
       }
     }
   }

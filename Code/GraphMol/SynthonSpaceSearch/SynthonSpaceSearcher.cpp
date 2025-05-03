@@ -198,7 +198,7 @@ SynthonSpaceSearcher::doTheSearch(
   if (const auto numThreads = getNumThreadsToUse(d_params.numThreads);
       numThreads > 1) {
     std::vector<std::thread> threads;
-    for (unsigned int i = 0U;
+    for (unsigned int i = 0u;
          i < std::min(static_cast<size_t>(numThreads), reactionNames.size());
          ++i) {
       threads.push_back(std::thread(processReactions, this,

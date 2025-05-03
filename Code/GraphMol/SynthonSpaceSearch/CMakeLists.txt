@@ -3,7 +3,7 @@ rdkit_library(SynthonSpaceSearch
         SynthonSpaceSearch_details.cpp SynthonSpace.cpp SynthonSet.cpp Synthon.cpp
         SynthonSpaceSearcher.cpp SynthonSpaceSubstructureSearcher.cpp SynthonSpaceFingerprintSearcher.cpp
         SynthonSpaceRascalSearcher.cpp SynthonSpaceShapeSearcher.cpp
-        SynthonSpaceHitSet.cpp SearchResults.cpp MemoryMappedFileReader.cpp
+        SynthonSpaceHitSet.cpp SearchResults.cpp SearchShapeInput.cpp MemoryMappedFileReader.cpp
         LINK_LIBRARIES SmilesParse FileParsers ChemTransforms Fingerprints SubstructMatch GraphMol RascalMCES
         GeneralizedSubstruct DistGeomHelpers DistGeometry SimDivPickers PubChemShape Descriptors)
 target_compile_definitions(SynthonSpaceSearch PRIVATE RDKIT_SYNTHONSPACESEARCH_BUILD)

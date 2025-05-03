@@ -39,45 +39,12 @@ SynthonSpaceShapeSearcher::SynthonSpaceShapeSearcher(
 
 namespace {
 
-// Returns -1.0 if no shapes match within the threshold.  Doesn't actually
-// return the best similarity, just the first it finds over the cutoff.
-double bestShapeMatch(const ShapeSet &shapeSet1, const ShapeSet &shapeSet2,
-                      double similarityCutoff) {
-  double bestSim = -1.0;
-  std::vector<float> matrix(12, 0.0);
-  for (const auto &shape1 : shapeSet1) {
-    for (const auto &shape2 : shapeSet2) {
-      // The best score achievable is when the smaller volume is entirely inside
-      // the larger volume.  The Shape tanimoto  is the fraction of volume in
-      // common.
-      double maxSt = std::min(shape1->sov, shape2->sov) /
-                     std::max(shape1->sov, shape2->sov);
-      double maxCt = std::min(shape1->sof, shape2->sof) /
-                     std::max(shape1->sof, shape2->sof);
-      double maxSim = maxSt + maxCt;
-      if (maxSim > similarityCutoff) {
-        // We want the score, but want the shape in the same place afterwards.
-        auto keepCoord = shape2->coord;
-        auto [sov, sof] = AlignShape(*shape1, *shape2, matrix);
-        shape2->coord = keepCoord;
-        if (sov + sof > bestSim) {
-          bestSim = sov + sof;
-        }
-        if (bestSim > similarityCutoff) {
-          return bestSim;
-        }
-      }
-    }
-  }
-  // std::cout << "final bestSim = " << bestSim << std::endl;
-  return bestSim;
-}
-
 // Take the fragged mol ShapeSets and flag all those synthons that have a
 // fragment as a similarity match.
 std::vector<std::vector<size_t>> getHitSynthons(
-    const std::vector<ShapeSet *> &fragShapes, const double similarityCutoff,
-    const SynthonSet &reaction, const std::vector<unsigned int> &synthonOrder) {
+    const std::vector<SearchShapeInput *> &fragShapes,
+    const double similarityCutoff, const SynthonSet &reaction,
+    const std::vector<unsigned int> &synthonOrder) {
   std::vector<boost::dynamic_bitset<>> synthonsToUse;
   std::vector<std::vector<size_t>> retSynthons;
   std::vector<std::vector<std::pair<size_t, double>>> fragSims(
@@ -92,19 +59,20 @@ std::vector<std::vector<size_t>> getHitSynthons(
   for (const auto &synthonSet : reaction.getSynthons()) {
     synthonsToUse.emplace_back(synthonSet.size());
   }
+  std::vector<float> matrix(12, 0.0);
   for (size_t i = 0; i < synthonOrder.size(); i++) {
     const auto &synthons = reaction.getSynthons()[synthonOrder[i]];
     bool fragMatched = false;
     for (size_t j = 0; j < synthons.size(); j++) {
-      // std::cout << "synthon " << j << " : " << synthons[j].first << " : "
-      // << synthons[j].second->getSmiles() << " vs frag "
-      // << synthonOrder[i] << std::endl;
+      std::cout << "synthon " << j << " : " << synthons[j].first << " : "
+                << synthons[j].second->getSmiles() << " vs frag "
+                << synthonOrder[i] << std::endl;
       if (const auto sim =
-              bestShapeMatch(*fragShapes[i], synthons[j].second->getShapes(),
-                             similarityCutoff);
-          sim >= similarityCutoff) {
+              BestSimilarity(*fragShapes[i], *synthons[j].second->getShapes(),
+                             matrix, similarityCutoff);
+          sim.first + sim.second >= similarityCutoff) {
         synthonsToUse[synthonOrder[i]][j] = true;
-        fragSims[synthonOrder[i]].emplace_back(j, sim);
+        fragSims[synthonOrder[i]].emplace_back(j, sim.first + sim.second);
         fragMatched = true;
       }
     }
@@ -159,7 +127,7 @@ SynthonSpaceShapeSearcher::searchFragSet(
   // std::cout << std::endl;
 
   // Collect the ShapeSets for the fragSet
-  std::vector<ShapeSet *> fragShapes;
+  std::vector<SearchShapeInput *> fragShapes;
   fragShapes.reserve(fragSet.size());
   for (auto &frag : fragSet) {
     std::pair<void *, ShapeSet *> tmp{frag.get(), nullptr};
@@ -222,8 +190,9 @@ SynthonSpaceShapeSearcher::searchFragSet(
 }
 
 namespace {
-ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag,
-                        double pruneThreshold) {
+std::unique_ptr<SearchShapeInput> generateShapes(const ROMol &queryConfs,
+                                                 const ROMol &frag,
+                                                 double pruneThreshold) {
   // The fragSets molecules will have their atoms labelled with
   // ORIG_IDX apart from the dummy atoms, but we need coords
   // for them, too.  They are normally copied from the atom at
@@ -272,31 +241,15 @@ ShapeSet generateShapes(const ROMol &queryConfs, const ROMol &frag,
   opts.atomSubset = fragAtoms;
   opts.atomRadii = dummyRadii;
   opts.notColorAtoms = notColorAtoms;
-  ShapeSet shapes(queryConfs.getNumConformers());
-  ShapeInputOptions noDummyOpts;
-  noDummyOpts = opts;
-  noDummyOpts.atomRadii.clear();
-  noDummyOpts.includeDummies = false;
-  for (unsigned int k = 0u; k < queryConfs.getNumConformers(); ++k) {
-    auto shape = PrepareConformer(queryConfs, k, opts);
-    auto noDummyShape = PrepareConformer(queryConfs, k, noDummyOpts);
-    SearchShapeInput *ss = new SearchShapeInput(shape);
-    ss->numDummies = dummyRadii.size();
-    ss->dummyVol = shape.sov - noDummyShape.sov;
-    shapes[k].reset(ss);
-  }
-
-  details::pruneShapes(shapes, pruneThreshold);
-  std::ranges::sort(shapes, [](const auto &s1, const auto &s2) -> bool {
-    return s1->sov + s1->sof > s2->sov + s2->sof;
-  });
+  auto shapes = PrepareConformers(queryConfs, opts, pruneThreshold);
   return shapes;
 }
 
 void generateSomeShapes(
     const std::map<std::string, std::vector<ROMol *>> &mapFragsBySmiles,
     unsigned int beginFrag, unsigned int endFrag, const ROMol &queryMolHs,
-    double pruneThreshold, std::vector<ShapeSet> &fragShapes) {
+    double pruneThreshold,
+    std::vector<std::unique_ptr<SearchShapeInput>> &fragShapes) {
   auto fragIt = mapFragsBySmiles.begin();
   if (beginFrag >= mapFragsBySmiles.size()) {
     return;
@@ -324,22 +277,16 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   DGeomHelpers::EmbedMultipleConfs(*queryMolHs, getParams().numConformers,
                                    dgParams);
   MolOps::removeHs(*static_cast<RWMol *>(queryMolHs.get()));
-  for (unsigned int i = 0u; i < queryMolHs->getNumConformers(); ++i) {
-    std::unique_ptr<SearchShapeInput> shape(
-        new SearchShapeInput(PrepareConformer(*queryMolHs, i)));
-    d_queryShapes.emplace_back(std::move(shape));
-  }
-  details::pruneShapes(d_queryShapes, 1.9);
-  std::ranges::sort(d_queryShapes, [](const auto &s1, const auto &s2) -> bool {
-    return s1->sov + s1->sof > s2->sov + s2->sof;
-  });
+  ShapeInputOptions opts;
+  dp_queryShapes = PrepareConformers(*queryMolHs, opts, 1.9);
   std::cout << "Query mol : " << MolToSmiles(getQuery())
             << " num confs = " << queryMolHs->getNumConformers() << " :: ";
   for (auto a : getQuery().atoms()) {
     std::cout << a->getIdx() << ", " << a->getProp<unsigned int>("ORIG_IDX")
               << ", " << a->getAtomicNum() << " : ";
   }
-  std::cout << "  num shapes : " << d_queryShapes.size() << std::endl;
+  std::cout << "  num shapes : " << dp_queryShapes->confCoords.size()
+            << std::endl;
   std::cout << MolToCXSmiles(*queryMolHs) << std::endl;
 
   // Make a map of the unique SMILES strings for the fragments, keeping
@@ -377,7 +324,7 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   d_fragShapes.reserve(fragSmiToFrag.size());
   for (auto &[fragSmi, frags] : fragSmiToFrag) {
     for (auto &frag : frags) {
-      d_fragShapes.emplace_back(frag, &d_fragShapesPool[fragNum]);
+      d_fragShapes.emplace_back(frag, d_fragShapesPool[fragNum].get());
     }
     ++fragNum;
   }
@@ -398,15 +345,16 @@ bool SynthonSpaceShapeSearcher::quickVerify(
   for (size_t i = 0; i < synthNums.size(); i++) {
     const auto &synth = hitset->synthonsToUse[i][synthNums[i]].second;
     const auto &shapes = synth->getShapes();
-    maxVol += shapes.front()->sov - shapes.front()->dummyVol;
-    featureVol += shapes.front()->sof;
-    std::cout << synth->getSmiles() << " : " << shapes.front()->sov << " and "
-              << shapes.front()->dummyVol << std::endl;
+    maxVol += shapes->sovs.front() - shapes->dummyVols.front();
+    featureVol += shapes->sofs.front();
+    std::cout << "quickVerify synth " << i << " : " << synth->getSmiles()
+              << " : " << shapes->sovs.front() << " and "
+              << shapes->dummyVols.front() << std::endl;
   }
-  double maxSt = std::min(maxVol, d_queryShapes.front()->sov) /
-                 std::max(maxVol, d_queryShapes.front()->sov);
-  double maxCt = std::min(featureVol, d_queryShapes.front()->sof) /
-                 std::max(featureVol, d_queryShapes.front()->sof);
+  double maxSt = std::min(maxVol, dp_queryShapes->sovs.front()) /
+                 std::max(maxVol, dp_queryShapes->sovs.front());
+  double maxCt = std::min(featureVol, dp_queryShapes->sofs.front()) /
+                 std::max(featureVol, dp_queryShapes->sofs.front());
   // std::cout << maxSt << " " << maxCt << " : " << maxSt + maxCt << " : "
   //           << (maxSt + maxCt >= getParams().similarityCutoff -
   //                                    getParams().approxSimilarityAdjuster)
@@ -427,11 +375,12 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
                                    dgParams);
   MolOps::removeHs(*static_cast<RWMol *>(hitMolHs.get()));
   std::vector<float> matrix(12, 0.0);
-  // std::cout << "Verifying hit for " << MolToSmiles(hit) << std::endl;
-  for (const auto &qshape : d_queryShapes) {
+  std::cout << "Verifying hit for " << MolToSmiles(hit) << std::endl;
+  for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
     for (unsigned int i = 0u; i < hitMolHs->getNumConformers(); ++i) {
       // std::cout << "Checking conf " << i << std::endl;
-      auto [st, ct] = AlignMolecule(*qshape, *hitMolHs, matrix, i);
+      dp_queryShapes->setActiveConformer(i);
+      auto [st, ct] = AlignMolecule(*dp_queryShapes, *hitMolHs, matrix, i);
       if (st + ct >= getParams().similarityCutoff) {
         // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
         // << std::endl;

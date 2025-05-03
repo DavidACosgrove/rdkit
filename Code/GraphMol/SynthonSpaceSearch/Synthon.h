@@ -13,8 +13,9 @@
 
 #include <string>
 
-#include <../External/pubchem_shape/PubChemShape.hpp>
+// #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <RDGeneral/export.h>
+#include <GraphMol/SynthonSpaceSearch/SearchShapeInput.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearchHelpers.h>
 
 namespace RDKit {
@@ -51,10 +52,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   unsigned int getNumChiralAtoms() const { return d_numChiralAtoms; }
   double getMolWt() const { return d_molWt; }
   void clearShapes();
-  void addShape(std::unique_ptr<SearchShapeInput> shape);
-  const ShapeSet &getShapes() const;
-  // Cut the shapes down so that no pair is more similar than simThreshold.
-  void pruneShapes(double simThreshold);
+  void setShapes(std::unique_ptr<SearchShapeInput> shapes);
+  const std::unique_ptr<SearchShapeInput> &getShapes() const;
 
   // Writes to/reads from a binary stream.
   void writeToDBStream(std::ostream &os) const;
@@ -76,7 +75,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   // searching.  Its type is known by the SynthonSpace that holds the
   // Synthon.
   std::unique_ptr<ExplicitBitVect> dp_FP{nullptr};
-  ShapeSet dp_shapes;
+  std::unique_ptr<SearchShapeInput> dp_shapes;
 
   // SMILES strings of any connector regions.  Normally there will only
   // be 1 or 2.  These are derived from the search mol.
