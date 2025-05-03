@@ -106,9 +106,11 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
    * @param rmsThreshold: threshold for pruning conformations.  Passed directly
    *                      to EmbedMultipleConfs.
    * @param numThreads: number of threads to use in parallel steps.
+   * @param randomSeed: seed for the random number generator. -1 means the RNG
+   *                    is not seeded.
    */
   void buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
-                          int numThreads);
+                          int numThreads, int randomSeed);
 
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as

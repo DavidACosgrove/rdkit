@@ -512,8 +512,8 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
                  d_fileMajorVersion, d_synthonPool);
   }
 #else
-    readSynthons(0, numSynthons, fileMap.d_mappedMemory, synthonPos,
-                 d_fileMajorVersion, d_synthonPool);
+  readSynthons(0, numSynthons, fileMap.d_mappedMemory, synthonPos,
+               d_fileMajorVersion, d_synthonPool);
 #endif
   if (!std::is_sorted(
           d_synthonPool.begin(), d_synthonPool.end(),
@@ -622,7 +622,8 @@ void SynthonSpace::buildSynthonFingerprints(
 }
 
 void SynthonSpace::buildSynthonShapes(unsigned int numConfs,
-                                      double rmsThreshold, int numThreads) {
+                                      double rmsThreshold, int numThreads,
+                                      int randomSeed) {
   if (d_numConformers == numConfs) {
     BOOST_LOG(rdWarningLog) << "SynthonSpace has already been built with "
                             << numConfs << " conformers." << std::endl;
@@ -635,7 +636,8 @@ void SynthonSpace::buildSynthonShapes(unsigned int numConfs,
     if (ControlCHandler::getGotSignal()) {
       return;
     }
-    synthSet->buildSynthonShapes(numConfs, rmsThreshold, numThreads);
+    synthSet->buildSynthonShapes(numConfs, rmsThreshold, numThreads,
+                                 randomSeed);
   }
 }
 

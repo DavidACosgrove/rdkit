@@ -601,7 +601,7 @@ void makeShapesFromMols(
 }
 }  // namespace
 void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
-                                    int numThreads) {
+                                    int numThreads, int randomSeed) {
   std::cout << "Building shapes for " << getId() << std::endl;
   // Each synthon is built into a product, its conformers generated
   // and then split out again into the original pieces.
@@ -621,6 +621,7 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
   auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = 1;
   dgParams.pruneRmsThresh = rmsThreshold;
+  dgParams.randomSeed = randomSeed;
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
     auto sampleMols =
         buildSampleMolecules(synthonMolCopies, synthSetNum, *this);

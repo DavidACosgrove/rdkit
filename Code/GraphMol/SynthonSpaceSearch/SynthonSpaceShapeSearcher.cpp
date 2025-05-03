@@ -64,9 +64,9 @@ std::vector<std::vector<size_t>> getHitSynthons(
     const auto &synthons = reaction.getSynthons()[synthonOrder[i]];
     bool fragMatched = false;
     for (size_t j = 0; j < synthons.size(); j++) {
-      std::cout << "synthon " << j << " : " << synthons[j].first << " : "
-                << synthons[j].second->getSmiles() << " vs frag "
-                << synthonOrder[i] << std::endl;
+      // std::cout << "synthon " << j << " : " << synthons[j].first << " : "
+      //           << synthons[j].second->getSmiles() << " vs frag "
+      //           << synthonOrder[i] << std::endl;
       if (const auto sim =
               BestSimilarity(*fragShapes[i], *synthons[j].second->getShapes(),
                              matrix, similarityCutoff);
@@ -201,7 +201,7 @@ std::unique_ptr<SearchShapeInput> generateShapes(const ROMol &queryConfs,
   fragAtoms.reserve(frag.getNumAtoms());
   boost::dynamic_bitset<> inFrag(queryConfs.getNumAtoms());
   // std::cout << "\nGenerate shapes for " << MolToSmiles(frag) << " of "
-  // << queryConfs.getNumConformers() << " conformers" << std::endl;
+  //           << queryConfs.getNumConformers() << " conformers" << std::endl;
   for (auto atom : frag.atoms()) {
     unsigned int origIdx;
     if (atom->getPropIfPresent<unsigned int>("ORIG_IDX", origIdx)) {
@@ -246,20 +246,18 @@ std::unique_ptr<SearchShapeInput> generateShapes(const ROMol &queryConfs,
 }
 
 void generateSomeShapes(
-    const std::map<std::string, std::vector<ROMol *>> &mapFragsBySmiles,
-    unsigned int beginFrag, unsigned int endFrag, const ROMol &queryMolHs,
-    double pruneThreshold,
+    const std::vector<ROMol *> &fragsForShape, unsigned int beginFrag,
+    unsigned int endFrag, const ROMol &queryMolHs, double pruneThreshold,
     std::vector<std::unique_ptr<SearchShapeInput>> &fragShapes) {
-  auto fragIt = mapFragsBySmiles.begin();
-  if (beginFrag >= mapFragsBySmiles.size()) {
+  if (beginFrag >= fragsForShape.size()) {
     return;
   }
-  std::advance(fragIt, beginFrag);
-  for (unsigned int fragIdx = beginFrag;
-       fragIdx < endFrag && fragIt != mapFragsBySmiles.end();
-       ++fragIdx, ++fragIt) {
+  if (endFrag >= fragsForShape.size()) {
+    endFrag = fragsForShape.size();
+  }
+  for (unsigned int fragIdx = beginFrag; fragIdx < endFrag; ++fragIdx) {
     fragShapes[fragIdx] =
-        generateShapes(queryMolHs, *fragIt->second.front(), pruneThreshold);
+        generateShapes(queryMolHs, *fragsForShape[fragIdx], pruneThreshold);
     if (ControlCHandler::getGotSignal()) {
       return;
     }
@@ -273,21 +271,22 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = getParams().numThreads;
   dgParams.pruneRmsThresh = getParams().confRMSThreshold;
+  dgParams.randomSeed = getParams().randomSeed;
   // Build shapes for multiple conformations of the query molecule.
   DGeomHelpers::EmbedMultipleConfs(*queryMolHs, getParams().numConformers,
                                    dgParams);
   MolOps::removeHs(*static_cast<RWMol *>(queryMolHs.get()));
   ShapeInputOptions opts;
   dp_queryShapes = PrepareConformers(*queryMolHs, opts, 1.9);
-  std::cout << "Query mol : " << MolToSmiles(getQuery())
-            << " num confs = " << queryMolHs->getNumConformers() << " :: ";
-  for (auto a : getQuery().atoms()) {
-    std::cout << a->getIdx() << ", " << a->getProp<unsigned int>("ORIG_IDX")
-              << ", " << a->getAtomicNum() << " : ";
-  }
-  std::cout << "  num shapes : " << dp_queryShapes->confCoords.size()
-            << std::endl;
-  std::cout << MolToCXSmiles(*queryMolHs) << std::endl;
+  // std::cout << "Query mol : " << MolToSmiles(getQuery())
+  //           << " num confs = " << queryMolHs->getNumConformers() << " :: ";
+  // for (auto a : getQuery().atoms()) {
+  //   std::cout << a->getIdx() << ", " << a->getProp<unsigned int>("ORIG_IDX")
+  //             << ", " << a->getAtomicNum() << " : ";
+  // }
+  // std::cout << "  num shapes : " << dp_queryShapes->confCoords.size()
+  //           << std::endl;
+  // std::cout << MolToCXSmiles(*queryMolHs) << std::endl;
 
   // Make a map of the unique SMILES strings for the fragments, keeping
   // track of them in the vector.
@@ -299,15 +298,21 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
 
   // Compute ShapeSets for the fragments
   d_fragShapesPool.resize(fragSmiToFrag.size());
+  std::vector<ROMol *> fragsForShape;
+  fragsForShape.reserve(fragSmiToFrag.size());
+  std::transform(fragSmiToFrag.begin(), fragSmiToFrag.end(),
+                 back_inserter(fragsForShape),
+                 [](const auto &p) -> ROMol * { return p.second.front(); });
+
   unsigned int fragNum = 0;
   if (const auto numThreads = getNumThreadsToUse(getParams().numThreads);
       numThreads > 1) {
     std::cout << "numThreads: " << numThreads << std::endl;
-    const size_t eachThread = 1 + fragSmiToFrag.size() / numThreads;
+    const size_t eachThread = 1 + fragsForShape.size() / numThreads;
     size_t start = 0;
     std::vector<std::thread> threads;
     for (unsigned int i = 0U; i < numThreads; ++i, start += eachThread) {
-      threads.push_back(std::thread(generateSomeShapes, std::ref(fragSmiToFrag),
+      threads.push_back(std::thread(generateSomeShapes, std::ref(fragsForShape),
                                     start, start + eachThread,
                                     std::ref(*queryMolHs), 1.9,
                                     std::ref(d_fragShapesPool)));
@@ -316,7 +321,7 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
       t.join();
     }
   } else {
-    generateSomeShapes(fragSmiToFrag, 0, fragSmiToFrag.size(), *queryMolHs, 1.9,
+    generateSomeShapes(fragsForShape, 0, fragsForShape.size(), *queryMolHs, 1.9,
                        d_fragShapesPool);
   }
   // Use the pooled ShapeSets to populate the vectors for each fragSet
@@ -347,9 +352,9 @@ bool SynthonSpaceShapeSearcher::quickVerify(
     const auto &shapes = synth->getShapes();
     maxVol += shapes->sovs.front() - shapes->dummyVols.front();
     featureVol += shapes->sofs.front();
-    std::cout << "quickVerify synth " << i << " : " << synth->getSmiles()
-              << " : " << shapes->sovs.front() << " and "
-              << shapes->dummyVols.front() << std::endl;
+    // std::cout << "quickVerify synth " << i << " : " << synth->getSmiles()
+    //           << " : " << shapes->sovs.front() << " and "
+    //           << shapes->dummyVols.front() << std::endl;
   }
   double maxSt = std::min(maxVol, dp_queryShapes->sovs.front()) /
                  std::max(maxVol, dp_queryShapes->sovs.front());
@@ -369,18 +374,19 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   // on the maximum number of threads, so do the embedding on
   // a single thread.
   dgParams.numThreads = 1;
-  // dgParams.pruneRmsThresh = 1.0;
+  dgParams.pruneRmsThresh = getParams().confRMSThreshold;
+  dgParams.randomSeed = getParams().randomSeed;
   std::unique_ptr<ROMol> hitMolHs(MolOps::addHs(hit));
   DGeomHelpers::EmbedMultipleConfs(*hitMolHs, getParams().numConformers,
                                    dgParams);
   MolOps::removeHs(*static_cast<RWMol *>(hitMolHs.get()));
   std::vector<float> matrix(12, 0.0);
-  std::cout << "Verifying hit for " << MolToSmiles(hit) << std::endl;
+  // std::cout << "Verifying hit for " << MolToSmiles(hit) << std::endl;
   for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
-    for (unsigned int i = 0u; i < hitMolHs->getNumConformers(); ++i) {
+    dp_queryShapes->setActiveConformer(i);
+    for (unsigned int j = 0u; j < hitMolHs->getNumConformers(); ++j) {
       // std::cout << "Checking conf " << i << std::endl;
-      dp_queryShapes->setActiveConformer(i);
-      auto [st, ct] = AlignMolecule(*dp_queryShapes, *hitMolHs, matrix, i);
+      auto [st, ct] = AlignMolecule(*dp_queryShapes, *hitMolHs, matrix, j);
       if (st + ct >= getParams().similarityCutoff) {
         // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
         // << std::endl;

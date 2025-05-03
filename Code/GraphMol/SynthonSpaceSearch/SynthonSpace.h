@@ -257,9 +257,11 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    * @param rmsThreshold: threshold for pruning conformations.  Passed directly
    *                      to EmbedMultipleConfs.
    * @param numThreads: number of threads to use in parallel steps.
+   * @param randomSeed: seed for the random number generator. -1 means the RNG
+   *                    is not seeded.
    */
   void buildSynthonShapes(unsigned int numConfs = 10, double rmsThreshold = 1.0,
-                          int numThreads = 1);
+                          int numThreads = 1, int randomSeed = -1);
 
  protected:
   unsigned int getMaxNumSynthons() const { return d_maxNumSynthons; }

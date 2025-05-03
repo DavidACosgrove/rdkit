@@ -8,6 +8,7 @@
 //  of the RDKit source tree.
 //
 
+#include <GraphMol/SmilesParse/SmilesWrite.h>
 #include <GraphMol/SynthonSpaceSearch/SearchShapeInput.h>
 #include <SimDivPickers/LeaderPicker.h>
 
@@ -24,6 +25,11 @@ SearchShapeInput::SearchShapeInput(const std::string &str) {
 SearchShapeInput::SearchShapeInput(const ShapeInput &other)
     : ShapeInput(other) {
   confCoords.push_back(coord);
+  // Keep the dummyVols in synch with the other data, but
+  // clearly flag it as not calculated.
+  dummyVols.push_back(-1.0);
+  sovs.push_back(sov);
+  sofs.push_back(sof);
 }
 
 ShapeInput SearchShapeInput::makeSingleShape(unsigned int confNum) const {
@@ -43,7 +49,7 @@ ShapeInput SearchShapeInput::makeSingleShape(unsigned int confNum) const {
 }
 
 void SearchShapeInput::setActiveConformer(unsigned int confNum) {
-  PRECONDITION(confNum < confCoords.size(), "ConfNum is out of bounds");
+  PRECONDITION(confNum < confCoords.size(), "confNum is out of bounds");
   actConf = confNum;
   coord = confCoords[confNum];
   dummyVol = dummyVols[confNum];
@@ -137,8 +143,6 @@ void sortShapes(SearchShapeInput &shapes) {
   vals.reserve(shapes.confCoords.size());
   for (size_t i = 0; i < shapes.confCoords.size(); i++) {
     vals.push_back(std::make_pair(shapes.sofs[i] + shapes.sovs[i], i));
-    std::cout << i << " : " << vals[i].first << " : " << vals[i].second
-              << std::endl;
   }
   std::ranges::sort(vals,
                     [](const std::pair<double, size_t> &a,
@@ -172,6 +176,11 @@ std::unique_ptr<SearchShapeInput> PrepareConformers(
   PRECONDITION(
       mol.getNumConformers() > 0,
       "SearchShapeInput object needs the molecule to have conformers.");
+  // std::cout << "Prepare shapes for " << MolToSmiles(mol) << " : ";
+  // for (auto a : shapeOpts.atomSubset) {
+  //   std::cout << a << " ";
+  // }
+  // std::cout << std::endl;
   auto first = PrepareConformer(mol, 0, shapeOpts);
   auto result = std::make_unique<SearchShapeInput>(first);
 
@@ -185,7 +194,8 @@ std::unique_ptr<SearchShapeInput> PrepareConformers(
   noDummyOpts.includeDummies = false;
   noDummyOpts.atomRadii.clear();
   auto otherFirst = PrepareConformer(mol, 0, noDummyOpts);
-  result->dummyVols.push_back(first.sov - otherFirst.sov);
+  // A value of -1.0 will have been placed in dummyVols[0] as a placekeeper.
+  result->dummyVols[0] = first.sov - otherFirst.sov;
 
   for (unsigned int i = 1; i < mol.getNumConformers(); i++) {
     auto shape = PrepareConformer(mol, i, shapeOpts);

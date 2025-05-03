@@ -73,6 +73,7 @@ SearchResults SynthonSpaceSearcher::search() {
 
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits);
+  std::cout << "Found " << allHits.size() << " sets of hits" << std::endl;
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
@@ -540,11 +541,15 @@ void SynthonSpaceSearcher::processToTrySet(
         &toTry,
     const TimePoint *endTime,
     std::vector<std::unique_ptr<ROMol>> &results) const {
+  std::cout << "Number of hits to try this round : " << toTry.size()
+            << std::endl;
   // There are possibly duplicate entries in toTry, because 2
   // different fragmentations might produce overlapping synthon lists in
   // the same reaction. The duplicates need to be removed.  Although
   // when doing the job in batches this is less likely.
   sortAndUniquifyToTry(toTry);
+  std::cout << "Number of unique hits to try this round : " << toTry.size()
+            << std::endl;
 
   if (d_params.randomSample) {
     std::shuffle(toTry.begin(), toTry.end(), *d_randGen);

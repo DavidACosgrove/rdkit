@@ -100,9 +100,9 @@ TEST_CASE("Shape Small tests") {
   int numThreads = -1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    if (i != 0) {
-      continue;
-    }
+    // if (i != 0) {
+    // continue;
+    // }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
@@ -114,6 +114,7 @@ TEST_CASE("Shape Small tests") {
     params.numThreads = numThreads;
     params.confRMSThreshold = rmsThreshold;
     params.timeOut = 0;
+    params.randomSeed = 1;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     auto results = synthonspace.shapeSearch(*queryMol, params);
     std::cout << "Num hits : " << results.getHitMolecules().size() << " : "
