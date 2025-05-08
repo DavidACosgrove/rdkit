@@ -276,18 +276,21 @@ void SynthonSpace::readTextFile(const std::string &inFilename,
   if (!ifs.is_open() || ifs.bad()) {
     throw std::runtime_error("Couldn't open file " + d_fileName);
   }
+  readStream(ifs, cancelled);
+}
 
+void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
   int format = -1;
   std::string nextLine;
   int lineNum = 1;
   ControlCHandler::reset();
 
-  while (!ifs.eof()) {
+  while (!is.eof()) {
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;
       return;
     }
-    auto nextSynthon = readSynthonLine(ifs, lineNum, format, d_fileName);
+    auto nextSynthon = readSynthonLine(is, lineNum, format, d_fileName);
     if (nextSynthon.empty()) {
       continue;
     }
