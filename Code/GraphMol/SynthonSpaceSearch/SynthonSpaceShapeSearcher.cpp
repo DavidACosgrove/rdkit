@@ -52,31 +52,52 @@ std::vector<std::vector<size_t>> getHitSynthons(
 
   // std::cout << "getHitSynthons : ";
   // for (auto so : synthonOrder) {
-  // std::cout << so << " ";
+  //   std::cout << so << "(" << reaction.getSynthons()[so].size() << ")" << "
+  //   ";
   // }
-  // std::cout << " : " << similarityCutoff << std::endl;
+  // std::cout << " : " << similarityCutoff << " against " << fragShapes.size()
+  //           << " frags " << std::endl;
+
+  // It makes sense to match fragments against synthon sets in order of
+  // smallest synthon set first because if a fragment doesn't have a match
+  // in a synthon set, the whole thing's a bust.  So if fragShapes[0] is matched
+  // against 1000 synthons and then fragShapes[1] is matched against 10 synthons
+  // and doesn't match any of them, the first set of matches was wasted time.
+  std::vector<std::pair<unsigned int, size_t>> fragOrders(synthonOrder.size());
+  for (size_t i = 0; i < synthonOrder.size(); i++) {
+    fragOrders[i].first = i;
+    fragOrders[i].second = reaction.getSynthons()[synthonOrder[i]].size();
+  }
+  std::ranges::sort(fragOrders, [](const auto &a, const auto &b) {
+    return a.second < b.second;
+  });
   synthonsToUse.reserve(reaction.getSynthons().size());
   for (const auto &synthonSet : reaction.getSynthons()) {
     synthonsToUse.emplace_back(synthonSet.size());
   }
   std::vector<float> matrix(12, 0.0);
   for (size_t i = 0; i < synthonOrder.size(); i++) {
-    const auto &synthons = reaction.getSynthons()[synthonOrder[i]];
+    const auto fragNum = fragOrders[i].first;
+    const auto &synthons = reaction.getSynthons()[synthonOrder[fragNum]];
+    // std::cout << fragNum << " vs " << synthonOrder[fragNum] << std::endl;
     bool fragMatched = false;
     for (size_t j = 0; j < synthons.size(); j++) {
       // std::cout << "synthon " << j << " : " << synthons[j].first << " : "
       //           << synthons[j].second->getSmiles() << " vs frag "
       //           << synthonOrder[i] << std::endl;
-      if (const auto sim =
-              BestSimilarity(*fragShapes[i], *synthons[j].second->getShapes(),
-                             matrix, similarityCutoff);
+      if (const auto sim = BestSimilarity(*fragShapes[fragNum],
+                                          *synthons[j].second->getShapes(),
+                                          matrix, similarityCutoff);
           sim.first + sim.second >= similarityCutoff) {
-        synthonsToUse[synthonOrder[i]][j] = true;
-        fragSims[synthonOrder[i]].emplace_back(j, sim.first + sim.second);
+        // std::cout << "sim : " << sim.first + sim.second << " : " << sim.first
+        // << ", " << sim.second << std::endl;
+        synthonsToUse[synthonOrder[fragNum]][j] = true;
+        fragSims[synthonOrder[fragNum]].emplace_back(j, sim.first + sim.second);
         fragMatched = true;
       }
     }
     if (!fragMatched) {
+      // std::cout << "No matches" << std::endl;
       // No synthons matched this fragment, so the whole fragment set is a
       // bust.
       return retSynthons;
@@ -89,7 +110,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
   details::bitSetsToVectors(synthonsToUse, retSynthons);
 
   // Now order the synthons in descending order of their similarity to
-  // the corresponding fragFP.
+  // the corresponding fragment.
   for (size_t i = 0; i < fragShapes.size(); i++) {
     if (fragSims[i].empty()) {
       // This one will have been filled in by expandBitSet so we need to use
@@ -107,6 +128,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
     std::ranges::transform(fragSims[i], std::back_inserter(retSynthons[i]),
                            [](const auto &fs) { return fs.first; });
   }
+
   return retSynthons;
 }
 
@@ -117,15 +139,21 @@ SynthonSpaceShapeSearcher::searchFragSet(
     const SynthonSet &reaction) const {
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> results;
 
+  // if (fragSet.size() != 3) {
+  //   return results;
+  // }
   if (fragSet.size() > reaction.getSynthons().size()) {
     return results;
   }
+  // if (MolToSmiles(*fragSet[0]) != "[1*]NC1C[C@@H](C)CN(C(=O)c([2*])[3*])C1")
+  // {
+  //   return results;
+  // }
   // std::cout << "\nSearchFragSet : ";
   // for (const auto &f : fragSet) {
-  // std::cout << MolToSmiles(*f) << " ";
+  //   std::cout << MolToSmiles(*f) << " ";
   // }
   // std::cout << std::endl;
-
   // Collect the ShapeSets for the fragSet
   std::vector<SearchShapeInput *> fragShapes;
   fragShapes.reserve(fragSet.size());
