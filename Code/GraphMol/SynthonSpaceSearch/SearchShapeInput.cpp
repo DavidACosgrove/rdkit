@@ -216,6 +216,22 @@ std::pair<double, double> BestSimilarity(SearchShapeInput &refShape,
                                          double threshold, double opt_param,
                                          unsigned int max_preiters,
                                          unsigned int max_postiters) {
+  // The best score achievable is when the smaller volume is entirely inside
+  // the larger volume.  The Shape tanimoto is the fraction of volume in
+  // common.  The scores for the different conformations are sorted in
+  // descending order.  So try the smallest refShape score against the
+  // largest fitShape score and vice versa.
+  auto maxScore = [](double v1, double v2, double f1, double f2) -> double {
+    double maxSt = std::min(v1, v2) / std::max(v1, v2);
+    double maxCt = std::min(f1, f2) / std::max(f1, f2);
+    return maxSt + maxCt;
+  };
+  if (maxScore(fitShape.sovs.front(), refShape.sovs.back(),
+               fitShape.sofs.front(), refShape.sofs.back()) < threshold &&
+      maxScore(fitShape.sovs.back(), refShape.sovs.front(),
+               fitShape.sofs.back(), refShape.sofs.front()) < threshold) {
+    return std::make_pair(-1.0, -1.0);
+  }
   double best_st = -1.0;
   double best_ct = -1.0;
   double best_combo_t = -1.0;
@@ -223,17 +239,21 @@ std::pair<double, double> BestSimilarity(SearchShapeInput &refShape,
   for (size_t i = 0; i < refShape.confCoords.size(); i++) {
     refShape.setActiveConformer(i);
     for (size_t j = 0; j < fitShape.confCoords.size(); j++) {
-      fitShape.setActiveConformer(j);
-      auto [st, ct] = AlignShape(refShape, fitShape, matrix, opt_param,
-                                 max_preiters, max_postiters);
-      double combo_t = st + ct;
-      if (combo_t > threshold) {
-        return std::make_pair(st, ct);
-      }
-      if (combo_t > best_combo_t) {
-        best_combo_t = combo_t;
-        best_st = st;
-        best_ct = ct;
+      auto maxSim = maxScore(refShape.sovs[i], fitShape.sovs[j],
+                             fitShape.sofs[i], fitShape.sofs[j]);
+      if (maxSim > threshold) {
+        fitShape.setActiveConformer(j);
+        auto [st, ct] = AlignShape(refShape, fitShape, matrix, opt_param,
+                                   max_preiters, max_postiters);
+        double combo_t = st + ct;
+        if (combo_t > threshold) {
+          return std::make_pair(st, ct);
+        }
+        if (combo_t > best_combo_t) {
+          best_combo_t = combo_t;
+          best_st = st;
+          best_ct = ct;
+        }
       }
     }
   }

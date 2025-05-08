@@ -67,6 +67,7 @@ SearchResults SynthonSpaceSearcher::search() {
   }
   std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
   extraSearchSetup(fragments);
+  std::cout << "Made query shapes" << std::endl;
   if (ControlCHandler::getGotSignal()) {
     return SearchResults{std::move(results), 0ULL, timedOut, true};
   }
@@ -74,6 +75,20 @@ SearchResults SynthonSpaceSearcher::search() {
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits);
   std::cout << "Found " << allHits.size() << " sets of hits" << std::endl;
+  for (const auto &hit : allHits) {
+    std::cout << "Reaction : " << hit->d_reaction->getId() << std::endl;
+    std::cout << "Fragments : ";
+    for (const auto f : hit->frags) {
+      std::cout << MolToSmiles(*f) << " ";
+    }
+    std::cout << std::endl;
+    for (const auto &stu : hit->synthonsToUse) {
+      for (const auto &p : stu) {
+        std::cout << "  " << p.first << " : " << p.second->getSmiles()
+                  << std::endl;
+      }
+    }
+  }
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
@@ -123,7 +138,7 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
 
 namespace {
 std::vector<std::unique_ptr<SynthonSpaceHitSet>> searchReaction(
-    SynthonSpaceSearcher *searcher, const SynthonSet &reaction,
+    SynthonSpaceSearcher *searcher, SynthonSet &reaction,
     const TimePoint *endTime,
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragments) {
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> hits;

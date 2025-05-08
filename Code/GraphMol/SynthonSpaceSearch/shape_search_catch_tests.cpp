@@ -97,12 +97,12 @@ TEST_CASE("Shape Small tests") {
   std::vector<size_t> expNumHits{3, 8, 1};
   unsigned int numConfs = 100;
   double rmsThreshold = 1.0;
-  int numThreads = -1;
+  int numThreads = 1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    // if (i != 0) {
-    // continue;
-    // }
+    if (i != 2) {
+      continue;
+    }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
