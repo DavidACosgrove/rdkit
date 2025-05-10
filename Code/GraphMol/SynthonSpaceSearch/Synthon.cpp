@@ -35,6 +35,7 @@ Synthon::Synthon(const std::string &smi) : d_smiles(smi) {
     // bring it all down.
     throw ValueErrorException("Unparsable synthon SMILES " + d_smiles);
   }
+  calcProperties();
 }
 
 Synthon::Synthon(const Synthon &other)
@@ -43,7 +44,11 @@ Synthon::Synthon(const Synthon &other)
       dp_searchMol(std::make_unique<ROMol>(*other.dp_searchMol)),
       dp_pattFP(std::make_unique<ExplicitBitVect>(*other.dp_pattFP)),
       dp_FP(std::make_unique<ExplicitBitVect>(*other.dp_FP)),
-      d_connRegions(other.d_connRegions) {}
+      d_connRegions(other.d_connRegions),
+      d_numDummies(other.d_numDummies),
+      d_numHeavyAtoms(other.d_numHeavyAtoms),
+      d_numChiralAtoms(other.d_numChiralAtoms),
+      d_molWt(other.d_molWt) {}
 
 Synthon &Synthon::operator=(const Synthon &other) {
   if (this == &other) {
@@ -81,6 +86,10 @@ Synthon &Synthon::operator=(const Synthon &other) {
   } else {
     d_connRegions.clear();
   }
+  d_numDummies = other.d_numDummies;
+  d_numHeavyAtoms = other.d_numHeavyAtoms;
+  d_numChiralAtoms = other.d_numChiralAtoms;
+  d_molWt = other.d_molWt;
   return *this;
 }
 const std::unique_ptr<ROMol> &Synthon::getOrigMol() const { return dp_origMol; }

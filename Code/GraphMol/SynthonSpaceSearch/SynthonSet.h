@@ -45,6 +45,15 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   getSynthons() const {
     return d_synthons;
   }
+  // Return the synthon of the given number in the given set, based on
+  // the sorted order rather than the input order.  Returns empty string
+  // and nullptr if the numbers are invalid.
+  const std::pair<std::string, Synthon *> getOrderedSynthon(
+      size_t setNum, size_t synthonNum) const;
+  // Return the actual synthon number given its ordered number.  Returns
+  // "-1" if the numbers are invalid.
+  size_t getOrderedSynthonNum(size_t setNum, size_t synthonNum) const;
+
   const boost::dynamic_bitset<> &getConnectors() const { return d_connectors; }
   const std::vector<boost::dynamic_bitset<>> &getSynthonConnectorPatterns()
       const {
@@ -122,6 +131,11 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   std::unique_ptr<ROMol> buildProduct(
       const std::vector<size_t> &synthNums) const;
 
+  void initializeSearchOrders();
+  void orderSynthonsForSearch(
+      const std::function<bool(const Synthon *synthon1,
+                               const Synthon *synthon2)> &cmp);
+
  private:
   std::string d_id;
   // The lists of synthons.  A product of the reaction is created by
@@ -131,6 +145,16 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   // can have different IDs, so we need to keep the ID here rather
   // than in the Synthon, whose primary key is its SMILES string.
   std::vector<std::vector<std::pair<std::string, Synthon *>>> d_synthons;
+
+  // The order that the synthons should be searched in.  It will
+  // be the same shape as d_synthons, and defaults to the input
+  // order.  Most searches will sort it into a better order for
+  // ease of screening out of impossible matches between a
+  // query fragment and a synthon.  For example, the substructure
+  // search will order in ascending size of number of heavy atoms,
+  // the fingerprint search in ascending number of set bits.
+  std::vector<std::vector<size_t>> d_synthonSearchOrders;
+
   // MAX_CONNECTOR_NUM+1 bits showing which connectors are present in all the
   // synthon sets.
   boost::dynamic_bitset<> d_connectors;

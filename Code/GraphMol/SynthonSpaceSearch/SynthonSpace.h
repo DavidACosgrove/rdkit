@@ -284,6 +284,10 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   // Just do the lookup, and return nullptr if not found.
   Synthon *getSynthonFromPool(const std::string &smiles) const;
 
+  void orderSynthonsForSearch(
+      const std::function<bool(const Synthon *synthon1,
+                               const Synthon *synthon2)> &cmp);
+
  private:
   std::string d_fileName;
   // The reactions, keyed on their IDs as the first value

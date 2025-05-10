@@ -9,12 +9,15 @@
 //
 
 #include <cmath>
+#include <numeric>
 #include <random>
 #include <regex>
+#include <unordered_map>
 
 #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <DataStructs/ExplicitBitVect.h>
 #include <GraphMol/MolPickler.h>
+#include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
 #include <GraphMol/FileParsers/FileWriters.h>
@@ -44,6 +47,23 @@ const std::unique_ptr<ExplicitBitVect> &SynthonSet::getAddFP() const {
 }
 const std::unique_ptr<ExplicitBitVect> &SynthonSet::getSubtractFP() const {
   return d_subtractFP;
+}
+
+const std::pair<std::string, Synthon *> SynthonSet::getOrderedSynthon(
+    size_t setNum, size_t synthonNum) const {
+  if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
+    return std::make_pair("", nullptr);
+  }
+  return d_synthons[setNum][d_synthonSearchOrders[setNum][synthonNum]];
+}
+
+size_t SynthonSet::getOrderedSynthonNum(size_t setNum,
+                                        size_t synthonNum) const {
+  if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
+    // Obviously this will be a very large number.
+    return -1;
+  }
+  return d_synthonSearchOrders[setNum][synthonNum];
 }
 
 namespace {
@@ -181,6 +201,8 @@ void SynthonSet::readFromDBStream(std::istream &is, const SynthonSpace &space,
   for (unsigned int i = 0; i < numConns; ++i) {
     streamRead(is, d_numConnectors[i]);
   }
+
+  initializeSearchOrders();
 }
 
 void SynthonSet::enumerateToStream(std::ostream &os) const {
@@ -673,6 +695,34 @@ std::vector<std::vector<std::unique_ptr<RWMol>>> SynthonSet::copySynthons()
     }
   }
   return synthonMolCopies;
+}
+
+void SynthonSet::initializeSearchOrders() {
+  d_synthonSearchOrders.resize(d_synthons.size());
+  for (size_t i = 0; i < d_synthons.size(); ++i) {
+    d_synthonSearchOrders[i].reserve(d_synthons[i].size());
+    std::iota(d_synthonSearchOrders[i].begin(), d_synthonSearchOrders[i].end(),
+              0);
+  }
+}
+
+void SynthonSet::orderSynthonsForSearch(
+    const std::function<bool(const Synthon *synth1, const Synthon *synth2)>
+        &cmp) {
+  for (size_t i = 0; i < d_synthons.size(); ++i) {
+    std::vector<const Synthon *> synthons(d_synthons[i].size());
+    std::unordered_map<const Synthon *, size_t> synthonOrders(
+        d_synthons[i].size());
+    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
+      synthons[j] = d_synthons[i][j].second;
+      synthonOrders.insert(std::make_pair(synthons[j], j));
+    }
+    std::ranges::sort(synthons, cmp);
+    for (size_t j = 0; j < synthons.size(); ++j) {
+      auto it = synthonOrders.find(synthons[j]);
+      d_synthonSearchOrders[i][j] = it->second;
+    }
+  }
 }
 
 }  // namespace RDKit::SynthonSpaceSearch

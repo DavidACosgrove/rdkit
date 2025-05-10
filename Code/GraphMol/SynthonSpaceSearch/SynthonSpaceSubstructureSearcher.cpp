@@ -156,34 +156,70 @@ std::vector<boost::dynamic_bitset<>> screenSynthonsWithFPs(
   return passedFPs;
 }
 
+namespace {
+// Find the first synthon in the set that has no less than the required
+// number of atoms.  The fragment can't be a substructure match of the
+// synthon if it has more atoms than it.
+size_t findSynthonSearchStart(unsigned int fragNumAtoms, size_t synthonSetNum,
+                              const SynthonSet &reaction) {
+  std::cout << "find synthon start num atoms " << fragNumAtoms << " set num "
+            << synthonSetNum << std::endl;
+  size_t first = 0;
+  if (fragNumAtoms <= reaction.getOrderedSynthon(synthonSetNum, first)
+                          .second->getSearchMol()
+                          ->getNumAtoms()) {
+    return first;
+  }
+  // This is the procedure that https://en.wikipedia.org/wiki/Binary_search
+  // calls binary_search_leftmost.
+  size_t last = reaction.getSynthons()[synthonSetNum].size();
+  while (first < last) {
+    size_t mid = first + (last - first) / 2;
+    if (reaction.getOrderedSynthon(synthonSetNum, mid)
+            .second->getSearchMol()
+            ->getNumAtoms() < fragNumAtoms) {
+      first = mid + 1;
+    } else {
+      last = mid;
+    }
+  }
+  return first;
+}
+
+}  // namespace
 // Take the fragged mol and flag all those synthons that have a fragment as
 // a substructure match.  Only do this for those synthons that have already
 // passed previous screening, and are flagged as such in passedScreens.
 std::vector<std::vector<size_t>> getHitSynthons(
     const std::vector<std::unique_ptr<ROMol>> &molFrags,
     const std::vector<boost::dynamic_bitset<>> &passedScreens,
-    const SynthonSet &reaction, const std::vector<unsigned int> &synthonOrder) {
+    const SynthonSet &reaction,
+    const std::vector<unsigned int> &synthonSetOrder) {
   std::vector<boost::dynamic_bitset<>> synthonsToUse;
   std::vector<std::vector<size_t>> retSynthons;
   for (const auto &synthonSet : reaction.getSynthons()) {
     synthonsToUse.emplace_back(synthonSet.size());
   }
 
-  // The tests must be applied for all permutations of synthon list against
-  // fragment.
-  auto synthonOrders =
-      details::permMFromN(molFrags.size(), reaction.getSynthons().size());
-
   // Match the fragment to the synthon set in this order.
-  for (size_t i = 0; i < synthonOrder.size(); ++i) {
-    const auto &synthonsSet = reaction.getSynthons()[synthonOrder[i]];
-    const auto &passedScreensSet = passedScreens[synthonOrder[i]];
+  for (size_t i = 0; i < synthonSetOrder.size(); ++i) {
+    const auto &synthonsSet = reaction.getSynthons()[synthonSetOrder[i]];
+    const auto &passedScreensSet = passedScreens[synthonSetOrder[i]];
     bool fragMatched = false;
-    for (size_t j = 0; j < synthonsSet.size(); ++j) {
-      if (passedScreensSet[j]) {
+    auto start = findSynthonSearchStart(molFrags[i]->getNumAtoms(),
+                                        synthonSetOrder[i], reaction);
+    for (size_t j = start; j < synthonsSet.size(); ++j) {
+      // Search them in the sorted order.
+      auto synthonNum = reaction.getOrderedSynthonNum(synthonSetOrder[i], j);
+      if (passedScreensSet[synthonNum]) {
+        if (const auto &[id, synthon] = synthonsSet[synthonNum];
+            !SubstructMatch(*synthon->getSearchMol(), *molFrags[i]).empty()) {
+          synthonsToUse[synthonSetOrder[i]][synthonNum] = true;
+          fragMatched = true;
+        }
         if (const auto &[id, synthon] = synthonsSet[j];
             !SubstructMatch(*synthon->getSearchMol(), *molFrags[i]).empty()) {
-          synthonsToUse[synthonOrder[i]][j] = true;
+          synthonsToUse[synthonSetOrder[i]][j] = true;
           fragMatched = true;
         }
       }
@@ -359,10 +395,10 @@ SynthonSpaceSubstructureSearcher::searchFragSet(
   // Select only the synthons that have fingerprints that are a superset
   // of the fragment fingerprints.
   // Need to try all combinations of synthon orders.
-  const auto synthonOrders =
+  const auto synthonSetOrders =
       details::permMFromN(pattFPs.size(), reaction.getSynthons().size());
-  for (const auto &so : synthonOrders) {
-    auto passedScreens = screenSynthonsWithFPs(pattFPs, reaction, so);
+  for (const auto &sso : synthonSetOrders) {
+    auto passedScreens = screenSynthonsWithFPs(pattFPs, reaction, sso);
     // If none of the synthons passed the screens, move right along, nothing
     // to see.
     const bool skip = std::all_of(
@@ -385,7 +421,7 @@ SynthonSpaceSubstructureSearcher::searchFragSet(
         }
       }
       auto theseSynthons =
-          getHitSynthons(fragSetCp, passedScreens, reaction, so);
+          getHitSynthons(fragSetCp, passedScreens, reaction, sso);
       if (!theseSynthons.empty()) {
         std::unique_ptr<SynthonSpaceHitSet> hs(
             new SynthonSpaceHitSet(reaction, theseSynthons, fragSet));

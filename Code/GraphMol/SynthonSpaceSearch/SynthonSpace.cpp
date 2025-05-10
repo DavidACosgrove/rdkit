@@ -23,6 +23,7 @@
 
 #include <GraphMol/MolOps.h>
 #include <GraphMol/QueryAtom.h>
+#include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/ChemReactions/Reaction.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/Fingerprints/Fingerprints.h>
@@ -112,6 +113,22 @@ SearchResults SynthonSpace::substructureSearch(
     const SynthonSpaceSearchParams &params) {
   PRECONDITION(query.getNumAtoms() != 0, "Search query must contain atoms.");
   ControlCHandler::reset();
+  orderSynthonsForSearch(
+      [](const Synthon *synth1, const Synthon *synth2) -> bool {
+        return synth1->getOrigMol()->getNumAtoms() <
+               synth2->getOrigMol()->getNumAtoms();
+      });
+  for (const auto &[id, reaction] : d_reactions) {
+    const auto synthons = reaction->getSynthons();
+    for (size_t i = 0; i < synthons.size(); ++i) {
+      for (size_t j = 0; j < synthons[i].size(); ++j) {
+        auto s = reaction->getOrderedSynthon(i, j);
+        // std::cout << i << ", " << j << " : " << s.first << ", "
+        //           << s.second->getSmiles() << " : "
+        //           << s.second->getSearchMol()->getNumAtoms() << std::endl;
+      }
+    }
+  }
   SynthonSpaceSubstructureSearcher ssss(query, matchParams, params, *this);
   return ssss.search();
 }
@@ -125,33 +142,33 @@ SearchResults SynthonSpace::substructureSearch(
     return substructureSearch(
         *std::get<GeneralizedSubstruct::ExtendedQueryMol::RWMol_T>(query.xqmol),
         matchParams, params);
+  }
 #ifdef RDK_USE_BOOST_SERIALIZATION
-  } else if (std::holds_alternative<
-                 GeneralizedSubstruct::ExtendedQueryMol::MolBundle_T>(
-                 query.xqmol)) {
+  if (std::holds_alternative<
+          GeneralizedSubstruct::ExtendedQueryMol::MolBundle_T>(query.xqmol)) {
     return extendedSearch(
         *std::get<GeneralizedSubstruct::ExtendedQueryMol::MolBundle_T>(
             query.xqmol),
         matchParams, params);
-  } else if (std::holds_alternative<
-                 GeneralizedSubstruct::ExtendedQueryMol::TautomerQuery_T>(
-                 query.xqmol)) {
+  }
+  if (std::holds_alternative<
+          GeneralizedSubstruct::ExtendedQueryMol::TautomerQuery_T>(
+          query.xqmol)) {
     return extendedSearch(
         *std::get<GeneralizedSubstruct::ExtendedQueryMol::TautomerQuery_T>(
             query.xqmol),
         matchParams, params);
-  } else if (std::holds_alternative<
-                 GeneralizedSubstruct::ExtendedQueryMol::TautomerBundle_T>(
-                 query.xqmol)) {
+  }
+  if (std::holds_alternative<
+          GeneralizedSubstruct::ExtendedQueryMol::TautomerBundle_T>(
+          query.xqmol)) {
     return extendedSearch(
         std::get<GeneralizedSubstruct::ExtendedQueryMol::TautomerBundle_T>(
             query.xqmol),
         matchParams, params);
-#endif
-  } else {
-    UNDER_CONSTRUCTION("unrecognized type in ExtendedQueryMol");
   }
-  return SearchResults();
+#endif
+  UNDER_CONSTRUCTION("unrecognized type in ExtendedQueryMol");
 }
 
 SearchResults SynthonSpace::fingerprintSearch(
@@ -310,6 +327,7 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
     if (reaction->getSynthons().size() > d_maxNumSynthons) {
       d_maxNumSynthons = reaction->getSynthons().size();
     }
+    reaction->initializeSearchOrders();
   }
 }
 
@@ -700,6 +718,14 @@ Synthon *SynthonSpace::getSynthonFromPool(const std::string &smiles) const {
     return it->second.get();
   }
   return nullptr;
+}
+
+void SynthonSpace::orderSynthonsForSearch(
+    const std::function<bool(const Synthon *synthon1, const Synthon *synthon2)>
+        &cmp) {
+  for (auto &[name, reaction] : d_reactions) {
+    reaction->orderSynthonsForSearch(cmp);
+  }
 }
 
 SearchResults SynthonSpace::extendedSearch(
