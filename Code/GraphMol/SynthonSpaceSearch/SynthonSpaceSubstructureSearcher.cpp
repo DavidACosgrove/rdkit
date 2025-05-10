@@ -162,8 +162,8 @@ namespace {
 // synthon if it has more atoms than it.
 size_t findSynthonSearchStart(unsigned int fragNumAtoms, size_t synthonSetNum,
                               const SynthonSet &reaction) {
-  std::cout << "find synthon start num atoms " << fragNumAtoms << " set num "
-            << synthonSetNum << std::endl;
+  // std::cout << "find synthon start num atoms " << fragNumAtoms << " set num "
+  //           << synthonSetNum << std::endl;
   size_t first = 0;
   if (fragNumAtoms <= reaction.getOrderedSynthon(synthonSetNum, first)
                           .second->getSearchMol()

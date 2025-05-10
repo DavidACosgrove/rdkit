@@ -113,6 +113,8 @@ SearchResults SynthonSpace::substructureSearch(
     const SynthonSpaceSearchParams &params) {
   PRECONDITION(query.getNumAtoms() != 0, "Search query must contain atoms.");
   ControlCHandler::reset();
+
+#if 0
   orderSynthonsForSearch(
       [](const Synthon *synth1, const Synthon *synth2) -> bool {
         return synth1->getOrigMol()->getNumAtoms() <
@@ -123,12 +125,13 @@ SearchResults SynthonSpace::substructureSearch(
     for (size_t i = 0; i < synthons.size(); ++i) {
       for (size_t j = 0; j < synthons[i].size(); ++j) {
         auto s = reaction->getOrderedSynthon(i, j);
-        // std::cout << i << ", " << j << " : " << s.first << ", "
-        //           << s.second->getSmiles() << " : "
-        //           << s.second->getSearchMol()->getNumAtoms() << std::endl;
+        std::cout << i << ", " << j << " : " << s.first << ", "
+        << s.second->getSmiles() << " : "
+        << s.second->getSearchMol()->getNumAtoms() << std::endl;
       }
     }
   }
+#endif
   SynthonSpaceSubstructureSearcher ssss(query, matchParams, params, *this);
   return ssss.search();
 }
@@ -576,6 +579,11 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
       d_maxNumSynthons = reaction->getSynthons().size();
     }
   }
+  orderSynthonsForSearch(
+      [](const Synthon *synth1, const Synthon *synth2) -> bool {
+        return synth1->getOrigMol()->getNumAtoms() <
+               synth2->getOrigMol()->getNumAtoms();
+      });
 }
 
 void SynthonSpace::summarise(std::ostream &os) {

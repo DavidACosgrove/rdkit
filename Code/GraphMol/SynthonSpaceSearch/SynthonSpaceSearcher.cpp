@@ -65,30 +65,30 @@ SearchResults SynthonSpaceSearcher::search() {
     return SearchResults{std::move(results), 0ULL, timedOut,
                          ControlCHandler::getGotSignal()};
   }
-  std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
+  // std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
   extraSearchSetup(fragments);
-  std::cout << "Made query shapes" << std::endl;
+  // std::cout << "Done extra search setup" << std::endl;
   if (ControlCHandler::getGotSignal()) {
     return SearchResults{std::move(results), 0ULL, timedOut, true};
   }
 
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits);
-  std::cout << "Found " << allHits.size() << " sets of hits" << std::endl;
-  for (const auto &hit : allHits) {
-    std::cout << "Reaction : " << hit->d_reaction->getId() << std::endl;
-    std::cout << "Fragments : ";
-    for (const auto f : hit->frags) {
-      std::cout << MolToSmiles(*f) << " ";
-    }
-    std::cout << std::endl;
-    for (const auto &stu : hit->synthonsToUse) {
-      for (const auto &p : stu) {
-        std::cout << "  " << p.first << " : " << p.second->getSmiles()
-                  << std::endl;
-      }
-    }
-  }
+  // std::cout << "Found " << allHits.size() << " sets of hits" << std::endl;
+  // for (const auto &hit : allHits) {
+  // std::cout << "Reaction : " << hit->d_reaction->getId() << std::endl;
+  // std::cout << "Fragments : ";
+  // for (const auto f : hit->frags) {
+  // std::cout << MolToSmiles(*f) << " ";
+  // }
+  // std::cout << std::endl;
+  // for (const auto &stu : hit->synthonsToUse) {
+  // for (const auto &p : stu) {
+  // std::cout << "  " << p.first << " : " << p.second->getSmiles()
+  // << std::endl;
+  // }
+  // }
+  // }
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
@@ -202,8 +202,8 @@ std::vector<std::unique_ptr<SynthonSpaceHitSet>>
 SynthonSpaceSearcher::doTheSearch(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
     const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits) {
-  std::cout << "Searching " << fragSets.size() << " fragment sets."
-            << std::endl;
+  // std::cout << "Searching " << fragSets.size() << " fragment sets."
+  // << std::endl;
   auto reactionNames = getSpace().getReactionNames();
   std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> reactionHits(
       reactionNames.size());
@@ -556,15 +556,15 @@ void SynthonSpaceSearcher::processToTrySet(
         &toTry,
     const TimePoint *endTime,
     std::vector<std::unique_ptr<ROMol>> &results) const {
-  std::cout << "Number of hits to try this round : " << toTry.size()
-            << std::endl;
+  // std::cout << "Number of hits to try this round : " << toTry.size()
+  // << std::endl;
   // There are possibly duplicate entries in toTry, because 2
   // different fragmentations might produce overlapping synthon lists in
   // the same reaction. The duplicates need to be removed.  Although
   // when doing the job in batches this is less likely.
   sortAndUniquifyToTry(toTry);
-  std::cout << "Number of unique hits to try this round : " << toTry.size()
-            << std::endl;
+  // std::cout << "Number of unique hits to try this round : " << toTry.size()
+  // << std::endl;
 
   if (d_params.randomSample) {
     std::shuffle(toTry.begin(), toTry.end(), *d_randGen);
