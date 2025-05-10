@@ -457,6 +457,7 @@ TEST_CASE("FP Binary File2") {
   std::cout << elapsed << " ms" << std::endl;
   std::cout << sres.getHitMolecules().size() << std::endl;
 
+#if 0
   std::cout << "rascal" << std::endl;
   auto rMol = "c12ccc(C)cc1[nH]nc2C(=O)NCc1cncs1"_smiles;
   auto startr = std::chrono::high_resolution_clock::now();
@@ -469,6 +470,7 @@ TEST_CASE("FP Binary File2") {
           .count();
   std::cout << elapsedr << " ms" << std::endl;
   std::cout << rres.getHitMolecules().size() << std::endl;
+#endif
 }
 #endif
 

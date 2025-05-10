@@ -37,12 +37,49 @@ SynthonSpaceFingerprintSearcher::SynthonSpaceFingerprintSearcher(
 }
 
 namespace {
+
+// Find the first synthon in the set that has no less than the required
+// number of set bits, based on the threshold.
+size_t findSynthonSearchStart(unsigned int numFragSetBits,
+                              double similarityCutoff, size_t synthonSetNum,
+                              const SynthonSet &reaction) {
+  // std::cout << "find synthon start num atoms " << fragNumAtoms << " set num "
+  //           << synthonSetNum << std::endl;
+  unsigned int minBits = similarityCutoff * numFragSetBits;
+  auto s = reaction.getOrderedSynthon(synthonSetNum, 0);
+  // std::cout << synthonSetNum << ", " << 0 << " : " << s.first << ", "
+  //           << s.second->getSmiles() << " : "
+  //           << s.second->getFP()->getNumOnBits() << std::endl;
+  // s = reaction.getOrderedSynthon(
+  //     synthonSetNum, reaction.getSynthons()[synthonSetNum].size() - 1);
+  // std::cout << synthonSetNum << ", "
+  //           << reaction.getSynthons()[synthonSetNum].size() - 1 << " : "
+  //           << s.first << ", " << s.second->getSmiles() << " : "
+  //           << s.second->getFP()->getNumOnBits() << std::endl;
+
+  size_t first = 0;
+  // This is the procedure that https://en.wikipedia.org/wiki/Binary_search
+  // calls binary_search_leftmost.
+  size_t last = reaction.getSynthons()[synthonSetNum].size();
+  while (first < last) {
+    size_t mid = first + (last - first) / 2;
+    if (reaction.getOrderedSynthon(synthonSetNum, mid)
+            .second->getFP()
+            ->getNumOnBits() < minBits) {
+      first = mid + 1;
+    } else {
+      last = mid;
+    }
+  }
+  return first;
+}
+
 // Take the fragged mol fps and flag all those synthons that have a fragment as
 // a similarity match.
 std::vector<std::vector<size_t>> getHitSynthons(
     const std::vector<ExplicitBitVect *> &fragFPs,
     const double similarityCutoff, const SynthonSet &reaction,
-    const std::vector<unsigned int> &synthonOrder) {
+    const std::vector<unsigned int> &synthonSetOrder) {
   std::vector<boost::dynamic_bitset<>> synthonsToUse;
   std::vector<std::vector<size_t>> retSynthons;
   std::vector<std::vector<std::pair<size_t, double>>> fragSims(
@@ -52,28 +89,30 @@ std::vector<std::vector<size_t>> getHitSynthons(
   for (const auto &synthonSet : reaction.getSynthons()) {
     synthonsToUse.emplace_back(synthonSet.size());
   }
-  for (size_t i = 0; i < synthonOrder.size(); i++) {
-    const auto &synthons = reaction.getSynthons()[synthonOrder[i]];
+  for (size_t i = 0; i < synthonSetOrder.size(); i++) {
+    // unsigned int minBits = similarityCutoff * fragFPs[i]->getNumOnBits();
+    unsigned int maxBits = 1 + fragFPs[i]->getNumOnBits() / similarityCutoff;
+    auto start =
+        findSynthonSearchStart(fragFPs[i]->getNumOnBits(), similarityCutoff,
+                               synthonSetOrder[i], reaction);
+    // std::cout << fragFPs[i]->getNumOnBits() << " set bits for min " <<
+    // minBits
+    // << " and max " << maxBits << " for start " << start << std::endl;
+    const auto &synthons = reaction.getSynthons()[synthonSetOrder[i]];
     bool fragMatched = false;
-    for (size_t j = 0; j < synthons.size(); j++) {
-      // There's a simple calculation for the maximum possible Tanimoto
-      // Coefficient that these 2 fingerprints can achieve.
-      const double maxSim =
-          fragFPs[i]->getNumOnBits() <
-                  synthons[j].second->getFP()->getNumOnBits()
-              ? static_cast<double>(fragFPs[i]->getNumOnBits()) /
-                    synthons[j].second->getFP()->getNumOnBits()
-              : static_cast<double>(
-                    synthons[j].second->getFP()->getNumOnBits()) /
-                    fragFPs[i]->getNumOnBits();
-      if (maxSim < similarityCutoff) {
-        continue;
+    for (size_t j = start; j < synthons.size(); j++) {
+      // Search them in the sorted order, stopping when the number of bits
+      // goes above maxBits.
+      auto synthonNum = reaction.getOrderedSynthonNum(synthonSetOrder[i], j);
+
+      if (synthons[synthonNum].second->getFP()->getNumOnBits() > maxBits) {
+        break;
       }
-      if (const auto sim =
-              TanimotoSimilarity(*fragFPs[i], *synthons[j].second->getFP());
+      if (const auto sim = TanimotoSimilarity(
+              *fragFPs[i], *synthons[synthonNum].second->getFP());
           sim >= similarityCutoff) {
-        synthonsToUse[synthonOrder[i]][j] = true;
-        fragSims[synthonOrder[i]].emplace_back(j, sim);
+        synthonsToUse[synthonSetOrder[i]][synthonNum] = true;
+        fragSims[synthonSetOrder[i]].emplace_back(synthonNum, sim);
         fragMatched = true;
       }
     }
@@ -133,6 +172,17 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
       getSpace().getSynthonFingerprintType() != d_fpGen.infoString()) {
     getSpace().buildSynthonFingerprints(d_fpGen);
   }
+  std::cout << "Sorting fingerprints" << std::endl;
+  auto start = std::chrono::high_resolution_clock::now();
+  getSpace().orderSynthonsForSearch([](const Synthon *synth1,
+                                       const Synthon *synth2) -> bool {
+    return synth1->getFP()->getNumOnBits() < synth2->getFP()->getNumOnBits();
+  });
+  auto finish = std::chrono::high_resolution_clock::now();
+  auto elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
+          .count();
+  std::cout << "Time to sort " << elapsed << " ms" << std::endl;
   if (ControlCHandler::getGotSignal()) {
     return;
   }

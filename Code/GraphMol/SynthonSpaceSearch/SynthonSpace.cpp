@@ -161,6 +161,7 @@ SearchResults SynthonSpace::fingerprintSearch(
     const SynthonSpaceSearchParams &params) {
   ControlCHandler::reset();
   PRECONDITION(query.getNumAtoms() != 0, "Search query must contain atoms.");
+
   SynthonSpaceFingerprintSearcher ssss(query, fpGen, params, *this);
   return ssss.search();
 }

@@ -156,7 +156,6 @@ std::vector<boost::dynamic_bitset<>> screenSynthonsWithFPs(
   return passedFPs;
 }
 
-namespace {
 // Find the first synthon in the set that has no less than the required
 // number of atoms.  The fragment can't be a substructure match of the
 // synthon if it has more atoms than it.
@@ -186,7 +185,6 @@ size_t findSynthonSearchStart(unsigned int fragNumAtoms, size_t synthonSetNum,
   return first;
 }
 
-}  // namespace
 // Take the fragged mol and flag all those synthons that have a fragment as
 // a substructure match.  Only do this for those synthons that have already
 // passed previous screening, and are flagged as such in passedScreens.
