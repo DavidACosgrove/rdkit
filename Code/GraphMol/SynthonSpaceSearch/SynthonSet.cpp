@@ -700,7 +700,7 @@ std::vector<std::vector<std::unique_ptr<RWMol>>> SynthonSet::copySynthons()
 void SynthonSet::initializeSearchOrders() {
   d_synthonSearchOrders.resize(d_synthons.size());
   for (size_t i = 0; i < d_synthons.size(); ++i) {
-    d_synthonSearchOrders[i].reserve(d_synthons[i].size());
+    d_synthonSearchOrders[i].resize(d_synthons[i].size());
     std::iota(d_synthonSearchOrders[i].begin(), d_synthonSearchOrders[i].end(),
               0);
   }
