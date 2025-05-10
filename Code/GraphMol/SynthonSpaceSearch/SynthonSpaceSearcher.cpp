@@ -48,7 +48,7 @@ SynthonSpaceSearcher::SynthonSpaceSearcher(
   }
 }
 
-SearchResults SynthonSpaceSearcher::search() {
+SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
   ControlCHandler::reset();
   std::vector<std::unique_ptr<ROMol>> results;
   const TimePoint *endTime = nullptr;
@@ -73,7 +73,7 @@ SearchResults SynthonSpaceSearcher::search() {
   }
 
   std::uint64_t totHits = 0;
-  auto allHits = doTheSearch(fragments, endTime, timedOut, totHits);
+  auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);
   // std::cout << "Found " << allHits.size() << " sets of hits" << std::endl;
   // for (const auto &hit : allHits) {
   // std::cout << "Reaction : " << hit->d_reaction->getId() << std::endl;
@@ -137,16 +137,19 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
 }
 
 namespace {
-std::vector<std::unique_ptr<SynthonSpaceHitSet>> searchReaction(
-    SynthonSpaceSearcher *searcher, SynthonSet &reaction,
-    const TimePoint *endTime,
-    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragments) {
-  std::vector<std::unique_ptr<SynthonSpaceHitSet>> hits;
 
-  int numTries = 100;
+void searchReactionPart(
+    const std::vector<std::vector<std::unique_ptr<ROMol>>> &fragments,
+    const TimePoint *endTime, std::atomic<std::int64_t> &mostRecentFrag,
+    SynthonSpaceSearcher *searcher, const SynthonSet &reaction,
+    std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> &allSetHits) {
   bool timedOut = false;
-  for (auto &fragSet : fragments) {
-    if (ControlCHandler::getGotSignal()) {
+  int numTries = 100;
+
+  std::int64_t lastFrag = fragments.size();
+  while (true) {
+    std::int64_t nextFrag = ++mostRecentFrag;
+    if (nextFrag >= lastFrag) {
       break;
     }
     --numTries;
@@ -157,11 +160,37 @@ std::vector<std::unique_ptr<SynthonSpaceHitSet>> searchReaction(
     if (timedOut) {
       break;
     }
-    if (auto theseHits = searcher->searchFragSet(fragSet, reaction);
-        !theseHits.empty()) {
-      hits.insert(hits.end(), std::make_move_iterator(theseHits.begin()),
-                  std::make_move_iterator(theseHits.end()));
+    allSetHits[nextFrag] =
+        searcher->searchFragSet(fragments[nextFrag], reaction);
+  }
+}
+
+std::vector<std::unique_ptr<SynthonSpaceHitSet>> searchReaction(
+    SynthonSpaceSearcher *searcher, const SynthonSet &reaction,
+    const TimePoint *endTime, unsigned numThreads,
+    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragments) {
+  std::vector<std::unique_ptr<SynthonSpaceHitSet>> hits;
+  std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> allSetHits(
+      fragments.size());
+  std::atomic<std::int64_t> mostRecentFrag = -1;
+  if (numThreads > 1) {
+    std::vector<std::thread> threads;
+    for (unsigned int i = 0u;
+         i < std::min(static_cast<size_t>(numThreads), fragments.size()); ++i) {
+      threads.push_back(std::thread(searchReactionPart, std::ref(fragments),
+                                    endTime, std::ref(mostRecentFrag), searcher,
+                                    std::ref(reaction), std::ref(allSetHits)));
     }
+    for (auto &t : threads) {
+      t.join();
+    }
+  } else {
+    searchReactionPart(fragments, endTime, mostRecentFrag, searcher, reaction,
+                       allSetHits);
+  }
+  for (auto &ash : allSetHits) {
+    hits.insert(hits.end(), std::make_move_iterator(ash.begin()),
+                std::make_move_iterator(ash.end()));
   }
 
   return hits;
@@ -188,7 +217,7 @@ void processReactions(
     }
     const auto &reaction =
         searcher->getSpace().getReaction(reactionNames[thisR]);
-    auto theseHits = searchReaction(searcher, *reaction, endTime, fragments);
+    auto theseHits = searchReaction(searcher, *reaction, endTime, 1, fragments);
     reactionHits[thisR] = std::move(theseHits);
     timedOut = details::checkTimeOut(endTime);
     if (timedOut) {
@@ -201,38 +230,56 @@ void processReactions(
 std::vector<std::unique_ptr<SynthonSpaceHitSet>>
 SynthonSpaceSearcher::doTheSearch(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
-    const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits) {
-  // std::cout << "Searching " << fragSets.size() << " fragment sets."
-  // << std::endl;
+    const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits,
+    ThreadMode threadMode) {
+  std::cout << "Searching " << fragSets.size() << " fragment sets."
+            << std::endl;
   auto reactionNames = getSpace().getReactionNames();
-  std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> reactionHits(
-      reactionNames.size());
+  std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> reactionHits;
+  const unsigned int numThreads = getNumThreadsToUse(d_params.numThreads);
+  std::cout << "numThreads: " << numThreads << " from " << d_params.numThreads
+            << std::endl;
 
-  std::int64_t lastReaction = reactionNames.size() - 1;
-  std::atomic<std::int64_t> mostRecentReaction = -1;
-#if RDK_BUILD_THREADSAFE_SSS
-  if (const auto numThreads = getNumThreadsToUse(d_params.numThreads);
-      numThreads > 1) {
-    std::vector<std::thread> threads;
-    for (unsigned int i = 0u;
-         i < std::min(static_cast<size_t>(numThreads), reactionNames.size());
-         ++i) {
-      threads.push_back(std::thread(processReactions, this,
-                                    std::ref(reactionNames), std::ref(fragSets),
-                                    endTime, std::ref(mostRecentReaction),
-                                    lastReaction, std::ref(reactionHits)));
-    }
-    for (auto &t : threads) {
-      t.join();
+  if (threadMode == ThreadMode::ThreadFragments) {
+    // Do the reactions one at a time, parallelising the fragSet searches.
+    // For the slower searches, this minimises the amount of time that
+    // threads are left idle.  ThreadReactions runs the risk of 1 thread
+    // doing all the work if all the hits come from 1 reaction.
+    for (const auto &reactionName : reactionNames) {
+      const auto &reaction = getSpace().getReaction(reactionName);
+      reactionHits.push_back(
+          searchReaction(this, *reaction, endTime, numThreads, fragSets));
     }
   } else {
+    // Parallelise at the reaction level - each thread does all the fragSets
+    // for a reaction in one go.  This is quicker for substructure searches.
+    std::int64_t lastReaction = reactionNames.size() - 1;
+    std::atomic<std::int64_t> mostRecentReaction = -1;
+    reactionHits.resize(reactionNames.size());
+#if RDK_BUILD_THREADSAFE_SSS
+    if (const auto numThreads = getNumThreadsToUse(d_params.numThreads);
+        numThreads > 1) {
+      std::vector<std::thread> threads;
+      for (unsigned int i = 0u;
+           i < std::min(static_cast<size_t>(numThreads), reactionNames.size());
+           ++i) {
+        threads.push_back(std::thread(
+            processReactions, this, std::ref(reactionNames), std::ref(fragSets),
+            endTime, std::ref(mostRecentReaction), lastReaction,
+            std::ref(reactionHits)));
+      }
+      for (auto &t : threads) {
+        t.join();
+      }
+    } else {
+      processReactions(this, reactionNames, fragSets, endTime,
+                       mostRecentReaction, lastReaction, reactionHits);
+    }
+#else
     processReactions(this, reactionNames, fragSets, endTime, mostRecentReaction,
                      lastReaction, reactionHits);
-  }
-#else
-  processReactions(this, reactionNames, fragSets, endTime, mostRecentReaction,
-                   lastReaction, reactionHits);
 #endif
+  }
 
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> allHits;
   totHits = 0;
@@ -556,15 +603,15 @@ void SynthonSpaceSearcher::processToTrySet(
         &toTry,
     const TimePoint *endTime,
     std::vector<std::unique_ptr<ROMol>> &results) const {
-  // std::cout << "Number of hits to try this round : " << toTry.size()
-  // << std::endl;
+  std::cout << "Number of hits to try this round : " << toTry.size()
+            << std::endl;
   // There are possibly duplicate entries in toTry, because 2
   // different fragmentations might produce overlapping synthon lists in
   // the same reaction. The duplicates need to be removed.  Although
   // when doing the job in batches this is less likely.
   sortAndUniquifyToTry(toTry);
-  // std::cout << "Number of unique hits to try this round : " << toTry.size()
-  // << std::endl;
+  std::cout << "Number of unique hits to try this round : " << toTry.size()
+            << std::endl;
 
   if (d_params.randomSample) {
     std::shuffle(toTry.begin(), toTry.end(), *d_randGen);

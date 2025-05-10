@@ -46,7 +46,7 @@ class SynthonSpaceSearcher {
 
   virtual ~SynthonSpaceSearcher() = default;
 
-  SearchResults search();
+  SearchResults search(ThreadMode threadMode = ThreadMode::ThreadFragments);
 
   SynthonSpace &getSpace() const { return d_space; }
   const ROMol &getQuery() const { return d_query; }
@@ -99,7 +99,8 @@ class SynthonSpaceSearcher {
 
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> doTheSearch(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
-      const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits);
+      const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits,
+      ThreadMode threadMode);
 
   // Build the molecules from the synthons identified in hitsets.
   // Checks that all the results produced match the

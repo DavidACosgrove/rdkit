@@ -181,7 +181,6 @@ bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) const {
   if (!SynthonSpaceSearcher::verifyHit(hit)) {
     return false;
   }
-
   auto res = RascalMCES::rascalMCES(hit, getQuery(), d_rascalOptions);
   // Rascal reports all matches that proceed to full MCES elucidation,
   // even if the final similarity value ends up below the threshold.

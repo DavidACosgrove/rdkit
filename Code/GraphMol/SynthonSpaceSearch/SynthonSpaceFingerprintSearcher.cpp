@@ -89,20 +89,20 @@ std::vector<std::vector<size_t>> getHitSynthons(
   details::expandBitSet(synthonsToUse);
   details::bitSetsToVectors(synthonsToUse, retSynthons);
 
-  std::cout << "fragSims : " << fragSims.size() << std::endl;
-  for (const auto &frs : fragSims) {
-    for (const auto &fr : frs) {
-      std::cout << "fr " << fr.first << " : " << fr.second << " :: ";
-    }
-    std::cout << std::endl;
-  }
-  std::cout << "retSynthons : " << retSynthons.size() << std::endl;
-  for (auto so : retSynthons) {
-    for (auto r : so) {
-      std::cout << r << " ";
-    }
-    std::cout << std::endl;
-  }
+  // std::cout << "fragSims : " << fragSims.size() << std::endl;
+  // for (const auto &frs : fragSims) {
+  //   for (const auto &fr : frs) {
+  //     std::cout << "fr " << fr.first << " : " << fr.second << " :: ";
+  //   }
+  //   std::cout << std::endl;
+  // }
+  // std::cout << "retSynthons : " << retSynthons.size() << std::endl;
+  // for (auto so : retSynthons) {
+  //   for (auto r : so) {
+  //     std::cout << r << " ";
+  //   }
+  //   std::cout << std::endl;
+  // }
 
   // Now order the synthons in descending order of their similarity to
   // the corresponding fragFP.
@@ -115,9 +115,9 @@ std::vector<std::vector<size_t>> getHitSynthons(
         fragSims[i][j] = std::make_pair(j, 0.0);
       }
     } else {
-      std::ranges::sort(
-          fragSims[i],
-          [](const auto &a, const auto &b) { return a.second > b.second; });
+      std::ranges::sort(fragSims[i], [](const auto &a, const auto &b) {
+        return a.second > b.second;
+      });
     }
     retSynthons[i].clear();
     std::ranges::transform(fragSims[i], std::back_inserter(retSynthons[i]),

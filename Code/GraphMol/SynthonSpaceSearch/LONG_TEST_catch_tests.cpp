@@ -151,6 +151,7 @@ TEST_CASE("S Random Hits") {
   params.maxHits = 100;
   params.randomSample = true;
   params.randomSeed = 1;
+  params.numThreads = -1;
   auto results =
       synthonspace.substructureSearch(*queryMol, matchParams, params);
   std::map<std::string, int> libCounts;
@@ -186,6 +187,7 @@ TEST_CASE("S Later hits") {
   SubstructMatchParameters matchParams;
   SynthonSpaceSearchParams params;
   params.maxHits = 200;
+  params.numThreads = -1;
   auto results =
       synthonspace.substructureSearch(*queryMol, matchParams, params);
   std::vector<std::string> hitNames1;
@@ -232,6 +234,7 @@ TEST_CASE("S Complex query") {
   SubstructMatchParameters matchParams;
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
+  params.numThreads = -1;
   auto results =
       synthonspace.substructureSearch(*queryMol, matchParams, params);
   CHECK(results.getHitMolecules().size() == 7649);
@@ -264,6 +267,7 @@ TEST_CASE("FP Biggy") {
   SynthonSpaceSearchParams params;
   params.approxSimilarityAdjuster = 0.2;
   params.maxHits = -1;
+  params.numThreads = -1;
   for (size_t i = 0; i < smis.size(); ++i) {
     auto queryMol = v2::SmilesParse::MolFromSmiles(smis[i]);
     auto results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
@@ -287,6 +291,7 @@ TEST_CASE("FP Random Hits") {
   params.maxHits = 100;
   params.randomSample = true;
   params.randomSeed = 1;
+  params.numThreads = -1;
   std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
       MorganFingerprint::getMorganGenerator<std::uint64_t>(2));
   auto results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
@@ -319,6 +324,7 @@ TEST_CASE("Timeout") {
   params.similarityCutoff = 0.3;
   params.fragSimilarityAdjuster = 0.3;
   params.timeOut = 2;
+  params.numThreads = -1;
   std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
       MorganFingerprint::getMorganGenerator<std::uint64_t>(2));
 
@@ -351,6 +357,7 @@ TEST_CASE("FP Approx Similarity") {
   params.similarityCutoff = 0.5;
   params.timeOut = 0;
   params.maxHits = 1000;
+  params.numThreads = -1;
 
   std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
       RDKitFP::getRDKitFPGenerator<std::uint64_t>());
@@ -385,14 +392,14 @@ TEST_CASE("Rascal Biggy") {
   synthonspace.readTextFile(libName, cancelled);
 
   const std::vector<std::string> smis{
-    "c1ccccc1C(=O)N1CCCC1", "c1ccccc1NC(=O)C1CCN1",
-    "c12ccccc1c(N)nc(N)n2", "c12ccc(C)cc1[nH]nc2C(=O)NCc1cncs1",
-    "c1n[nH]cn1",           "C(=O)NC(CC)C(=O)N(CC)C"};
+      "c1ccccc1C(=O)N1CCCC1", "c1ccccc1NC(=O)C1CCN1",
+      "c12ccccc1c(N)nc(N)n2", "c12ccc(C)cc1[nH]nc2C(=O)NCc1cncs1",
+      "c1n[nH]cn1",           "C(=O)NC(CC)C(=O)N(CC)C"};
   const std::vector<size_t> numRes{254, 89, 2, 34, 0, 14};
   const std::vector<size_t> maxRes{376110, 278747, 79833, 34817, 190, 45932};
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
-  params.numThreads = 1;
+  params.numThreads = -1;
   RascalOptions rascalOptions;
 
   for (size_t i = 0; i < smis.size(); ++i) {
@@ -403,15 +410,17 @@ TEST_CASE("Rascal Biggy") {
   }
 }
 
-#if 0
-// Whilst the code is still under active development, it's convenient to have this
-// in here.  It can come out later.
+#if 1
+// Whilst the code is still under active development, it's convenient to have
+// this in here.  It can come out later.
 TEST_CASE("FP Binary File2") {
   REQUIRE(rdbase);
   std::string fName(rdbase);
   SynthonSpace synthonspace;
   std::string libName =
       "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/2024-09_REAL_synthons_rdkit_3000.spc";
+  // libName =
+  //     "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_rdkit.spc";
   std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
       RDKitFP::getRDKitFPGenerator<std::uint64_t>());
   synthonspace.readDBFile(libName, -1);
@@ -421,9 +430,45 @@ TEST_CASE("FP Binary File2") {
   std::cout << synthonspace.getNumProducts() << std::endl;
   SearchResults results;
   auto queryMol = "O=C(Nc1c(CNC=O)cc[s]1)c1nccnc1"_smiles;
-  CHECK_NOTHROW(results = synthonspace.fingerprintSearch(*queryMol, *fpGen));
+  SynthonSpaceSearchParams params;
+  params.numThreads = -1;
+  std::cout << "fingerpirnt" << std::endl;
+  auto start = std::chrono::high_resolution_clock::now();
+  CHECK_NOTHROW(results =
+                    synthonspace.fingerprintSearch(*queryMol, *fpGen, params));
+  auto finish = std::chrono::high_resolution_clock::now();
+  double elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
+          .count();
+  std::cout << elapsed << " ms" << std::endl;
   CHECK(results.getHitMolecules().size() == 211);
   CHECK(results.getMaxNumResults() == 1397664);
+
+  std::cout << "substruct" << std::endl;
+  auto qMol = "c12ccc(C)cc1[nH]nc2C(=O)NCc1cncs1"_smarts;
+  SubstructMatchParameters substructMatchParams;
+  start = std::chrono::high_resolution_clock::now();
+  auto sres =
+      synthonspace.substructureSearch(*qMol, substructMatchParams, params);
+  finish = std::chrono::high_resolution_clock::now();
+  elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
+          .count();
+  std::cout << elapsed << " ms" << std::endl;
+  std::cout << sres.getHitMolecules().size() << std::endl;
+
+  std::cout << "rascal" << std::endl;
+  auto rMol = "c12ccc(C)cc1[nH]nc2C(=O)NCc1cncs1"_smiles;
+  auto startr = std::chrono::high_resolution_clock::now();
+  params.timeOut = 0;
+  RascalOptions rascalOptions;
+  auto rres = synthonspace.rascalSearch(*rMol, rascalOptions, params);
+  auto finishr = std::chrono::high_resolution_clock::now();
+  auto elapsedr =
+      std::chrono::duration_cast<std::chrono::milliseconds>(finishr - startr)
+          .count();
+  std::cout << elapsedr << " ms" << std::endl;
+  std::cout << rres.getHitMolecules().size() << std::endl;
 }
 #endif
 

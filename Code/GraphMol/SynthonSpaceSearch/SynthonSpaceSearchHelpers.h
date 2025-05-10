@@ -109,5 +109,15 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
 
 using ShapeSet = std::vector<std::unique_ptr<SearchShapeInput>>;
 
+// Experiments have shown that it's quicker to parallelise the search
+// at the SynthonSet level for substructure searches, but at the
+// FragSet level for the slower searches such as fingerprints, Rascal
+// and shape.  This enum is used to control which is done in a particular
+// case.
+enum class ThreadMode : unsigned char {
+  ThreadReactions,
+  ThreadFragments
+};
+
 }  // namespace RDKit::SynthonSpaceSearch
 #endif  // SYNTHONSPACESEARCHHELPERS_H

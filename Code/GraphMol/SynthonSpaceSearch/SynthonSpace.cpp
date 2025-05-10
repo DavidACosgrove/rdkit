@@ -114,26 +114,8 @@ SearchResults SynthonSpace::substructureSearch(
   PRECONDITION(query.getNumAtoms() != 0, "Search query must contain atoms.");
   ControlCHandler::reset();
 
-#if 0
-  orderSynthonsForSearch(
-      [](const Synthon *synth1, const Synthon *synth2) -> bool {
-        return synth1->getOrigMol()->getNumAtoms() <
-               synth2->getOrigMol()->getNumAtoms();
-      });
-  for (const auto &[id, reaction] : d_reactions) {
-    const auto synthons = reaction->getSynthons();
-    for (size_t i = 0; i < synthons.size(); ++i) {
-      for (size_t j = 0; j < synthons[i].size(); ++j) {
-        auto s = reaction->getOrderedSynthon(i, j);
-        std::cout << i << ", " << j << " : " << s.first << ", "
-        << s.second->getSmiles() << " : "
-        << s.second->getSearchMol()->getNumAtoms() << std::endl;
-      }
-    }
-  }
-#endif
   SynthonSpaceSubstructureSearcher ssss(query, matchParams, params, *this);
-  return ssss.search();
+  return ssss.search(ThreadMode::ThreadReactions);
 }
 
 SearchResults SynthonSpace::substructureSearch(
