@@ -574,7 +574,7 @@ TEST_CASE("FP Binary File2") {
   auto queryMol = "O=C(Nc1c(CNC=O)cc[s]1)c1nccnc1"_smiles;
   SynthonSpaceSearchParams params;
   params.numThreads = -1;
-  std::cout << "fingerpirnt" << std::endl;
+  std::cout << "fingerprint" << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
   CHECK_NOTHROW(results =
                     synthonspace.fingerprintSearch(*queryMol, *fpGen, params));

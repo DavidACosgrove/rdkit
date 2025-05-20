@@ -276,7 +276,7 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def_readwrite(
           "maxHitHeavyAtoms",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::maxHitHeavyAtoms,
-          "Maximum number of heavy atoms in a hit.  Default=0 means no maximum.")
+          "Maximum number of heavy atoms in a hit.  Default=-1 means no maximum.")
       .def_readwrite("minHitMolWt",
                      &SynthonSpaceSearch::SynthonSpaceSearchParams::minHitMolWt,
                      "Minimum molecular weight for a hit.  Default=0.0.")
@@ -291,8 +291,8 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def_readwrite(
           "maxHitChiralAtoms",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::maxHitChiralAtoms,
-          "Maximum number of chiral atoms in a hit.  Default=0 means no maximum.")
-      .def_readwrite(
+          "Maximum number of chiral atoms in a hit.  Default=-1 means no maximum.")
+  .def_readwrite(
           "numConformers",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::numConformers,
           "When doing a shape search, the number of conformers to generate"

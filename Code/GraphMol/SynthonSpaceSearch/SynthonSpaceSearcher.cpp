@@ -12,9 +12,11 @@
 #include <thread>
 #include <boost/random/discrete_distribution.hpp>
 
+#include <GraphMol/Chirality.h>
 #include <GraphMol/MolOps.h>
 #include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
+#include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 #include <GraphMol/SmilesParse/SmartsWrite.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
@@ -113,7 +115,6 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
     return prod;
   }
   prod = details::buildProduct(synths);
-
   // Do a final check of the whole thing.  It can happen that the
   // fragments match synthons but the final product doesn't match.
   // A key example is when the 2 synthons come together to form an
@@ -299,15 +300,16 @@ SynthonSpaceSearcher::doTheSearch(
 bool SynthonSpaceSearcher::quickVerify(
     const SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &synthNums) const {
-  if (getParams().minHitHeavyAtoms || getParams().maxHitHeavyAtoms) {
+  if (getParams().minHitHeavyAtoms || getParams().maxHitHeavyAtoms > -1) {
     unsigned int numHeavyAtoms = 0;
     for (unsigned int i = 0; i < synthNums.size(); ++i) {
       numHeavyAtoms +=
           hitset->synthonsToUse[i][synthNums[i]].second->getNumHeavyAtoms();
     }
     if (numHeavyAtoms < getParams().minHitHeavyAtoms ||
-        (getParams().maxHitHeavyAtoms &&
-         numHeavyAtoms > getParams().maxHitHeavyAtoms)) {
+        (getParams().maxHitHeavyAtoms > -1 &&
+         numHeavyAtoms >
+             static_cast<unsigned int>(getParams().maxHitHeavyAtoms))) {
       return false;
     }
   }
@@ -321,15 +323,21 @@ bool SynthonSpaceSearcher::quickVerify(
       return false;
     }
   }
-  if (getParams().minHitChiralAtoms || getParams().maxHitChiralAtoms) {
+  if (getParams().minHitChiralAtoms || getParams().maxHitChiralAtoms > -1) {
     unsigned int numChiralAtoms = 0;
+    unsigned int numExcDummies = 0;
     for (unsigned int i = 0; i < synthNums.size(); ++i) {
       numChiralAtoms +=
           hitset->synthonsToUse[i][synthNums[i]].second->getNumChiralAtoms();
+      numExcDummies += hitset->synthonsToUse[i][synthNums[i]]
+                           .second->getNumChiralAtomsExcDummies();
     }
+    // numChiralAtoms is the upper bound on the number of chiral atoms in
+    // the hit, numExcDummies the lower bound.
     if (numChiralAtoms < getParams().minHitChiralAtoms ||
-        (getParams().maxHitChiralAtoms &&
-         numChiralAtoms > getParams().maxHitChiralAtoms)) {
+        (getParams().maxHitChiralAtoms > -1 &&
+         numExcDummies >
+             static_cast<unsigned int>(getParams().maxHitChiralAtoms))) {
       return false;
     }
   }
@@ -342,8 +350,9 @@ bool SynthonSpaceSearcher::verifyHit(ROMol &mol) const {
   if (getParams().minHitChiralAtoms || getParams().maxHitChiralAtoms) {
     auto numChiralAtoms = details::countChiralAtoms(mol);
     if (numChiralAtoms < getParams().minHitChiralAtoms ||
-        (getParams().maxHitChiralAtoms &&
-         numChiralAtoms > getParams().maxHitChiralAtoms)) {
+        (getParams().maxHitChiralAtoms > -1 &&
+         numChiralAtoms >
+             static_cast<unsigned int>(getParams().maxHitChiralAtoms))) {
       return false;
     }
   }

@@ -1130,11 +1130,107 @@ TEST_CASE("github #8250: Seg fault in EmbedMultipleConfs") {
 M  RAD  2   7   2  14   2
 M  END)CTAB"_ctab;
   REQUIRE(mol);
-  mol->debugMol(std::cerr);
   MolOps::addHs(*mol);
   DGeomHelpers::EmbedParameters ps = DGeomHelpers::ETKDGv3;
   ps.randomSeed = 0xf00d;
   // with the bug, this would segfault
   auto cids = DGeomHelpers::EmbedMultipleConfs(*mol, 10, ps);
   CHECK(cids.size() == 10);
+}
+
+TEST_CASE("allenes and cumulenes") {
+  SECTION("allene") {
+    auto m = "C=C=C"_smiles;
+    REQUIRE(m);
+    MolOps::addHs(*m);
+    DGeomHelpers::EmbedParameters ps = DGeomHelpers::ETKDGv3;
+    ps.randomSeed = 0xf00d;
+    auto cid = DGeomHelpers::EmbedMolecule(*m, ps);
+    CHECK(cid >= 0);
+    auto conf = m->getConformer(cid);
+    {
+      auto v1 = conf.getAtomPos(0) - conf.getAtomPos(1);
+      auto v2 = conf.getAtomPos(2) - conf.getAtomPos(1);
+      CHECK_THAT(v1.angleTo(v2), Catch::Matchers::WithinAbs(M_PI, 0.2));
+    }
+  }
+  SECTION("cumulene") {
+    auto m = "C=C=C=C"_smiles;
+    REQUIRE(m);
+    MolOps::addHs(*m);
+    DGeomHelpers::EmbedParameters ps = DGeomHelpers::ETKDGv3;
+    ps.randomSeed = 0xf00d;
+    auto cid = DGeomHelpers::EmbedMolecule(*m, ps);
+    CHECK(cid >= 0);
+    auto conf = m->getConformer(cid);
+    {
+      auto v1 = conf.getAtomPos(0) - conf.getAtomPos(1);
+      auto v2 = conf.getAtomPos(2) - conf.getAtomPos(1);
+      CHECK_THAT(v1.angleTo(v2), Catch::Matchers::WithinAbs(M_PI, 0.2));
+    }
+    {
+      auto v1 = conf.getAtomPos(1) - conf.getAtomPos(2);
+      auto v2 = conf.getAtomPos(3) - conf.getAtomPos(2);
+      CHECK_THAT(v1.angleTo(v2), Catch::Matchers::WithinAbs(M_PI, 0.2));
+    }
+  }
+  SECTION("azide") {
+    auto m = "CN=[N+]=[N-]"_smiles;
+    REQUIRE(m);
+    MolOps::addHs(*m);
+    DGeomHelpers::EmbedParameters ps = DGeomHelpers::ETKDGv3;
+    ps.randomSeed = 0xf00d;
+    auto cid = DGeomHelpers::EmbedMolecule(*m, ps);
+    CHECK(cid >= 0);
+    auto conf = m->getConformer(cid);
+    {
+      auto v1 = conf.getAtomPos(1) - conf.getAtomPos(2);
+      auto v2 = conf.getAtomPos(3) - conf.getAtomPos(2);
+      CHECK_THAT(v1.angleTo(v2), Catch::Matchers::WithinAbs(M_PI, 0.2));
+    }
+  }
+}
+
+namespace RDKit {
+namespace DGeomHelpers {
+namespace EmbeddingOps {
+RDKIT_DISTGEOMHELPERS_EXPORT void findDoubleBonds(
+    const ROMol &mol,
+    std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+        &doubleBondEnds,
+    std::vector<std::pair<std::vector<unsigned int>, int>> &stereoDoubleBonds,
+    const std::map<int, RDGeom::Point3D> *coordMap);
+}
+}  // namespace DGeomHelpers
+}  // namespace RDKit
+
+TEST_CASE("FindDoubleBonds") {
+  SECTION("Allene") {
+    auto m = "C=C=C"_smiles;
+    REQUIRE(m);
+    MolOps::addHs(*m);
+    std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+        doubleBondEnds;
+    std::vector<std::pair<std::vector<unsigned int>, int>> stereoDoubleBonds;
+    DGeomHelpers::EmbeddingOps::findDoubleBonds(*m, doubleBondEnds,
+                                                stereoDoubleBonds, nullptr);
+    // This is 4, we still have two double bonds to Hydrogens on each
+    // side that should not be linear but the C=C=C should be, so not 5.
+    CHECK(doubleBondEnds.size() == 4);
+    CHECK(stereoDoubleBonds.empty());
+  }
+  SECTION("Sulfone") {
+    auto m = "CS(=O)(=O)C"_smiles;
+    REQUIRE(m);
+    MolOps::addHs(*m);
+    std::vector<std::tuple<unsigned int, unsigned int, unsigned int>>
+        doubleBondEnds;
+    std::vector<std::pair<std::vector<unsigned int>, int>> stereoDoubleBonds;
+    DGeomHelpers::EmbeddingOps::findDoubleBonds(*m, doubleBondEnds,
+                                                stereoDoubleBonds, nullptr);
+    // We want 6 and not 4, the angle between O=S=O should not be linear
+    // (the current implementation counts it twice, hence not 5).
+    CHECK(doubleBondEnds.size() == 6);
+    CHECK(stereoDoubleBonds.empty());
+  }
 }

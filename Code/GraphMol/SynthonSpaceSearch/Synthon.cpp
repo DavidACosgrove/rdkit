@@ -10,6 +10,7 @@
 
 #include <../External/pubchem_shape/PubChemShape.hpp>
 #include <DataStructs/ExplicitBitVect.h>
+#include <GraphMol/Chirality.h>
 #include <GraphMol/Descriptors/MolDescriptors.h>
 #include <GraphMol/MolOps.h>
 #include <GraphMol/MolPickler.h>
@@ -48,6 +49,7 @@ Synthon::Synthon(const Synthon &other)
       d_numDummies(other.d_numDummies),
       d_numHeavyAtoms(other.d_numHeavyAtoms),
       d_numChiralAtoms(other.d_numChiralAtoms),
+      d_numChiralAtomsExcDummies(other.d_numChiralAtomsExcDummies),
       d_molWt(other.d_molWt) {}
 
 Synthon &Synthon::operator=(const Synthon &other) {
@@ -89,6 +91,7 @@ Synthon &Synthon::operator=(const Synthon &other) {
   d_numDummies = other.d_numDummies;
   d_numHeavyAtoms = other.d_numHeavyAtoms;
   d_numChiralAtoms = other.d_numChiralAtoms;
+  d_numChiralAtomsExcDummies = other.d_numChiralAtomsExcDummies;
   d_molWt = other.d_molWt;
   return *this;
 }
@@ -220,8 +223,6 @@ void Synthon::finishInitialization() {
 void Synthon::calcProperties() {
   d_numDummies = 0;
   d_numHeavyAtoms = 0;
-  d_numChiralAtoms = 0;
-  d_molWt = 0;
   MolOps::assignStereochemistry(*dp_origMol);
   for (const auto atom : dp_origMol->atoms()) {
     if (atom->getAtomicNum() == 0) {
@@ -229,10 +230,10 @@ void Synthon::calcProperties() {
     } else if (atom->getAtomicNum() > 1) {
       d_numHeavyAtoms++;
     }
-    if (atom->hasProp("_CIPCode") || atom->hasProp("_ChiralityPossible")) {
-      d_numChiralAtoms++;
-    }
   }
-  d_molWt = Descriptors::calcExactMW(*dp_origMol);
+  Chirality::findPotentialStereo(*dp_origMol, true, true);
+  d_numChiralAtoms =
+      details::countChiralAtoms(*dp_origMol, &d_numChiralAtomsExcDummies);
+  d_molWt = Descriptors::calcAMW(*dp_origMol);
 }
 }  // namespace RDKit::SynthonSpaceSearch

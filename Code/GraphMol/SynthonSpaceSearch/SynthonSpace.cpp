@@ -23,7 +23,6 @@
 
 #include <GraphMol/MolOps.h>
 #include <GraphMol/QueryAtom.h>
-#include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/ChemReactions/Reaction.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/Fingerprints/Fingerprints.h>
@@ -594,10 +593,14 @@ void SynthonSpace::writeEnumeratedFile(const std::string &outFilename) const {
                           << " some time and result in a large file."
                           << std::endl;
   std::ofstream os(outFilename);
+  enumerateToStream(os);
+  os.close();
+}
+
+void SynthonSpace::enumerateToStream(std::ostream &os) const {
   for (const auto &[fst, snd] : d_reactions) {
     snd->enumerateToStream(os);
   }
-  os.close();
 }
 
 bool SynthonSpace::hasFingerprints() const { return !d_fpType.empty(); }
