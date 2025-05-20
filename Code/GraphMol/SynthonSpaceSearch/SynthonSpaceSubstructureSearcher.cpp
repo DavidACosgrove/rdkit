@@ -161,8 +161,6 @@ std::vector<boost::dynamic_bitset<>> screenSynthonsWithFPs(
 // synthon if it has more atoms than it.
 size_t findSynthonSearchStart(unsigned int fragNumAtoms, size_t synthonSetNum,
                               const SynthonSet &reaction) {
-  // std::cout << "find synthon start num atoms " << fragNumAtoms << " set num "
-  //           << synthonSetNum << std::endl;
   size_t first = 0;
   if (fragNumAtoms <= reaction.getOrderedSynthon(synthonSetNum, first)
                           .second->getSearchMol()
@@ -195,29 +193,48 @@ std::vector<std::vector<size_t>> getHitSynthons(
     const std::vector<unsigned int> &synthonSetOrder) {
   std::vector<boost::dynamic_bitset<>> synthonsToUse;
   std::vector<std::vector<size_t>> retSynthons;
+  // It makes sense to match fragments against synthon sets in order of
+  // smallest synthon set first because if a fragment doesn't have a match
+  // in a synthon set, the whole thing's a bust.  So if fragShapes[0] is matched
+  // against 1000 synthons and then fragShapes[1] is matched against 10 synthons
+  // and doesn't match any of them, the first set of matches was wasted time.
+  std::vector<std::pair<unsigned int, size_t>> fragOrders(
+      synthonSetOrder.size());
+  for (size_t i = 0; i < synthonSetOrder.size(); i++) {
+    fragOrders[i].first = i;
+    fragOrders[i].second = reaction.getSynthons()[synthonSetOrder[i]].size();
+  }
+  std::ranges::sort(fragOrders, [](const auto &a, const auto &b) {
+    return a.second < b.second;
+  });
+  synthonsToUse.reserve(reaction.getSynthons().size());
   for (const auto &synthonSet : reaction.getSynthons()) {
     synthonsToUse.emplace_back(synthonSet.size());
   }
 
   // Match the fragment to the synthon set in this order.
   for (size_t i = 0; i < synthonSetOrder.size(); ++i) {
-    const auto &synthonsSet = reaction.getSynthons()[synthonSetOrder[i]];
-    const auto &passedScreensSet = passedScreens[synthonSetOrder[i]];
+    const auto fragNum = fragOrders[i].first;
+    const auto &synthonsSet = reaction.getSynthons()[synthonSetOrder[fragNum]];
+    const auto &passedScreensSet = passedScreens[synthonSetOrder[fragNum]];
     bool fragMatched = false;
-    auto start = findSynthonSearchStart(molFrags[i]->getNumAtoms(),
-                                        synthonSetOrder[i], reaction);
+    auto start = findSynthonSearchStart(molFrags[fragNum]->getNumAtoms(),
+                                        synthonSetOrder[fragNum], reaction);
     for (size_t j = start; j < synthonsSet.size(); ++j) {
       // Search them in the sorted order.
-      auto synthonNum = reaction.getOrderedSynthonNum(synthonSetOrder[i], j);
+      auto synthonNum =
+          reaction.getOrderedSynthonNum(synthonSetOrder[fragNum], j);
       if (passedScreensSet[synthonNum]) {
         if (const auto &[id, synthon] = synthonsSet[synthonNum];
-            !SubstructMatch(*synthon->getSearchMol(), *molFrags[i]).empty()) {
-          synthonsToUse[synthonSetOrder[i]][synthonNum] = true;
+            !SubstructMatch(*synthon->getSearchMol(), *molFrags[fragNum])
+                 .empty()) {
+          synthonsToUse[synthonSetOrder[fragNum]][synthonNum] = true;
           fragMatched = true;
         }
         if (const auto &[id, synthon] = synthonsSet[j];
-            !SubstructMatch(*synthon->getSearchMol(), *molFrags[i]).empty()) {
-          synthonsToUse[synthonSetOrder[i]][j] = true;
+            !SubstructMatch(*synthon->getSearchMol(), *molFrags[fragNum])
+                 .empty()) {
+          synthonsToUse[synthonSetOrder[fragNum]][j] = true;
           fragMatched = true;
         }
       }
