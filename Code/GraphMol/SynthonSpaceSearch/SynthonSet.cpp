@@ -49,21 +49,57 @@ const std::unique_ptr<ExplicitBitVect> &SynthonSet::getSubtractFP() const {
   return d_subtractFP;
 }
 
-const std::pair<std::string, Synthon *> SynthonSet::getOrderedSynthon(
+const std::pair<std::string, Synthon *>
+SynthonSet::getSubstructureOrderedSynthon(size_t setNum,
+                                          size_t synthonNum) const {
+  if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
+    return std::make_pair("", nullptr);
+  }
+  return d_synthons[setNum][d_substructureSearchOrders[setNum][synthonNum]];
+}
+
+const std::pair<std::string, Synthon *>
+SynthonSet::getFingerprintOrderedSynthon(size_t setNum,
+                                         size_t synthonNum) const {
+  if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
+    return std::make_pair("", nullptr);
+  }
+  return d_synthons[setNum][d_fingerprintSearchOrders[setNum][synthonNum]];
+}
+
+const std::pair<std::string, Synthon *> SynthonSet::getRascalOrderedSynthon(
     size_t setNum, size_t synthonNum) const {
   if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
     return std::make_pair("", nullptr);
   }
-  return d_synthons[setNum][d_synthonSearchOrders[setNum][synthonNum]];
+  return d_synthons[setNum][d_rascalSearchOrders[setNum][synthonNum]];
 }
 
-size_t SynthonSet::getOrderedSynthonNum(size_t setNum,
-                                        size_t synthonNum) const {
+size_t SynthonSet::getSubstructureOrderedSynthonNum(size_t setNum,
+                                                    size_t synthonNum) const {
   if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
     // Obviously this will be a very large number.
     return -1;
   }
-  return d_synthonSearchOrders[setNum][synthonNum];
+  return d_substructureSearchOrders[setNum][synthonNum];
+}
+
+size_t SynthonSet::getFingerprintOrderedSynthonNum(size_t setNum,
+                                                   size_t synthonNum) const {
+  if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
+    // Obviously this will be a very large number.
+    return -1;
+  }
+  return d_fingerprintSearchOrders[setNum][synthonNum];
+}
+
+size_t SynthonSet::getRascalOrderedSynthonNum(size_t setNum,
+                                              size_t synthonNum) const {
+  if (setNum >= d_synthons.size() || synthonNum >= d_synthons[setNum].size()) {
+    // Obviously this will be a very large number.
+    return -1;
+  }
+  return d_rascalSearchOrders[setNum][synthonNum];
 }
 
 namespace {
@@ -74,6 +110,16 @@ void writeBitSet(std::ostream &os, const boost::dynamic_bitset<> &bitset) {
       streamWrite(os, true);
     } else {
       streamWrite(os, false);
+    }
+  }
+}
+void writeSearchOrderSet(std::ostream &os,
+                         const std::vector<std::vector<size_t>> &orderSet) {
+  streamWrite(os, static_cast<std::uint64_t>(orderSet.size()));
+  for (unsigned int i = 0; i < orderSet.size(); ++i) {
+    streamWrite(os, static_cast<std::uint64_t>(orderSet[i].size()));
+    for (const auto v : orderSet[i]) {
+      streamWrite(os, static_cast<std::uint64_t>(v));
     }
   }
 }
@@ -117,6 +163,9 @@ void SynthonSet::writeToDBStream(std::ostream &os) const {
   for (const auto &c : d_numConnectors) {
     streamWrite(os, c);
   }
+  writeSearchOrderSet(os, d_substructureSearchOrders);
+  writeSearchOrderSet(os, d_fingerprintSearchOrders);
+  writeSearchOrderSet(os, d_rascalSearchOrders);
 }
 
 namespace {
@@ -128,6 +177,22 @@ void readBitSet(std::istream &is, boost::dynamic_bitset<> &bitset) {
   for (size_t i = 0; i < bsSize; ++i) {
     streamRead(is, s);
     bitset[i] = s;
+  }
+}
+void readSearchOrderSet(std::istream &is,
+                        std::vector<std::vector<size_t>> &orderSet) {
+  std::uint64_t s;
+  streamRead(is, s);
+  orderSet.reserve(s);
+  for (size_t i = 0; i < s; ++i) {
+    std::uint64_t t;
+    streamRead(is, t);
+    orderSet[i].reserve(t);
+    for (size_t j = 0; j < t; ++j) {
+      std::uint64_t u;
+      streamRead(is, u);
+      orderSet[i].push_back(u);
+    }
   }
 }
 }  // namespace
@@ -202,7 +267,13 @@ void SynthonSet::readFromDBStream(std::istream &is, const SynthonSpace &space,
     streamRead(is, d_numConnectors[i]);
   }
 
-  initializeSearchOrders();
+  if (version < 3020) {
+    initializeSearchOrders();
+  } else {
+    readSearchOrderSet(is, d_substructureSearchOrders);
+    readSearchOrderSet(is, d_fingerprintSearchOrders);
+    readSearchOrderSet(is, d_rascalSearchOrders);
+  }
 }
 
 void SynthonSet::enumerateToStream(std::ostream &os) const {
@@ -445,6 +516,11 @@ void SynthonSet::buildSynthonFingerprints(
           fpGen.getFingerprint(*synth.second->getSearchMol())));
     }
   }
+  d_fingerprintSearchOrders = orderSynthonsForSearch(
+      [](const Synthon *synth1, const Synthon *synth2) -> bool {
+        return synth1->getFP()->getNumOnBits() <
+               synth2->getFP()->getNumOnBits();
+      });
 }
 
 void SynthonSet::buildAddAndSubtractFPs(
@@ -718,17 +794,36 @@ std::vector<std::vector<std::unique_ptr<RWMol>>> SynthonSet::copySynthons()
 }
 
 void SynthonSet::initializeSearchOrders() {
-  d_synthonSearchOrders.resize(d_synthons.size());
-  for (size_t i = 0; i < d_synthons.size(); ++i) {
-    d_synthonSearchOrders[i].resize(d_synthons[i].size());
-    std::iota(d_synthonSearchOrders[i].begin(), d_synthonSearchOrders[i].end(),
-              0);
+  d_substructureSearchOrders = orderSynthonsForSearch(
+      [](const Synthon *synth1, const Synthon *synth2) -> bool {
+        return synth1->getSearchMol()->getNumAtoms() <
+               synth2->getSearchMol()->getNumAtoms();
+      });
+  d_rascalSearchOrders = orderSynthonsForSearch(
+      [](const Synthon *synth1, const Synthon *synth2) -> bool {
+        return synth1->getSearchMol()->getNumAtoms() +
+                   synth1->getSearchMol()->getNumBonds() <
+               synth2->getSearchMol()->getNumAtoms() +
+                   synth2->getSearchMol()->getNumBonds();
+      });
+  if (hasFingerprints() && d_fingerprintSearchOrders.empty()) {
+    d_fingerprintSearchOrders = orderSynthonsForSearch(
+        [](const Synthon *synth1, const Synthon *synth2) -> bool {
+          return synth1->getFP()->getNumOnBits() <
+                 synth2->getFP()->getNumOnBits();
+        });
   }
 }
 
-void SynthonSet::orderSynthonsForSearch(
+std::vector<std::vector<size_t>> SynthonSet::orderSynthonsForSearch(
     const std::function<bool(const Synthon *synth1, const Synthon *synth2)>
         &cmp) {
+  std::vector<std::vector<size_t>> synthonOrders(d_synthons.size());
+  for (size_t i = 0; i < d_synthons.size(); ++i) {
+    synthonOrders[i].resize(d_synthons[i].size());
+    std::iota(synthonOrders[i].begin(), synthonOrders[i].end(), 0);
+  }
+
   for (size_t i = 0; i < d_synthons.size(); ++i) {
     std::vector<std::pair<const Synthon *, size_t>> synthons(
         d_synthons[i].size());
@@ -740,46 +835,12 @@ void SynthonSet::orderSynthonsForSearch(
                           const std::pair<const Synthon *, size_t> &b) -> bool {
                         return cmp(a.first, b.first);
                       });
-    d_synthonSearchOrders[i].resize(synthons.size());
+    synthonOrders[i].resize(synthons.size());
     for (size_t j = 0; j < d_synthons[i].size(); ++j) {
-      d_synthonSearchOrders[i][j] = synthons[j].second;
+      synthonOrders[i][j] = synthons[j].second;
     }
   }
-#if 0
-  for (size_t i = 0; i < d_synthons.size(); ++i) {
-    std::vector<const Synthon *> synthons(d_synthons[i].size());
-    std::unordered_map<const Synthon *, size_t> synthonOrders(
-        d_synthons[i].size());
-    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
-      synthons[j] = d_synthons[i][j].second;
-      auto it = synthonOrders.insert(std::make_pair(synthons[j], j));
-      std::cout << j << " : " << synthons[j]->getSmiles() << " :: " << it.second
-                << " :: " << it.first->first->getSmiles()
-                << " :: " << it.first->second << " :: " << getId() << " : " << i
-                << std::endl;
-      // if (!it.second) {
-      //   exit(1);
-      // }
-    }
-    std::ranges::sort(synthons, cmp);
-    for (size_t j = 0; j < synthons.size(); ++j) {
-      auto it = synthonOrders.find(synthons[j]);
-      d_synthonSearchOrders[i][j] = it->second;
-    }
-    std::cout << getId() << " : " << i << std::endl;
-    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
-      std::cout << j << " : " << d_synthonSearchOrders[i][j] << " : "
-                << getOrderedSynthonNum(i, j) << " : "
-                << d_synthons[i][d_synthonSearchOrders[i][j]]
-                           .second->getSearchMol()
-                           ->getNumAtoms() +
-                       d_synthons[i][d_synthonSearchOrders[i][j]]
-                           .second->getSearchMol()
-                           ->getNumBonds()
-                << std::endl;
-    }
-  }
-#endif
+  return synthonOrders;
 }
 
 }  // namespace RDKit::SynthonSpaceSearch

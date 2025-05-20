@@ -284,9 +284,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   // Just do the lookup, and return nullptr if not found.
   Synthon *getSynthonFromPool(const std::string &smiles) const;
 
-  void orderSynthonsForSearch(
-      const std::function<bool(const Synthon *synthon1,
-                               const Synthon *synthon2)> &cmp);
+  void orderSynthonsForSearch();
 
  private:
   std::string d_fileName;
@@ -342,8 +340,9 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
  */
 RDKIT_SYNTHONSPACESEARCH_EXPORT void convertTextToDBFile(
     const std::string &inFilename, const std::string &outFilename,
-    bool &cancelled,
-    const FingerprintGenerator<std::uint64_t> *fpGen = nullptr);
+    bool &cancelled, const FingerprintGenerator<std::uint64_t> *fpGen = nullptr,
+    unsigned int numConfs = 0, double rmsThreshold = 1.0, int numThreads = 1,
+    int randomSeed = -1);
 
 /*!
  * Format an integer with spaces every 3 digits for ease

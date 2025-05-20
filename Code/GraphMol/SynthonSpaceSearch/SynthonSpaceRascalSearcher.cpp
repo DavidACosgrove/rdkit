@@ -31,14 +31,14 @@ size_t findSynthonSearchStart(unsigned int fragAtomsAndBonds,
                               double similarityCutoff, size_t synthonSetNum,
                               const SynthonSet &reaction) {
   unsigned int minAtomsAndBonds = similarityCutoff * fragAtomsAndBonds;
-  auto s = reaction.getOrderedSynthon(synthonSetNum, 0);
+  auto s = reaction.getRascalOrderedSynthon(synthonSetNum, 0);
 
   size_t first = 0;
   size_t last = reaction.getSynthons()[synthonSetNum].size();
   while (first < last) {
     size_t mid = first + (last - first) / 2;
-    const auto &synthSM =
-        reaction.getOrderedSynthon(synthonSetNum, mid).second->getSearchMol();
+    const auto &synthSM = reaction.getRascalOrderedSynthon(synthonSetNum, mid)
+                              .second->getSearchMol();
     if (synthSM->getNumAtoms() + synthSM->getNumBonds() < minAtomsAndBonds) {
       first = mid + 1;
     } else {
@@ -89,7 +89,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
       // Search them in the sorted order, stopping when the number of atoms and
       // bonds goes above maxAtomsAndBonds.
       auto synthonNum =
-          reaction.getOrderedSynthonNum(synthonSetOrder[fragNum], j);
+          reaction.getRascalOrderedSynthonNum(synthonSetOrder[fragNum], j);
       const auto &synthonSM = synthons[synthonNum].second->getSearchMol();
       if (synthonSM->getNumAtoms() + synthonSM->getNumBonds() >
           maxAtomsAndBonds) {
@@ -126,20 +126,6 @@ std::vector<std::vector<size_t>> getHitSynthons(
 
 void SynthonSpaceRascalSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
-  auto start = std::chrono::high_resolution_clock::now();
-  getSpace().orderSynthonsForSearch(
-      [](const Synthon *synth1, const Synthon *synth2) -> bool {
-        return synth1->getSearchMol()->getNumAtoms() +
-                   synth1->getSearchMol()->getNumBonds() <
-               synth2->getSearchMol()->getNumAtoms() +
-                   synth2->getSearchMol()->getNumBonds();
-      });
-  auto finish = std::chrono::high_resolution_clock::now();
-  auto elapsed =
-      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
-          .count();
-  std::cout << "Time to sort " << elapsed << " ms" << std::endl;
-
   for (const auto &fragSet : fragSets) {
     for (const auto &frag : fragSet) {
       unsigned int otf;

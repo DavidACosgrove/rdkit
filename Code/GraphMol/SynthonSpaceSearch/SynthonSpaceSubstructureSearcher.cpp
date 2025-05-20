@@ -162,9 +162,10 @@ std::vector<boost::dynamic_bitset<>> screenSynthonsWithFPs(
 size_t findSynthonSearchStart(unsigned int fragNumAtoms, size_t synthonSetNum,
                               const SynthonSet &reaction) {
   size_t first = 0;
-  if (fragNumAtoms <= reaction.getOrderedSynthon(synthonSetNum, first)
-                          .second->getSearchMol()
-                          ->getNumAtoms()) {
+  if (fragNumAtoms <=
+      reaction.getSubstructureOrderedSynthon(synthonSetNum, first)
+          .second->getSearchMol()
+          ->getNumAtoms()) {
     return first;
   }
   // This is the procedure that https://en.wikipedia.org/wiki/Binary_search
@@ -172,7 +173,7 @@ size_t findSynthonSearchStart(unsigned int fragNumAtoms, size_t synthonSetNum,
   size_t last = reaction.getSynthons()[synthonSetNum].size();
   while (first < last) {
     size_t mid = first + (last - first) / 2;
-    if (reaction.getOrderedSynthon(synthonSetNum, mid)
+    if (reaction.getSubstructureOrderedSynthon(synthonSetNum, mid)
             .second->getSearchMol()
             ->getNumAtoms() < fragNumAtoms) {
       first = mid + 1;
@@ -222,8 +223,8 @@ std::vector<std::vector<size_t>> getHitSynthons(
                                         synthonSetOrder[fragNum], reaction);
     for (size_t j = start; j < synthonsSet.size(); ++j) {
       // Search them in the sorted order.
-      auto synthonNum =
-          reaction.getOrderedSynthonNum(synthonSetOrder[fragNum], j);
+      auto synthonNum = reaction.getSubstructureOrderedSynthonNum(
+          synthonSetOrder[fragNum], j);
       if (passedScreensSet[synthonNum]) {
         if (const auto &[id, synthon] = synthonsSet[synthonNum];
             !SubstructMatch(*synthon->getSearchMol(), *molFrags[fragNum])

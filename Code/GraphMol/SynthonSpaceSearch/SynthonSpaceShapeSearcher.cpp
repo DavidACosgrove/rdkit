@@ -11,15 +11,15 @@
 #include <ranges>
 
 #include <../External/pubchem_shape/PubChemShape.hpp>
+#include <Geometry/Transform3D.h>
 #include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <GraphMol/MolTransforms/MolTransforms.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearchHelpers.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceShapeSearcher.h>
 #include <RDGeneral/ControlCHandler.h>
 #include <RDGeneral/RDThreads.h>
 #include <boost/dynamic_bitset/dynamic_bitset.hpp>
-
-#include <Geometry/point.h>
 
 namespace RDKit::SynthonSpaceSearch {
 
@@ -321,6 +321,9 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   }
   std::cout << "Generating  query shapes" << std::endl;
   dp_queryShapes = PrepareConformers(*queryMol, opts, 1.9);
+  std::cout << "query shift : " << dp_queryShapes->shift[0] << ", "
+            << dp_queryShapes->shift[1] << ", " << dp_queryShapes->shift[2]
+            << std::endl;
   // std::cout << "Query mol : " << MolToSmiles(getQuery())
   //           << " num confs = " << queryMolHs->getNumConformers() << " :: ";
   // for (auto a : getQuery().atoms()) {
@@ -426,6 +429,10 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
                                    dgParams);
   MolOps::removeHs(*static_cast<RWMol *>(hitMolHs.get()));
   std::vector<float> matrix(12, 0.0);
+  RDGeom::Transform3D qshift;
+  qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
+                                        -dp_queryShapes->shift[1],
+                                        -dp_queryShapes->shift[2]});
   // std::cout << "Verifying hit for " << MolToSmiles(hit) << std::endl;
   for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
     dp_queryShapes->setActiveConformer(i);
@@ -433,6 +440,7 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
       // std::cout << "Checking conf " << j << " against query conf " << i <<
       // std::endl;
       auto [st, ct] = AlignMolecule(*dp_queryShapes, *hitMolHs, matrix, j);
+      MolTransforms::transformConformer(hitMolHs->getConformer(), qshift);
       if (st + ct >= getParams().similarityCutoff) {
         // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
         // << std::endl;

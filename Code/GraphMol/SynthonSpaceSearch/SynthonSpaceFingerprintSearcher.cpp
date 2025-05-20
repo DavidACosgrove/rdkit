@@ -44,7 +44,7 @@ size_t findSynthonSearchStart(unsigned int numFragSetBits,
                               double similarityCutoff, size_t synthonSetNum,
                               const SynthonSet &reaction) {
   unsigned int minBits = similarityCutoff * numFragSetBits;
-  auto s = reaction.getOrderedSynthon(synthonSetNum, 0);
+  auto s = reaction.getFingerprintOrderedSynthon(synthonSetNum, 0);
 
   size_t first = 0;
   // This is the procedure that https://en.wikipedia.org/wiki/Binary_search
@@ -52,7 +52,7 @@ size_t findSynthonSearchStart(unsigned int numFragSetBits,
   size_t last = reaction.getSynthons()[synthonSetNum].size();
   while (first < last) {
     size_t mid = first + (last - first) / 2;
-    if (reaction.getOrderedSynthon(synthonSetNum, mid)
+    if (reaction.getFingerprintOrderedSynthon(synthonSetNum, mid)
             .second->getFP()
             ->getNumOnBits() < minBits) {
       first = mid + 1;
@@ -88,7 +88,8 @@ std::vector<std::vector<size_t>> getHitSynthons(
     for (size_t j = start; j < synthons.size(); j++) {
       // Search them in the sorted order, stopping when the number of bits
       // goes above maxBits.
-      auto synthonNum = reaction.getOrderedSynthonNum(synthonSetOrder[i], j);
+      auto synthonNum =
+          reaction.getFingerprintOrderedSynthonNum(synthonSetOrder[i], j);
 
       if (synthons[synthonNum].second->getFP()->getNumOnBits() > maxBits) {
         break;
@@ -157,16 +158,6 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
       getSpace().getSynthonFingerprintType() != d_fpGen.infoString()) {
     getSpace().buildSynthonFingerprints(d_fpGen);
   }
-  auto start = std::chrono::high_resolution_clock::now();
-  getSpace().orderSynthonsForSearch([](const Synthon *synth1,
-                                       const Synthon *synth2) -> bool {
-    return synth1->getFP()->getNumOnBits() < synth2->getFP()->getNumOnBits();
-  });
-  auto finish = std::chrono::high_resolution_clock::now();
-  auto elapsed =
-      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
-          .count();
-  std::cout << "Time to sort " << elapsed << " ms" << std::endl;
   if (ControlCHandler::getGotSignal()) {
     return;
   }

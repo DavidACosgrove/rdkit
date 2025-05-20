@@ -562,11 +562,6 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
       d_maxNumSynthons = reaction->getSynthons().size();
     }
   }
-  orderSynthonsForSearch(
-      [](const Synthon *synth1, const Synthon *synth2) -> bool {
-        return synth1->getOrigMol()->getNumAtoms() <
-               synth2->getOrigMol()->getNumAtoms();
-      });
 }
 
 void SynthonSpace::summarise(std::ostream &os) {
@@ -711,11 +706,9 @@ Synthon *SynthonSpace::getSynthonFromPool(const std::string &smiles) const {
   return nullptr;
 }
 
-void SynthonSpace::orderSynthonsForSearch(
-    const std::function<bool(const Synthon *synthon1, const Synthon *synthon2)>
-        &cmp) {
+void SynthonSpace::orderSynthonsForSearch() {
   for (auto &[name, reaction] : d_reactions) {
-    reaction->orderSynthonsForSearch(cmp);
+    reaction->initializeSearchOrders();
   }
 }
 
@@ -767,7 +760,9 @@ SearchResults SynthonSpace::extendedSearch(
 
 void convertTextToDBFile(const std::string &inFilename,
                          const std::string &outFilename, bool &cancelled,
-                         const FingerprintGenerator<std::uint64_t> *fpGen) {
+                         const FingerprintGenerator<std::uint64_t> *fpGen,
+                         unsigned int numConfs, double rmsThreshold,
+                         int numThreads, int randomSeed) {
   SynthonSpace synthSpace;
   cancelled = false;
   synthSpace.readTextFile(inFilename, cancelled);
@@ -781,6 +776,10 @@ void convertTextToDBFile(const std::string &inFilename,
       cancelled = true;
       return;
     }
+  }
+  if (numConfs) {
+    synthSpace.buildSynthonShapes(numConfs, rmsThreshold, numThreads,
+                                  randomSeed);
   }
   synthSpace.writeDBFile(outFilename);
 }

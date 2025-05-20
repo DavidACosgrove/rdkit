@@ -543,7 +543,7 @@ TEST_CASE("Tagrisso core") {
   params.timeOut = 0;
 
   auto results = synthonspace.shapeSearch(*tagrisso_pdb_core, params);
-  std::string outFileName = "tagrisso_hits.sdf";
+  std::string outFileName = "tagrisso_core_hits.sdf";
   std::cout << "Writing " << results.getHitMolecules().size() << " to "
             << outFileName;
   SDWriter writer(outFileName);

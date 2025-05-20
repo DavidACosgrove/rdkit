@@ -48,11 +48,19 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   // Return the synthon of the given number in the given set, based on
   // the sorted order rather than the input order.  Returns empty string
   // and nullptr if the numbers are invalid.
-  const std::pair<std::string, Synthon *> getOrderedSynthon(
+  const std::pair<std::string, Synthon *> getSubstructureOrderedSynthon(
+      size_t setNum, size_t synthonNum) const;
+  const std::pair<std::string, Synthon *> getFingerprintOrderedSynthon(
+      size_t setNum, size_t synthonNum) const;
+  const std::pair<std::string, Synthon *> getRascalOrderedSynthon(
       size_t setNum, size_t synthonNum) const;
   // Return the actual synthon number given its ordered number.  Returns
   // "-1" if the numbers are invalid.
-  size_t getOrderedSynthonNum(size_t setNum, size_t synthonNum) const;
+  size_t getSubstructureOrderedSynthonNum(size_t setNum,
+                                          size_t synthonNum) const;
+  size_t getFingerprintOrderedSynthonNum(size_t setNum,
+                                         size_t synthonNum) const;
+  size_t getRascalOrderedSynthonNum(size_t setNum, size_t synthonNum) const;
 
   const boost::dynamic_bitset<> &getConnectors() const { return d_connectors; }
   const std::vector<boost::dynamic_bitset<>> &getSynthonConnectorPatterns()
@@ -132,7 +140,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
       const std::vector<size_t> &synthNums) const;
 
   void initializeSearchOrders();
-  void orderSynthonsForSearch(
+  std::vector<std::vector<size_t>> orderSynthonsForSearch(
       const std::function<bool(const Synthon *synthon1,
                                const Synthon *synthon2)> &cmp);
 
@@ -147,13 +155,16 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   std::vector<std::vector<std::pair<std::string, Synthon *>>> d_synthons;
 
   // The order that the synthons should be searched in.  It will
-  // be the same shape as d_synthons, and defaults to the input
-  // order.  Most searches will sort it into a better order for
-  // ease of screening out of impossible matches between a
-  // query fragment and a synthon.  For example, the substructure
+  // be the same shape as d_synthons. The substructure
   // search will order in ascending size of number of heavy atoms,
-  // the fingerprint search in ascending number of set bits.
-  std::vector<std::vector<size_t>> d_synthonSearchOrders;
+  // the fingerprint search in ascending number of set bits and
+  // the Rascal search in ascending number of heavy atoms and bonds.
+  // This allows for a marginally more efficient search since either
+  // or both ends of a synthon set can be ignored as not being able
+  // to yield a match. There is no advantage in sorting the shapes.
+  std::vector<std::vector<size_t>> d_substructureSearchOrders;
+  std::vector<std::vector<size_t>> d_fingerprintSearchOrders;
+  std::vector<std::vector<size_t>> d_rascalSearchOrders;
 
   // MAX_CONNECTOR_NUM+1 bits showing which connectors are present in all the
   // synthon sets.
