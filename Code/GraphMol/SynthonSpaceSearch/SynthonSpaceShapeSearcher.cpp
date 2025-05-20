@@ -50,14 +50,6 @@ std::vector<std::vector<size_t>> getHitSynthons(
   std::vector<std::vector<std::pair<size_t, double>>> fragSims(
       reaction.getSynthons().size());
 
-  // std::cout << "getHitSynthons : ";
-  // for (auto so : synthonOrder) {
-  //   std::cout << so << "(" << reaction.getSynthons()[so].size() << ")" << "
-  //   ";
-  // }
-  // std::cout << " : " << similarityCutoff << " against " << fragShapes.size()
-  //           << " frags " << std::endl;
-
   // It makes sense to match fragments against synthon sets in order of
   // smallest synthon set first because if a fragment doesn't have a match
   // in a synthon set, the whole thing's a bust.  So if fragShapes[0] is matched
@@ -83,6 +75,10 @@ std::vector<std::vector<size_t>> getHitSynthons(
     // std::cout << fragNum << " vs " << synthonOrder[fragNum] << std::endl;
     // Get the smallest fragment volume.
     bool fragMatched = false;
+    // Because the combination score is the sum of 2 tanimotos, it's not
+    // possible to use the threshold to set upper and lower bonds on the
+    // search space as is done with fingerprints and Rascal similarity.
+    // We just need to plough through them in order.
     for (size_t j = 0; j < synthons.size(); j++) {
       // std::cout << "synthon " << j << " : " << synthons[j].first << " : "
       //           << synthons[j].second->getSmiles() << " vs frag "
@@ -302,31 +298,6 @@ void generateSomeShapes(
 
 void SynthonSpaceShapeSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
-  auto start = std::chrono::high_resolution_clock::now();
-  // Sort synthons in ascending order of largest total volume.  The shapes
-  // in each SearchShapeInput are sorted in descending order of total
-  // volume.
-  std::cout << "sorting" << std::endl;
-  getSpace().orderSynthonsForSearch([](const Synthon *synth1,
-                                       const Synthon *synth2) -> bool {
-    if (!synth1->getShapes() || synth1->getShapes()->hasNoShapes()) {
-      return false;
-    }
-    if (!synth2->getShapes() || synth2->getShapes()->hasNoShapes()) {
-      return true;
-    }
-    double val1 =
-        synth1->getShapes()->sovs.front() + synth1->getShapes()->sofs.front();
-    double val2 =
-        synth2->getShapes()->sovs.front() + synth2->getShapes()->sofs.front();
-    return val1 < val2;
-  });
-  auto finish = std::chrono::high_resolution_clock::now();
-  auto elapsed =
-      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
-          .count();
-  std::cout << "Time to sort " << elapsed << " ms" << std::endl;
-
   // Use the given conformers if there are some unless it looks like a
   // 2D molecule.
   ShapeInputOptions opts;
