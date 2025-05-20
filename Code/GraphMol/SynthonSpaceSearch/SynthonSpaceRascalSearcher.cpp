@@ -26,25 +26,79 @@ SynthonSpaceRascalSearcher::SynthonSpaceRascalSearcher(
 }
 
 namespace {
+
+size_t findSynthonSearchStart(unsigned int fragAtomsAndBonds,
+                              double similarityCutoff, size_t synthonSetNum,
+                              const SynthonSet &reaction) {
+  unsigned int minAtomsAndBonds = similarityCutoff * fragAtomsAndBonds;
+  auto s = reaction.getOrderedSynthon(synthonSetNum, 0);
+
+  size_t first = 0;
+  size_t last = reaction.getSynthons()[synthonSetNum].size();
+  while (first < last) {
+    size_t mid = first + (last - first) / 2;
+    const auto &synthSM =
+        reaction.getOrderedSynthon(synthonSetNum, mid).second->getSearchMol();
+    if (synthSM->getNumAtoms() + synthSM->getNumBonds() < minAtomsAndBonds) {
+      first = mid + 1;
+    } else {
+      last = mid;
+    }
+  }
+  return first;
+}
+
 std::vector<std::vector<size_t>> getHitSynthons(
     const std::vector<std::unique_ptr<ROMol>> &fragSet,
     const RascalMCES::RascalOptions &rascalOptions, const SynthonSet &reaction,
-    const std::vector<unsigned int> &synthonOrder) {
+    const std::vector<unsigned int> &synthonSetOrder) {
   std::vector<boost::dynamic_bitset<>> synthonsToUse;
   std::vector<std::vector<size_t>> retSynthons;
+
+  // It makes sense to match fragments against synthon sets in order of
+  // smallest synthon set first because if a fragment doesn't have a match
+  // in a synthon set, the whole thing's a bust.  So if fragShapes[0] is matched
+  // against 1000 synthons and then fragShapes[1] is matched against 10 synthons
+  // and doesn't match any of them, the first set of matches was wasted time.
+  std::vector<std::pair<unsigned int, size_t>> fragOrders(
+      synthonSetOrder.size());
+  for (size_t i = 0; i < synthonSetOrder.size(); i++) {
+    fragOrders[i].first = i;
+    fragOrders[i].second = reaction.getSynthons()[synthonSetOrder[i]].size();
+  }
+  std::ranges::sort(fragOrders, [](const auto &a, const auto &b) {
+    return a.second < b.second;
+  });
 
   synthonsToUse.reserve(reaction.getSynthons().size());
   for (const auto &synthonSet : reaction.getSynthons()) {
     synthonsToUse.emplace_back(synthonSet.size());
   }
-  for (size_t i = 0; i < synthonOrder.size(); i++) {
-    const auto &synthons = reaction.getSynthons()[synthonOrder[i]];
+  for (size_t i = 0; i < synthonSetOrder.size(); i++) {
+    const auto fragNum = fragOrders[i].first;
+    unsigned int fragAtomsAndBonds =
+        fragSet[fragNum]->getNumAtoms() + fragSet[fragNum]->getNumBonds();
+    unsigned int maxAtomsAndBonds =
+        1 + fragAtomsAndBonds / rascalOptions.similarityThreshold;
+    auto start = findSynthonSearchStart(fragAtomsAndBonds,
+                                        rascalOptions.similarityThreshold,
+                                        synthonSetOrder[fragNum], reaction);
+    const auto &synthons = reaction.getSynthons()[synthonSetOrder[fragNum]];
     bool fragMatched = false;
-    for (size_t j = 0; j < synthons.size(); j++) {
-      const auto rascalResults = RascalMCES::rascalMCES(
-          *fragSet[i], *synthons[j].second->getSearchMol(), rascalOptions);
+    for (size_t j = start; j < synthons.size(); j++) {
+      // Search them in the sorted order, stopping when the number of atoms and
+      // bonds goes above maxAtomsAndBonds.
+      auto synthonNum =
+          reaction.getOrderedSynthonNum(synthonSetOrder[fragNum], j);
+      const auto &synthonSM = synthons[synthonNum].second->getSearchMol();
+      if (synthonSM->getNumAtoms() + synthonSM->getNumBonds() >
+          maxAtomsAndBonds) {
+        break;
+      }
+      const auto rascalResults =
+          RascalMCES::rascalMCES(*fragSet[fragNum], *synthonSM, rascalOptions);
       if (!rascalResults.empty()) {
-        synthonsToUse[synthonOrder[i]][j] = true;
+        synthonsToUse[synthonSetOrder[fragNum]][synthonNum] = true;
         fragMatched = true;
       }
     }
@@ -72,6 +126,20 @@ std::vector<std::vector<size_t>> getHitSynthons(
 
 void SynthonSpaceRascalSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
+  auto start = std::chrono::high_resolution_clock::now();
+  getSpace().orderSynthonsForSearch(
+      [](const Synthon *synth1, const Synthon *synth2) -> bool {
+        return synth1->getSearchMol()->getNumAtoms() +
+                   synth1->getSearchMol()->getNumBonds() <
+               synth2->getSearchMol()->getNumAtoms() +
+                   synth2->getSearchMol()->getNumBonds();
+      });
+  auto finish = std::chrono::high_resolution_clock::now();
+  auto elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
+          .count();
+  std::cout << "Time to sort " << elapsed << " ms" << std::endl;
+
   for (const auto &fragSet : fragSets) {
     for (const auto &frag : fragSet) {
       unsigned int otf;

@@ -8,6 +8,7 @@
 //  of the RDKit source tree.
 //
 
+#include <GraphMol/Abbreviations/Abbreviations.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 #include <GraphMol/SynthonSpaceSearch/SearchShapeInput.h>
 #include <SimDivPickers/LeaderPicker.h>
@@ -175,7 +176,8 @@ std::unique_ptr<SearchShapeInput> PrepareConformers(
     double pruneThreshold) {
   PRECONDITION(
       mol.getNumConformers() > 0,
-      "SearchShapeInput object needs the molecule to have conformers.");
+      "SearchShapeInput object needs the molecule to have conformers.  " +
+          mol.getProp<std::string>("_Name") + "  " + MolToSmiles(mol));
   // std::cout << "Prepare shapes for " << MolToSmiles(mol) << " : ";
   // for (auto a : shapeOpts.atomSubset) {
   //   std::cout << a << " ";

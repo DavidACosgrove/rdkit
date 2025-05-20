@@ -94,22 +94,22 @@ TEST_CASE("Shape Small tests") {
   // good synthon match, the feature score is low because the nitrogen
   // acceptors don't align.  In the full molecule overlay, that is
   // compensated for by other things.
-  std::vector<size_t> expNumHits{3, 8, 1};
+  std::vector<size_t> expNumHits{3, 5, 1};
   unsigned int numConfs = 100;
   double rmsThreshold = 1.0;
   int numThreads = 1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    if (i != 2) {
-      continue;
-    }
+    // if (i != 0) {
+    // continue;
+    // }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
     synthonspace.buildSynthonShapes(numConfs, rmsThreshold, numThreads);
 
     SynthonSpaceSearchParams params;
-    params.similarityCutoff = 1.4;
+    params.similarityCutoff = 1.6;
     params.numConformers = numConfs;
     params.numThreads = numThreads;
     params.confRMSThreshold = rmsThreshold;
@@ -195,4 +195,22 @@ TEST_CASE("Shape DB Writer") {
       }
     }
   }
+}
+
+TEST_CASE("Build conformer DB") {
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
+  std::string libName =
+      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567.csv";
+  bool cancelled = false;
+  SynthonSpace synthonspace;
+  synthonspace.readTextFile(libName, cancelled);
+  std::cout << "Number of reactions " << synthonspace.getNumReactions()
+            << std::endl;
+  std::cout << "Number of products : " << synthonspace.getNumProducts()
+            << std::endl;
+  synthonspace.buildSynthonShapes(100, 1.0, -1);
+  auto spaceName =
+      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
+  synthonspace.writeDBFile(spaceName);
 }

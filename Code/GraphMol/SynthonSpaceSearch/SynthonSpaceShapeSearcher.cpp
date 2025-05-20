@@ -44,7 +44,7 @@ namespace {
 std::vector<std::vector<size_t>> getHitSynthons(
     const std::vector<SearchShapeInput *> &fragShapes,
     const double similarityCutoff, const SynthonSet &reaction,
-    const std::vector<unsigned int> &synthonOrder) {
+    const std::vector<unsigned int> &synthonSetOrder) {
   std::vector<boost::dynamic_bitset<>> synthonsToUse;
   std::vector<std::vector<size_t>> retSynthons;
   std::vector<std::vector<std::pair<size_t, double>>> fragSims(
@@ -63,10 +63,11 @@ std::vector<std::vector<size_t>> getHitSynthons(
   // in a synthon set, the whole thing's a bust.  So if fragShapes[0] is matched
   // against 1000 synthons and then fragShapes[1] is matched against 10 synthons
   // and doesn't match any of them, the first set of matches was wasted time.
-  std::vector<std::pair<unsigned int, size_t>> fragOrders(synthonOrder.size());
-  for (size_t i = 0; i < synthonOrder.size(); i++) {
+  std::vector<std::pair<unsigned int, size_t>> fragOrders(
+      synthonSetOrder.size());
+  for (size_t i = 0; i < synthonSetOrder.size(); i++) {
     fragOrders[i].first = i;
-    fragOrders[i].second = reaction.getSynthons()[synthonOrder[i]].size();
+    fragOrders[i].second = reaction.getSynthons()[synthonSetOrder[i]].size();
   }
   std::ranges::sort(fragOrders, [](const auto &a, const auto &b) {
     return a.second < b.second;
@@ -76,23 +77,29 @@ std::vector<std::vector<size_t>> getHitSynthons(
     synthonsToUse.emplace_back(synthonSet.size());
   }
   std::vector<float> matrix(12, 0.0);
-  for (size_t i = 0; i < synthonOrder.size(); i++) {
+  for (size_t i = 0; i < synthonSetOrder.size(); i++) {
     const auto fragNum = fragOrders[i].first;
-    const auto &synthons = reaction.getSynthons()[synthonOrder[fragNum]];
+    const auto &synthons = reaction.getSynthons()[synthonSetOrder[fragNum]];
     // std::cout << fragNum << " vs " << synthonOrder[fragNum] << std::endl;
+    // Get the smallest fragment volume.
     bool fragMatched = false;
     for (size_t j = 0; j < synthons.size(); j++) {
       // std::cout << "synthon " << j << " : " << synthons[j].first << " : "
       //           << synthons[j].second->getSmiles() << " vs frag "
       //           << synthonOrder[i] << std::endl;
+      if (!synthons[j].second->getShapes() ||
+          synthons[j].second->getShapes()->hasNoShapes()) {
+        continue;
+      }
       if (const auto sim = BestSimilarity(*fragShapes[fragNum],
                                           *synthons[j].second->getShapes(),
                                           matrix, similarityCutoff);
           sim.first + sim.second >= similarityCutoff) {
         // std::cout << "sim : " << sim.first + sim.second << " : " << sim.first
         // << ", " << sim.second << std::endl;
-        synthonsToUse[synthonOrder[fragNum]][j] = true;
-        fragSims[synthonOrder[fragNum]].emplace_back(j, sim.first + sim.second);
+        synthonsToUse[synthonSetOrder[fragNum]][j] = true;
+        fragSims[synthonSetOrder[fragNum]].emplace_back(j,
+                                                        sim.first + sim.second);
         fragMatched = true;
       }
     }
@@ -295,17 +302,54 @@ void generateSomeShapes(
 
 void SynthonSpaceShapeSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
-  auto queryMolHs = std::unique_ptr<ROMol>(MolOps::addHs(getQuery()));
-  auto dgParams = DGeomHelpers::ETKDGv3;
-  dgParams.numThreads = getParams().numThreads;
-  dgParams.pruneRmsThresh = getParams().confRMSThreshold;
-  dgParams.randomSeed = getParams().randomSeed;
-  // Build shapes for multiple conformations of the query molecule.
-  DGeomHelpers::EmbedMultipleConfs(*queryMolHs, getParams().numConformers,
-                                   dgParams);
-  MolOps::removeHs(*static_cast<RWMol *>(queryMolHs.get()));
+  auto start = std::chrono::high_resolution_clock::now();
+  // Sort synthons in ascending order of largest total volume.  The shapes
+  // in each SearchShapeInput are sorted in descending order of total
+  // volume.
+  std::cout << "sorting" << std::endl;
+  getSpace().orderSynthonsForSearch([](const Synthon *synth1,
+                                       const Synthon *synth2) -> bool {
+    if (!synth1->getShapes() || synth1->getShapes()->hasNoShapes()) {
+      return false;
+    }
+    if (!synth2->getShapes() || synth2->getShapes()->hasNoShapes()) {
+      return true;
+    }
+    double val1 =
+        synth1->getShapes()->sovs.front() + synth1->getShapes()->sofs.front();
+    double val2 =
+        synth2->getShapes()->sovs.front() + synth2->getShapes()->sofs.front();
+    return val1 < val2;
+  });
+  auto finish = std::chrono::high_resolution_clock::now();
+  auto elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
+          .count();
+  std::cout << "Time to sort " << elapsed << " ms" << std::endl;
+
+  // Use the given conformers if there are some unless it looks like a
+  // 2D molecule.
   ShapeInputOptions opts;
-  dp_queryShapes = PrepareConformers(*queryMolHs, opts, 1.9);
+  auto queryMol = std::unique_ptr<RWMol>(new RWMol(getQuery()));
+  if (!queryMol->getNumConformers() || !queryMol->getConformer().is3D()) {
+    std::cout << "Making query conformers" << std::endl;
+    MolOps::addHs(*queryMol);
+    auto dgParams = DGeomHelpers::ETKDGv3;
+    dgParams.numThreads = getParams().numThreads;
+    dgParams.pruneRmsThresh = getParams().confRMSThreshold;
+    dgParams.randomSeed = getParams().randomSeed;
+    // Build shapes for multiple conformations of the query molecule.
+    auto cids = DGeomHelpers::EmbedMultipleConfs(
+        *queryMol, getParams().numConformers, dgParams);
+    if (cids.empty()) {
+      BOOST_LOG(rdWarningLog)
+          << "Couldn't generate conformers for query molecule." << std::endl;
+      return;
+    }
+    MolOps::removeHs(*static_cast<RWMol *>(queryMol.get()));
+  }
+  std::cout << "Generating  query shapes" << std::endl;
+  dp_queryShapes = PrepareConformers(*queryMol, opts, 1.9);
   // std::cout << "Query mol : " << MolToSmiles(getQuery())
   //           << " num confs = " << queryMolHs->getNumConformers() << " :: ";
   // for (auto a : getQuery().atoms()) {
@@ -325,6 +369,7 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   }
 
   // Compute ShapeSets for the fragments
+  std::cout << "Making shapes for fragments" << std::endl;
   d_fragShapesPool.resize(fragSmiToFrag.size());
   std::vector<ROMol *> fragsForShape;
   fragsForShape.reserve(fragSmiToFrag.size());
@@ -342,14 +387,14 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
     for (unsigned int i = 0U; i < numThreads; ++i, start += eachThread) {
       threads.push_back(std::thread(generateSomeShapes, std::ref(fragsForShape),
                                     start, start + eachThread,
-                                    std::ref(*queryMolHs), 1.9,
+                                    std::ref(*queryMol), 1.9,
                                     std::ref(d_fragShapesPool)));
     }
     for (auto &t : threads) {
       t.join();
     }
   } else {
-    generateSomeShapes(fragsForShape, 0, fragsForShape.size(), *queryMolHs, 1.9,
+    generateSomeShapes(fragsForShape, 0, fragsForShape.size(), *queryMol, 1.9,
                        d_fragShapesPool);
   }
   // Use the pooled ShapeSets to populate the vectors for each fragSet
@@ -364,6 +409,7 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   std::ranges::sort(d_fragShapes, [](const auto &p1, const auto &p2) -> bool {
     return p1.first > p2.first;
   });
+  std::cout << "Done extra setup" << std::endl;
 }
 
 bool SynthonSpaceShapeSearcher::quickVerify(
@@ -413,13 +459,15 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
     dp_queryShapes->setActiveConformer(i);
     for (unsigned int j = 0u; j < hitMolHs->getNumConformers(); ++j) {
-      // std::cout << "Checking conf " << i << std::endl;
+      // std::cout << "Checking conf " << j << " against query conf " << i <<
+      // std::endl;
       auto [st, ct] = AlignMolecule(*dp_queryShapes, *hitMolHs, matrix, j);
       if (st + ct >= getParams().similarityCutoff) {
         // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
         // << std::endl;
         hit.setProp<double>("Similarity", st + ct);
-        hit.addConformer(new Conformer(hitMolHs->getConformer(i)));
+        hit.setProp<unsigned int>("Query_Conformer", i);
+        hit.addConformer(new Conformer(hitMolHs->getConformer(j)));
         return true;
       }
     }

@@ -243,21 +243,29 @@ std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
   MolzipParams mzparams;
   mzparams.label = MolzipLabel::Isotope;
 
+  const auto &synths = reaction.getSynthons();
   for (size_t i = 0; i < synthons[longVecNum].size(); ++i) {
     auto combMol = std::make_unique<ROMol>();
+    std::string molName = "";
     for (size_t j = 0; j < synthons.size(); ++j) {
       if (j == longVecNum) {
         combMol.reset(combineMols(*combMol, *synthons[j][i]));
       } else {
         combMol.reset(combineMols(*combMol, *synthons[j].front()));
       }
+      std::string sep = j ? ";" : "";
+      if (j == longVecNum) {
+        molName += sep + synths[j][i].first;
+      } else {
+        molName += sep + synths[j].front().first;
+      }
     }
+    combMol->setProp<std::string>(common_properties::_Name, molName);
     try {
       auto sampleMol = molzip(*combMol, mzparams);
       MolOps::sanitizeMol(*dynamic_cast<RWMol *>(sampleMol.get()));
       sampleMolecules.push_back(std::move(sampleMol));
     } catch (std::exception &e) {
-      const auto &synths = reaction.getSynthons();
       std::string msg("Error:: in reaction " + reaction.getId() +
                       " :: building molecule from synthons :");
       for (size_t j = 0; j < synthons.size(); ++j) {
@@ -553,7 +561,19 @@ void makeShapesFromMol(
     }
     auto sampleMolHs =
         std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[molNum]));
-    DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
+    auto cids =
+        DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
+    if (cids.empty()) {
+      BOOST_LOG(rdWarningLog)
+          << "No conformers generated for sample molecule "
+          << sampleMolHs->getProp<std::string>(common_properties::_Name)
+          << " : " << MolToSmiles(*sampleMols[molNum])
+          << " when generating conformers for synthon "
+          << synthons[synthSetNum][molNum].first << " ("
+          << synthons[synthSetNum][molNum].second->getSmiles() << ")."
+          << std::endl;
+      continue;
+    }
     MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
     std::vector<unsigned int> splitBonds;
     std::vector<unsigned int> fragAtoms;
@@ -710,19 +730,56 @@ void SynthonSet::orderSynthonsForSearch(
     const std::function<bool(const Synthon *synth1, const Synthon *synth2)>
         &cmp) {
   for (size_t i = 0; i < d_synthons.size(); ++i) {
+    std::vector<std::pair<const Synthon *, size_t>> synthons(
+        d_synthons[i].size());
+    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
+      synthons[j] = std::make_pair(d_synthons[i][j].second, j);
+    }
+    std::ranges::sort(synthons,
+                      [&](const std::pair<const Synthon *, size_t> &a,
+                          const std::pair<const Synthon *, size_t> &b) -> bool {
+                        return cmp(a.first, b.first);
+                      });
+    d_synthonSearchOrders[i].resize(synthons.size());
+    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
+      d_synthonSearchOrders[i][j] = synthons[j].second;
+    }
+  }
+#if 0
+  for (size_t i = 0; i < d_synthons.size(); ++i) {
     std::vector<const Synthon *> synthons(d_synthons[i].size());
     std::unordered_map<const Synthon *, size_t> synthonOrders(
         d_synthons[i].size());
     for (size_t j = 0; j < d_synthons[i].size(); ++j) {
       synthons[j] = d_synthons[i][j].second;
-      synthonOrders.insert(std::make_pair(synthons[j], j));
+      auto it = synthonOrders.insert(std::make_pair(synthons[j], j));
+      std::cout << j << " : " << synthons[j]->getSmiles() << " :: " << it.second
+                << " :: " << it.first->first->getSmiles()
+                << " :: " << it.first->second << " :: " << getId() << " : " << i
+                << std::endl;
+      // if (!it.second) {
+      //   exit(1);
+      // }
     }
     std::ranges::sort(synthons, cmp);
     for (size_t j = 0; j < synthons.size(); ++j) {
       auto it = synthonOrders.find(synthons[j]);
       d_synthonSearchOrders[i][j] = it->second;
     }
+    std::cout << getId() << " : " << i << std::endl;
+    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
+      std::cout << j << " : " << d_synthonSearchOrders[i][j] << " : "
+                << getOrderedSynthonNum(i, j) << " : "
+                << d_synthons[i][d_synthonSearchOrders[i][j]]
+                           .second->getSearchMol()
+                           ->getNumAtoms() +
+                       d_synthons[i][d_synthonSearchOrders[i][j]]
+                           .second->getSearchMol()
+                           ->getNumBonds()
+                << std::endl;
+    }
   }
+#endif
 }
 
 }  // namespace RDKit::SynthonSpaceSearch

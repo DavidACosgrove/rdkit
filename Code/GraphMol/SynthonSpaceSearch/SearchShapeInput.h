@@ -29,6 +29,8 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SearchShapeInput : ShapeInput {
   SearchShapeInput &operator=(SearchShapeInput &&other) = default;
   ~SearchShapeInput() override = default;
 
+  bool hasNoShapes() const { return confCoords.empty(); }
+
   // Make a single ShapeInput from the given conformer number.
   // If confNum is out of range, use the first conformer.
   ShapeInput makeSingleShape(unsigned int confNum) const;

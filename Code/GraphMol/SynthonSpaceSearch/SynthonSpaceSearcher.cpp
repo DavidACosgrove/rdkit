@@ -65,7 +65,7 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
     return SearchResults{std::move(results), 0ULL, timedOut,
                          ControlCHandler::getGotSignal()};
   }
-  // std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
+  std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
   extraSearchSetup(fragments);
   // std::cout << "Done extra search setup" << std::endl;
   if (ControlCHandler::getGotSignal()) {

@@ -43,19 +43,8 @@ namespace {
 size_t findSynthonSearchStart(unsigned int numFragSetBits,
                               double similarityCutoff, size_t synthonSetNum,
                               const SynthonSet &reaction) {
-  // std::cout << "find synthon start num atoms " << fragNumAtoms << " set num "
-  //           << synthonSetNum << std::endl;
   unsigned int minBits = similarityCutoff * numFragSetBits;
   auto s = reaction.getOrderedSynthon(synthonSetNum, 0);
-  // std::cout << synthonSetNum << ", " << 0 << " : " << s.first << ", "
-  //           << s.second->getSmiles() << " : "
-  //           << s.second->getFP()->getNumOnBits() << std::endl;
-  // s = reaction.getOrderedSynthon(
-  //     synthonSetNum, reaction.getSynthons()[synthonSetNum].size() - 1);
-  // std::cout << synthonSetNum << ", "
-  //           << reaction.getSynthons()[synthonSetNum].size() - 1 << " : "
-  //           << s.first << ", " << s.second->getSmiles() << " : "
-  //           << s.second->getFP()->getNumOnBits() << std::endl;
 
   size_t first = 0;
   // This is the procedure that https://en.wikipedia.org/wiki/Binary_search
@@ -90,14 +79,10 @@ std::vector<std::vector<size_t>> getHitSynthons(
     synthonsToUse.emplace_back(synthonSet.size());
   }
   for (size_t i = 0; i < synthonSetOrder.size(); i++) {
-    // unsigned int minBits = similarityCutoff * fragFPs[i]->getNumOnBits();
     unsigned int maxBits = 1 + fragFPs[i]->getNumOnBits() / similarityCutoff;
     auto start =
         findSynthonSearchStart(fragFPs[i]->getNumOnBits(), similarityCutoff,
                                synthonSetOrder[i], reaction);
-    // std::cout << fragFPs[i]->getNumOnBits() << " set bits for min " <<
-    // minBits
-    // << " and max " << maxBits << " for start " << start << std::endl;
     const auto &synthons = reaction.getSynthons()[synthonSetOrder[i]];
     bool fragMatched = false;
     for (size_t j = start; j < synthons.size(); j++) {
@@ -172,7 +157,6 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
       getSpace().getSynthonFingerprintType() != d_fpGen.infoString()) {
     getSpace().buildSynthonFingerprints(d_fpGen);
   }
-  std::cout << "Sorting fingerprints" << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
   getSpace().orderSynthonsForSearch([](const Synthon *synth1,
                                        const Synthon *synth2) -> bool {
