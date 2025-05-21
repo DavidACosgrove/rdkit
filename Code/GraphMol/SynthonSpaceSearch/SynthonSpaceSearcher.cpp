@@ -308,8 +308,7 @@ bool SynthonSpaceSearcher::quickVerify(
     }
     if (numHeavyAtoms < getParams().minHitHeavyAtoms ||
         (getParams().maxHitHeavyAtoms > -1 &&
-         numHeavyAtoms >
-             static_cast<unsigned int>(getParams().maxHitHeavyAtoms))) {
+         std::cmp_greater(numHeavyAtoms, getParams().maxHitHeavyAtoms))) {
       return false;
     }
   }
@@ -336,8 +335,7 @@ bool SynthonSpaceSearcher::quickVerify(
     // the hit, numExcDummies the lower bound.
     if (numChiralAtoms < getParams().minHitChiralAtoms ||
         (getParams().maxHitChiralAtoms > -1 &&
-         numExcDummies >
-             static_cast<unsigned int>(getParams().maxHitChiralAtoms))) {
+         std::cmp_greater(numExcDummies, getParams().maxHitChiralAtoms))) {
       return false;
     }
   }
@@ -351,8 +349,7 @@ bool SynthonSpaceSearcher::verifyHit(ROMol &mol) const {
     auto numChiralAtoms = details::countChiralAtoms(mol);
     if (numChiralAtoms < getParams().minHitChiralAtoms ||
         (getParams().maxHitChiralAtoms > -1 &&
-         numChiralAtoms >
-             static_cast<unsigned int>(getParams().maxHitChiralAtoms))) {
+         std::cmp_greater(numChiralAtoms, getParams().maxHitChiralAtoms))) {
       return false;
     }
   }
@@ -470,7 +467,7 @@ void SynthonSpaceSearcher::buildAllHits(
     // process the synthons
     while (stepper.d_currState[0] != numSynthons[0]) {
       toTry.emplace_back(hitset.get(), stepper.d_currState);
-      if (toTry.size() == static_cast<size_t>(d_params.toTryChunkSize)) {
+      if (std::cmp_equal(toTry.size(), d_params.toTryChunkSize)) {
         std::vector<std::unique_ptr<ROMol>> partResults;
         processToTrySet(toTry, endTime, partResults);
         results.insert(results.end(),
@@ -499,8 +496,8 @@ void SynthonSpaceSearcher::buildAllHits(
 
   sortHits(results);
   // The multi-threaded versions might produce more hits than requested.
-  if (d_params.maxHits != -1 && static_cast<std::int64_t>(results.size()) >
-                                    d_params.maxHits + d_params.hitStart) {
+  if (d_params.maxHits != -1 &&
+      std::cmp_greater(results.size(), d_params.maxHits + d_params.hitStart)) {
     results.erase(results.begin() + d_params.maxHits + d_params.hitStart,
                   results.end());
   }
@@ -510,7 +507,7 @@ void SynthonSpaceSearcher::buildAllHits(
   // no way of knowing whether it should be kept plus the threading makes it
   // very complicated to do otherwise.
   if (d_params.hitStart) {
-    if (d_params.hitStart < static_cast<std::int64_t>(results.size())) {
+    if (std::cmp_less(d_params.hitStart, results.size())) {
       std::for_each(results.begin(), results.begin() + d_params.hitStart,
                     [](std::unique_ptr<ROMol> &m) { m.reset(); });
       results.erase(std::remove_if(results.begin(), results.end(),

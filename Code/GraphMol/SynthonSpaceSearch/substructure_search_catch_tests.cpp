@@ -726,6 +726,7 @@ F[2*]	277310376-742385dd	2	fake-chiral
   auto res2 = space.substructureSearch(*mol2);
   CHECK(res2.getHitMolecules().size() == 2);
 }
+
 TEST_CASE("Chiral substructure search") {
   SynthonSpace space;
   std::istringstream iss(R"(SMILES	synton_id	synton#	reaction_id
@@ -753,6 +754,9 @@ F[2*]	277310376-742385dd	2	fake-chiral
   sparams.minHitChiralAtoms = 0;
   sparams.maxHitChiralAtoms = 1;
   auto res3 = space.substructureSearch(*qmol, mparams, sparams);
+  for (const auto &r : res3.getHitMolecules()) {
+    std::cout << MolToSmiles(*r) << std::endl;
+  }
   REQUIRE(res3.getHitMolecules().size() == 1);
   CHECK(MolToSmiles(*res3.getHitMolecules().front()) == "NC(F)(F)[C@H](O)F");
 
