@@ -878,6 +878,9 @@ unsigned int countChiralAtoms(ROMol &mol, unsigned int *numExcDummies) {
     *numExcDummies = 0;
   }
   for (auto &si : sis) {
+    if (si.type != Chirality::StereoType::Atom_Tetrahedral) {
+      continue;
+    }
     ++numChiralAtoms;
     if (numExcDummies) {
       auto atom = mol.getAtomWithIdx(si.centeredOn);
@@ -902,7 +905,7 @@ void pruneShapes(ShapeSet &shapeSet, double simThreshold) {
   }
 
   class DistFunctor {
-  public:
+   public:
     DistFunctor(const ShapeSet &shapes) : d_shapes(shapes) {
       d_matrix = std::vector<float>(12, 0.0);
     }

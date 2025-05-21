@@ -72,7 +72,6 @@ std::vector<std::vector<size_t>> getHitSynthons(
   for (size_t i = 0; i < synthonSetOrder.size(); i++) {
     const auto fragNum = fragOrders[i].first;
     const auto &synthons = reaction.getSynthons()[synthonSetOrder[fragNum]];
-    // std::cout << fragNum << " vs " << synthonOrder[fragNum] << std::endl;
     // Get the smallest fragment volume.
     bool fragMatched = false;
     // Because the combination score is the sum of 2 tanimotos, it's not
@@ -80,9 +79,6 @@ std::vector<std::vector<size_t>> getHitSynthons(
     // search space as is done with fingerprints and Rascal similarity.
     // We just need to plough through them in order.
     for (size_t j = 0; j < synthons.size(); j++) {
-      // std::cout << "synthon " << j << " : " << synthons[j].first << " : "
-      //           << synthons[j].second->getSmiles() << " vs frag "
-      //           << synthonOrder[i] << std::endl;
       if (!synthons[j].second->getShapes() ||
           synthons[j].second->getShapes()->hasNoShapes()) {
         continue;
@@ -91,8 +87,6 @@ std::vector<std::vector<size_t>> getHitSynthons(
                                           *synthons[j].second->getShapes(),
                                           matrix, similarityCutoff);
           sim.first + sim.second >= similarityCutoff) {
-        // std::cout << "sim : " << sim.first + sim.second << " : " << sim.first
-        // << ", " << sim.second << std::endl;
         synthonsToUse[synthonSetOrder[fragNum]][j] = true;
         fragSims[synthonSetOrder[fragNum]].emplace_back(j,
                                                         sim.first + sim.second);
@@ -100,7 +94,6 @@ std::vector<std::vector<size_t>> getHitSynthons(
       }
     }
     if (!fragMatched) {
-      // std::cout << "No matches" << std::endl;
       // No synthons matched this fragment, so the whole fragment set is a
       // bust.
       return retSynthons;
@@ -128,6 +121,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
           [](const auto &a, const auto &b) { return a.second > b.second; });
     }
     retSynthons[i].clear();
+    retSynthons[i].reserve(fragSims[i].size());
     std::ranges::transform(fragSims[i], std::back_inserter(retSynthons[i]),
                            [](const auto &fs) { return fs.first; });
   }
@@ -321,6 +315,8 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   }
   std::cout << "Generating  query shapes" << std::endl;
   dp_queryShapes = PrepareConformers(*queryMol, opts, 1.9);
+  std::cout << "Number of query shapes : " << dp_queryShapes->confCoords.size()
+            << std::endl;
   std::cout << "query shift : " << dp_queryShapes->shift[0] << ", "
             << dp_queryShapes->shift[1] << ", " << dp_queryShapes->shift[2]
             << std::endl;
@@ -440,7 +436,7 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
       // std::cout << "Checking conf " << j << " against query conf " << i <<
       // std::endl;
       auto [st, ct] = AlignMolecule(*dp_queryShapes, *hitMolHs, matrix, j);
-      MolTransforms::transformConformer(hitMolHs->getConformer(), qshift);
+      MolTransforms::transformConformer(hitMolHs->getConformer(j), qshift);
       if (st + ct >= getParams().similarityCutoff) {
         // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
         // << std::endl;

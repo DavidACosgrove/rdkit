@@ -292,7 +292,7 @@ void SynthonSet::enumerateToStream(std::ostream &os) const {
 
 void SynthonSet::addSynthon(const int synthonSetNum, Synthon *newSynthon,
                             const std::string &synthonId) {
-  if (static_cast<size_t>(synthonSetNum) >= d_synthons.size()) {
+  if (std::cmp_greater_equal(synthonSetNum, d_synthons.size())) {
     d_synthons.resize(synthonSetNum + 1);
   }
   d_synthons[synthonSetNum].push_back(std::make_pair(synthonId, newSynthon));
@@ -745,6 +745,10 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
         buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
     makeShapesFromMols(sampleMols, synthSetNum, dgParams, numConfs, numThreads,
                        d_synthons);
+    for (const auto &synthon : d_synthons[synthSetNum]) {
+      std::cout << synthSetNum << " : " << synthon.first << " : "
+                << synthon.second->getShapes()->confCoords.size() << std::endl;
+    }
     if (ControlCHandler::getGotSignal()) {
       return;
     }
