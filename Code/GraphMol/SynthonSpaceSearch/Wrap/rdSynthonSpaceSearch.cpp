@@ -69,7 +69,8 @@ SynthonSpaceSearch::SearchResults substructureSearch_helper1(
     results = self.substructureSearch(query, smParams, params);
   }
   if (results.getCancelled()) {
-    throw_runtime_error("SubstructureSearch cancelled");
+    PyErr_SetString(PyExc_KeyboardInterrupt, "SubstructureSearch cancelled");
+    boost::python::throw_error_already_set();
   }
   return results;
 }
@@ -93,7 +94,8 @@ SynthonSpaceSearch::SearchResults substructureSearch_helper2(
     results = self.substructureSearch(query, smParams, params);
   }
   if (results.getCancelled()) {
-    throw_runtime_error("SubstructureSearch cancelled");
+    PyErr_SetString(PyExc_KeyboardInterrupt, "SubstructureSearch cancelled");
+    boost::python::throw_error_already_set();
   }
   return results;
 }
@@ -116,7 +118,8 @@ SynthonSpaceSearch::SearchResults fingerprintSearch_helper(
     results = self.fingerprintSearch(query, *fpGen, params);
   }
   if (results.getCancelled()) {
-    throw_runtime_error("FingerprintSearch cancelled");
+    PyErr_SetString(PyExc_KeyboardInterrupt, "FingerprintSearch cancelled");
+    boost::python::throw_error_already_set();
   }
   return results;
 }
@@ -137,7 +140,8 @@ SynthonSpaceSearch::SearchResults rascalSearch_helper(
     results = self.rascalSearch(query, rascalOptions, params);
   }
   if (results.getCancelled()) {
-    throw_runtime_error("RascalSearch cancelled");
+    PyErr_SetString(PyExc_KeyboardInterrupt, "RascalSearch cancelled");
+    boost::python::throw_error_already_set();
   }
   return results;
 }
@@ -156,7 +160,8 @@ SynthonSpaceSearch::SearchResults shapeSearch_helper(
     results = self.shapeSearch(query, params);
   }
   if (results.getCancelled()) {
-    throw_runtime_error("ShapeSearch cancelled");
+    PyErr_SetString(PyExc_KeyboardInterrupt, "ShapeSearch cancelled");
+    boost::python::throw_error_already_set();
   }
   return results;
 }
@@ -292,7 +297,7 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           "maxHitChiralAtoms",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::maxHitChiralAtoms,
           "Maximum number of chiral atoms in a hit.  Default=-1 means no maximum.")
-  .def_readwrite(
+      .def_readwrite(
           "numConformers",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::numConformers,
           "When doing a shape search, the number of conformers to generate"
