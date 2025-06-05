@@ -1092,10 +1092,7 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
     }
     pruneShapes(*allShapes, shapeParams.shapeSimThreshold);
     sampleMols[molNum]->d_synthon->setShapes(std::move(allShapes));
-    float progress = 100.0 * static_cast<float>(molNum) /
-                     static_cast<float>(sampleMols.size());
-    // std::cout << progress << std::endl;
-    pbar.update(progress);
+    pbar.increment();
   }
 }
 
@@ -1103,7 +1100,7 @@ void makeShapesFromMols(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
                         DGeomHelpers::EmbedParameters &dgParams,
                         const ShapeBuildParams &shapeParams) {
   std::atomic<std::int64_t> mostRecentMol = -1;
-  ProgressBar pbar(70);
+  ProgressBar pbar(70, sampleMols.size());
   if (const auto numThreadsToUse = getNumThreadsToUse(shapeParams.numThreads);
       numThreadsToUse > 1) {
     std::cout << "Num threads to use : " << numThreadsToUse << std::endl;
@@ -1121,6 +1118,7 @@ void makeShapesFromMols(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
   } else {
     makeShapesFromMol(sampleMols, mostRecentMol, dgParams, shapeParams, pbar);
   }
+  std::cout << std::endl;
 }
 
 }  // namespace RDKit::SynthonSpaceSearch::details

@@ -24,7 +24,8 @@ namespace RDKit {
 class ProgressBar {
  public:
   ProgressBar() = default;
-  ProgressBar(int width) : d_bar_width(width) {}
+  ProgressBar(unsigned int width, std::uint64_t num)
+      : d_bar_width(width), d_numToDo(num) {}
   ProgressBar(const ProgressBar &) = delete;
   ProgressBar &operator=(const ProgressBar &) = delete;
   ProgressBar(ProgressBar &&) = delete;
@@ -34,6 +35,12 @@ class ProgressBar {
   void update(float value, std::ostream &os = std::cout) {
     set_progress(value);
     write_progress(os);
+  }
+  void increment(std::ostream &os = std::cout) {
+    ++d_done;
+    float newProgress =
+        100.0 * static_cast<float>(d_done) / static_cast<float>(d_numToDo);
+    update(newProgress, os);
   }
 
   void set_progress(float value) {
@@ -69,6 +76,8 @@ class ProgressBar {
   std::mutex d_mutex;
   float d_progress{0.0};
   unsigned int d_bar_width{60};
+  std::uint64_t d_numToDo{0};
+  std::atomic<std::uint64_t> d_done{0};
 };
 }  // namespace RDKit
 
