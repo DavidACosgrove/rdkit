@@ -35,6 +35,7 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
       const SynthonSet &reaction) const override;
 
  private:
+  // Shapes for all the conformers of the query.
   std::unique_ptr<SearchShapeInput> dp_queryShapes;
   // These are the fragment shapes for this search, derived from
   // d_query.  The shapes in d_fragShapes are keyed on the address
@@ -44,7 +45,7 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
   std::vector<std::unique_ptr<SearchShapeInput>> d_fragShapesPool;
   std::vector<std::pair<void *, SearchShapeInput *>> d_fragShapes;
 
-  void extraSearchSetup(
+  bool extraSearchSetup(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
 
   bool quickVerify(const SynthonSpaceHitSet *hitset,

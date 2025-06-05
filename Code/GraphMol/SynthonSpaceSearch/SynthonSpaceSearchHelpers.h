@@ -11,6 +11,7 @@
 #ifndef SYNTHONSPACESEARCHHELPERS_H
 #define SYNTHONSPACESEARCHHELPERS_H
 
+#include <GraphMol/EnumerateStereoisomers/EnumerateStereoisomers.h>
 #include <GraphMol/SynthonSpaceSearch/SearchShapeInput.h>
 
 #ifdef RDK_USE_BOOST_SERIALIZATION
@@ -38,15 +39,15 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                 // memory use.  If the number of fragment sets hits this
                 // number, fragmentation stops and the search results
                 // will likely be incomplete.
-  std::int64_t toTryChunkSize{2500000};  // For similarity searching, especially
-  // fingerprint similarity, there can be a
-  // very large number of possible hits to
-  // screen which can use a lot of memory and
-  // crash the program.  It will also be very
-  // slow.  To alleviate the memory use, the
-  // possible hits are processed in chunks.
-  // This parameter sets the chunk size.
-
+  std::int64_t toTryChunkSize{
+      2500000};              // For similarity searching, especially
+                             // fingerprint similarity, there can be a
+                             // very large number of possible hits to
+                             // screen which can use a lot of memory and
+                             // crash the program.  It will also be very
+                             // slow.  To alleviate the memory use, the
+                             // possible hits are processed in chunks.
+                             // This parameter sets the chunk size.
   std::int64_t hitStart{0};  // Sequence number of hit to start from.  So that
                              // you can return the next N hits of a search
                              // having already obtained N-1.
@@ -56,10 +57,6 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                              // a random seed (std::random_device).
   bool buildHits{true};  // If false, reports the maximum number of hits that
                          // the search could produce, but doesn't return them.
-  int numRandomSweeps{10};  // The random sampling doesn't always produce the
-                            // required number of hits in 1 go.  This parameter
-                            // controls how many loops it makes to try and get
-                            // the hits before giving up.
   double similarityCutoff{0.5};  // Similarity cutoff for returning hits by
                                  // fingerprint similarity.  The default is
                                  // appropriate for a Morgan fingerprint of
@@ -98,6 +95,22 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
   double confRMSThreshold{1.0};  // When doing a shape search, the RMS threshold
                                  // to use when pruning conformers.  Passed
                                  // directly EmbedMultipleConfs.
+  bool bestHit{false};  // If true, when doing a shape search it will return the
+                        // hit conformer with the best shape match to a query
+                        // conformer.  If false it will just return the first
+                        // hit conformer that exceeds the similarity cutoff.
+                        // This will be faster but the returned hit
+                        // conformations likely to be less relevant.
+  bool enumerateUnspecifiedStereo{
+      false};  // When doing a shape search, if there is
+               // unspecified stereochemistry in either
+               // the query or potential hit, enumerate
+               // test all possibilities.
+  EnumerateStereoisomers::StereoEnumerationOptions stereoEnumOpts{
+      true, true, false, true,
+      0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
+                  // tryEmbedding of false.
+
   std::uint64_t timeOut{600};  // Maximum number of seconds to spend on a single
                                // search.  0 means no maximum.
   int numThreads = 1;  // The number of threads to use.  If > 0, will use that
@@ -105,6 +118,24 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                        // threads plus this number.  So if the number of
                        // hardware threads is 8, and numThreads is -1, it will
                        // use 7 threads.
+};
+
+// Options to be passed to buildSynthonShapes.
+struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
+  // The relevant ones are passed directly into EmbedMultipleConfs.
+  unsigned int numConfs{10};  // Max number of conformations per synthon
+  double rmsThreshold{1.0};   // RMS threshold used when pruning conformations
+  // This is passed to pruneShapes(). For each synthon, no 2 shapes will
+  // be more similar to each other than the threshold.
+  double shapeSimThreshold{1.9};
+  int numThreads{1};   // The number of threads to use.  If > 0, will use that
+                       // number.  If <= 0, will use the number of hardware
+                       // threads plus this number.
+  int randomSeed{-1};  // Seed for random number generator.
+  EnumerateStereoisomers::StereoEnumerationOptions stereoEnumOpts{
+      true, true, false, true,
+      0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
+                  // tryEmbedding of false.
 };
 
 using ShapeSet = std::vector<std::unique_ptr<SearchShapeInput>>;

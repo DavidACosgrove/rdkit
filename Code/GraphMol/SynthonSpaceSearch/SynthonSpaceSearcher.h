@@ -93,9 +93,11 @@ class SynthonSpaceSearcher {
   // sets.  The FingerprintSearcher, for example, needs fingerprints
   // for all the fragments.  The SubstructureSearcher needs connector
   // regions and information about them.
-  virtual void extraSearchSetup(
+  virtual bool extraSearchSetup(
       [[maybe_unused]] std::vector<std::vector<std::unique_ptr<ROMol>>>
-          &fragSets) {}
+          &fragSets) {
+    return true;
+  }
 
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> doTheSearch(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,

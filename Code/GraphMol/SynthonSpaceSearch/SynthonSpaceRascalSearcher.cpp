@@ -124,7 +124,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
 }
 }  // namespace
 
-void SynthonSpaceRascalSearcher::extraSearchSetup(
+bool SynthonSpaceRascalSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
   for (const auto &fragSet : fragSets) {
     for (const auto &frag : fragSet) {
@@ -133,6 +133,7 @@ void SynthonSpaceRascalSearcher::extraSearchSetup(
                   MolOps::SANITIZE_SYMMRINGS);
     }
   }
+  return true;
 }
 
 std::vector<std::unique_ptr<SynthonSpaceHitSet>>

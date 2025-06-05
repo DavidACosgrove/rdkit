@@ -33,6 +33,46 @@ SearchShapeInput::SearchShapeInput(const ShapeInput &other)
   sofs.push_back(sof);
 }
 
+void SearchShapeInput::merge(SearchShapeInput &other) {
+  if (!confCoords.empty() &&
+      confCoords.front().size() != other.confCoords.front().size()) {
+    BOOST_LOG(rdWarningLog) << "Can't merge shapes as different sizes.\n";
+    return;
+  }
+  if (confCoords.empty()) {
+    coord = other.coord;
+    alpha_vector = other.alpha_vector;
+    atom_type_vector = other.atom_type_vector;
+    volumeAtomIndexVector = other.volumeAtomIndexVector;
+    colorAtomType2IndexVectorMap = other.colorAtomType2IndexVectorMap;
+    shift = other.shift;
+    sov = other.sov;
+    sof = other.sof;
+    numDummies = other.numDummies;
+    dummyVol = other.dummyVol;
+    actConf = other.actConf;
+    confCoords = std::move(other.confCoords);
+    dummyVols = std::move(other.dummyVols);
+    sovs = std::move(other.sovs);
+    sofs = std::move(other.sofs);
+  } else {
+    confCoords.insert(confCoords.end(),
+                      std::make_move_iterator(other.confCoords.begin()),
+                      std::make_move_iterator(other.confCoords.end()));
+    dummyVols.insert(dummyVols.end(),
+                     std::make_move_iterator(other.dummyVols.begin()),
+                     std::make_move_iterator(other.dummyVols.end()));
+    sovs.insert(sovs.end(), std::make_move_iterator(other.sovs.begin()),
+                std::make_move_iterator(other.sovs.end()));
+    sofs.insert(sofs.end(), std::make_move_iterator(other.sofs.begin()),
+                std::make_move_iterator(other.sofs.end()));
+  }
+  other.confCoords.clear();
+  other.dummyVols.clear();
+  other.sovs.clear();
+  other.sofs.clear();
+}
+
 ShapeInput SearchShapeInput::makeSingleShape(unsigned int confNum) const {
   if (confNum >= confCoords.size()) {
     confNum = 0;
@@ -83,7 +123,6 @@ void SearchShapeInput::serialize(Archive &ar, const unsigned int) {
 }
 #endif
 
-namespace {
 void pruneShapes(SearchShapeInput &shapes, double simThreshold) {
   if (shapes.confCoords.size() < 2) {
     return;
@@ -138,6 +177,7 @@ void pruneShapes(SearchShapeInput &shapes, double simThreshold) {
   shapes.sofs = std::move(newSofs);
 }
 
+namespace {
 // Sort the shapes in descending order of sov + sof;
 void sortShapes(SearchShapeInput &shapes) {
   std::vector<std::pair<double, size_t>> vals;
@@ -212,7 +252,7 @@ std::unique_ptr<SearchShapeInput> PrepareConformers(
   return result;
 }
 
-std::pair<double, double> BestSimilarity(SearchShapeInput &refShape,
+std::pair<double, double> bestSimilarity(SearchShapeInput &refShape,
                                          SearchShapeInput &fitShape,
                                          std::vector<float> &matrix,
                                          double threshold, double opt_param,

@@ -104,6 +104,7 @@ unsigned int SynthonSpace::getFPSize() const {
 }
 
 std::uint64_t SynthonSpace::getNumProducts() const { return d_numProducts; }
+size_t SynthonSpace::getNumSynthons() const { return d_synthonPool.size(); }
 
 std::string SynthonSpace::getInputFileName() const { return d_fileName; }
 
@@ -176,8 +177,40 @@ SearchResults SynthonSpace::rascalSearch(
 SearchResults SynthonSpace::shapeSearch(
     const ROMol &query, const SynthonSpaceSearchParams &params) {
   PRECONDITION(query.getNumAtoms() != 0, "Search query must contain atoms.");
-  SynthonSpaceShapeSearcher ssss(query, params, *this);
-  return ssss.search();
+  if (!params.enumerateUnspecifiedStereo) {
+    SynthonSpaceShapeSearcher ssss(query, params, *this);
+    return ssss.search();
+  }
+  // Otherwise, we need to enumerate any isomers, search each one
+  // and accumulate the results.
+  auto paramsCp = params;
+  auto dgParams = DGeomHelpers::ETKDGv3;
+  dgParams.numThreads = params.numThreads;
+  dgParams.pruneRmsThresh = params.confRMSThreshold;
+  dgParams.randomSeed = params.randomSeed;
+  auto isomers = details::generateIsomerConformers(
+      query, params.numConformers, params.enumerateUnspecifiedStereo,
+      params.stereoEnumOpts, dgParams);
+  SearchResults allResults;
+  for (auto &isomer : isomers) {
+    std::cout << "\nShape search with query "
+              << MolToCXSmiles(*isomer, SmilesWriteParams(),
+                               SmilesWrite::CXSmilesFields::CX_ALL_BUT_COORDS)
+              << std::endl;
+    SynthonSpaceShapeSearcher ssss(*isomer, paramsCp, *this);
+    auto results = ssss.search();
+    std::cout << "number of hits for this isomer "
+              << results.getHitMolecules().size() << std::endl;
+    allResults.mergeResults(results);
+    if (params.maxHits > 0) {
+      if (allResults.getHitMolecules().size() >
+          static_cast<std::uint64_t>(params.maxHits)) {
+        return allResults;
+      }
+      paramsCp.maxHits = params.maxHits - allResults.getHitMolecules().size();
+    }
+  }
+  return allResults;
 }
 
 namespace {
@@ -631,23 +664,24 @@ void SynthonSpace::buildSynthonFingerprints(
   }
 }
 
-void SynthonSpace::buildSynthonShapes(unsigned int numConfs,
-                                      double rmsThreshold, int numThreads,
-                                      int randomSeed) {
-  if (d_numConformers == numConfs) {
+void SynthonSpace::buildSynthonShapes(bool &cancelled,
+                                      const ShapeBuildParams &options) {
+  if (d_numConformers == options.numConfs) {
     BOOST_LOG(rdWarningLog) << "SynthonSpace has already been built with "
-                            << numConfs << " conformers." << std::endl;
+                            << options.numConfs << " conformers." << std::endl;
     return;
   }
   BOOST_LOG(rdWarningLog) << "Building the conformers may take some time."
                           << std::endl;
-  d_numConformers = numConfs;
+  d_numConformers = options.numConfs;
+  cancelled = false;
   for (const auto &[id, synthSet] : d_reactions) {
+    std::cout << "Building shapes for " << id << std::endl;
     if (ControlCHandler::getGotSignal()) {
+      cancelled = true;
       return;
     }
-    synthSet->buildSynthonShapes(numConfs, rmsThreshold, numThreads,
-                                 randomSeed);
+    synthSet->buildSynthonShapes(options);
   }
 }
 
@@ -764,8 +798,7 @@ SearchResults SynthonSpace::extendedSearch(
 void convertTextToDBFile(const std::string &inFilename,
                          const std::string &outFilename, bool &cancelled,
                          const FingerprintGenerator<std::uint64_t> *fpGen,
-                         unsigned int numConfs, double rmsThreshold,
-                         int numThreads, int randomSeed) {
+                         const ShapeBuildParams &options) {
   SynthonSpace synthSpace;
   cancelled = false;
   synthSpace.readTextFile(inFilename, cancelled);
@@ -780,9 +813,11 @@ void convertTextToDBFile(const std::string &inFilename,
       return;
     }
   }
-  if (numConfs) {
-    synthSpace.buildSynthonShapes(numConfs, rmsThreshold, numThreads,
-                                  randomSeed);
+  if (options.numConfs) {
+    synthSpace.buildSynthonShapes(cancelled, options);
+    if (cancelled) {
+      return;
+    }
   }
   synthSpace.writeDBFile(outFilename);
 }

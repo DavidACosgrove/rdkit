@@ -68,11 +68,10 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
                          ControlCHandler::getGotSignal()};
   }
   std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
-  extraSearchSetup(fragments);
-  // std::cout << "Done extra search setup" << std::endl;
-  if (ControlCHandler::getGotSignal()) {
+  if (!extraSearchSetup(fragments) || ControlCHandler::getGotSignal()) {
     return SearchResults{std::move(results), 0ULL, timedOut, true};
   }
+  // std::cout << "Done extra search setup" << std::endl;
 
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);

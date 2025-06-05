@@ -14,6 +14,7 @@
 #include <chrono>
 #include <vector>
 
+#include <GraphMol/DistGeomHelpers/Embedder.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceHitSet.h>
 #include <RDGeneral/export.h>
 #include <DataStructs/ExplicitBitVect.h>
@@ -170,9 +171,22 @@ mapFragsBySmiles(std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
 RDKIT_SYNTHONSPACESEARCH_EXPORT unsigned int countChiralAtoms(
     ROMol &mol, unsigned int *numExcDummies = nullptr);
 
+// Check if there's an atom or bond that findPotentialStereo
+// reports that doesn't have a specified configuration.
+RDKIT_SYNTHONSPACESEARCH_EXPORT bool hasUnspecifiedStereo(ROMol &mol);
+
 // Make sure the shapes are at least simThreshold combination tanimoto apart.
 RDKIT_SYNTHONSPACESEARCH_EXPORT void pruneShapes(ShapeSet &shapeSet,
                                                  double simThreshold);
+
+// Generate conformers for the molecule passed in, including enumerating
+// stereoisomers if requested.
+RDKIT_SYNTHONSPACESEARCH_EXPORT std::vector<std::unique_ptr<RWMol>>
+generateIsomerConformers(
+    const ROMol &mol, unsigned int numConformers, bool enumerateStereo,
+    const EnumerateStereoisomers::StereoEnumerationOptions &enumOpts,
+    DGeomHelpers::EmbedParameters &dgParams);
+
 }  // namespace SynthonSpaceSearch::details
 }  // namespace RDKit
 

@@ -20,6 +20,7 @@
 #include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <GraphMol/EnumerateStereoisomers/EnumerateStereoisomers.h>
 #include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
@@ -298,37 +299,43 @@ void SynthonSet::addSynthon(const int synthonSetNum, Synthon *newSynthon,
   d_synthons[synthonSetNum].push_back(std::make_pair(synthonId, newSynthon));
 }
 
-namespace {
-
-// Take the synthons and build molecules from them.  longVecNum is the number
-// of the vector containing the synthon set of interest.  The other members
-// of synthon are assumed to be a single molecule, and each product is
-// a molecule made from the corresponding member of longVecNum and the first
-// element of the other vectors.
-std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
-    const std::vector<std::vector<std::unique_ptr<RWMol>>> &synthons,
-    const size_t longVecNum, const SynthonSet &reaction) {
+std::vector<std::unique_ptr<ROMol>> SynthonSet::buildSampleMolecules(
+    const std::vector<std::vector<std::unique_ptr<RWMol>>> &synthonMols,
+    size_t longVecNum) const {
   std::vector<std::unique_ptr<ROMol>> sampleMolecules;
-  sampleMolecules.reserve(synthons[longVecNum].size());
+  sampleMolecules.reserve(d_synthons[longVecNum].size());
 
   MolzipParams mzparams;
   mzparams.label = MolzipLabel::Isotope;
+  // Find a small synthon in each of the non-longVecNum sets.
+  std::vector<size_t> smallSynthons(synthonMols.size(), 0);
+  for (size_t i = 0; i < synthonMols.size(); ++i) {
+    if (i == longVecNum) {
+      continue;
+    }
+    unsigned int minAtoms = synthonMols[i][0]->getNumAtoms();
+    for (size_t j = 1; j < synthonMols[i].size(); ++j) {
+      if (synthonMols[i][j]->getNumAtoms() < minAtoms) {
+        minAtoms = synthonMols[i][j]->getNumAtoms();
+        smallSynthons[i] = j;
+      }
+    }
+  }
 
-  const auto &synths = reaction.getSynthons();
-  for (size_t i = 0; i < synthons[longVecNum].size(); ++i) {
+  for (size_t i = 0; i < d_synthons[longVecNum].size(); ++i) {
     auto combMol = std::make_unique<ROMol>();
     std::string molName = "";
-    for (size_t j = 0; j < synthons.size(); ++j) {
+    for (size_t j = 0; j < d_synthons.size(); ++j) {
       if (j == longVecNum) {
-        combMol.reset(combineMols(*combMol, *synthons[j][i]));
+        combMol.reset(combineMols(*combMol, *synthonMols[j][i]));
       } else {
-        combMol.reset(combineMols(*combMol, *synthons[j].front()));
+        combMol.reset(combineMols(*combMol, *synthonMols[j][smallSynthons[j]]));
       }
       std::string sep = j ? ";" : "";
       if (j == longVecNum) {
-        molName += sep + synths[j][i].first;
+        molName += sep + d_synthons[j][i].first;
       } else {
-        molName += sep + synths[j].front().first;
+        molName += sep + d_synthons[j][smallSynthons[j]].first;
       }
     }
     combMol->setProp<std::string>(common_properties::_Name, molName);
@@ -337,16 +344,16 @@ std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
       MolOps::sanitizeMol(*dynamic_cast<RWMol *>(sampleMol.get()));
       sampleMolecules.push_back(std::move(sampleMol));
     } catch (std::exception &e) {
-      std::string msg("Error:: in reaction " + reaction.getId() +
+      std::string msg("Error:: in reaction " + getId() +
                       " :: building molecule from synthons :");
-      for (size_t j = 0; j < synthons.size(); ++j) {
+      for (size_t j = 0; j < synthonMols.size(); ++j) {
         std::string sep = j ? " and " : " ";
         if (j == longVecNum) {
-          msg += sep + synths[j][i].first + " (" +
-                 synths[j][i].second->getSmiles() + ")";
+          msg += sep + d_synthons[j][i].first + " (" +
+                 d_synthons[j][i].second->getSmiles() + ")";
         } else {
-          msg += sep + synths[j].front().first + " (" +
-                 synths[j].front().second->getSmiles() + ")";
+          msg += sep + d_synthons[j][smallSynthons[j]].first + " (" +
+                 d_synthons[j][smallSynthons[j]].second->getSmiles() + ")";
         }
       }
       msg += "\n" + std::string(e.what()) + "\n";
@@ -357,6 +364,7 @@ std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
   return sampleMolecules;
 }
 
+namespace {
 int findMolNumFrag(const std::vector<std::unique_ptr<ROMol>> &molFrags,
                    size_t molNum) {
   for (size_t i = 0; i < molFrags.size(); ++i) {
@@ -386,8 +394,7 @@ void SynthonSet::makeSynthonSearchMols() {
 
   // Now build sets of sample molecules using each synthon set in turn.
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
-    auto sampleMols =
-        buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
+    auto sampleMols = buildSampleMolecules(synthonMolCopies, synthSetNum);
     for (size_t j = 0; j < sampleMols.size(); ++j) {
       std::vector<unsigned int> splitBonds;
       for (const auto &bond : sampleMols[j]->bonds()) {
@@ -622,7 +629,8 @@ namespace {
 void makeShapesFromMol(
     std::vector<std::unique_ptr<ROMol>> &sampleMols,
     std::atomic<std::int64_t> &mostRecentMol, const size_t synthSetNum,
-    DGeomHelpers::EmbedParameters &dgParams, const unsigned int numConfs,
+    DGeomHelpers::EmbedParameters &dgParams,
+    const ShapeBuildParams &shapeParams,
     std::vector<std::vector<std::pair<std::string, Synthon *>>> &synthons) {
   ShapeInputOptions shapeOpts;
   shapeOpts.includeDummies = true;
@@ -635,14 +643,14 @@ void makeShapesFromMol(
     if (molNum >= sampleMols.size()) {
       return;
     }
-    auto sampleMolHs =
-        std::unique_ptr<ROMol>(MolOps::addHs(*sampleMols[molNum]));
-    auto cids =
-        DGeomHelpers::EmbedMultipleConfs(*sampleMolHs, numConfs, dgParams);
-    if (cids.empty()) {
+
+    auto isomerConfs = details::generateIsomerConformers(
+        *sampleMols[molNum], shapeParams.numConfs, true,
+        shapeParams.stereoEnumOpts, dgParams);
+    if (isomerConfs.empty()) {
       BOOST_LOG(rdWarningLog)
           << "No conformers generated for sample molecule "
-          << sampleMolHs->getProp<std::string>(common_properties::_Name)
+          << sampleMols[molNum]->getProp<std::string>(common_properties::_Name)
           << " : " << MolToSmiles(*sampleMols[molNum])
           << " when generating conformers for synthon "
           << synthons[synthSetNum][molNum].first << " ("
@@ -650,77 +658,87 @@ void makeShapesFromMol(
           << std::endl;
       continue;
     }
-    MolOps::removeHs(*static_cast<RWMol *>(sampleMolHs.get()));
-    std::vector<unsigned int> splitBonds;
-    std::vector<unsigned int> fragAtoms;
-    std::vector<unsigned int> dummies;
-    std::vector<std::pair<unsigned int, double>> dummyRadii;
-    for (const auto &bond : sampleMols[molNum]->bonds()) {
-      if (!bond->hasProp("molNum")) {
-        splitBonds.push_back(bond->getIdx());
-        auto begMolNum = bond->getBeginAtom()->getProp<unsigned int>("molNum");
-        auto endMolNum = bond->getEndAtom()->getProp<unsigned int>("molNum");
-        if (begMolNum == synthSetNum && endMolNum != synthSetNum) {
-          fragAtoms.push_back(bond->getBeginAtomIdx());
-          fragAtoms.push_back(bond->getEndAtomIdx());
-          dummies.push_back(bond->getEndAtomIdx());
-          dummyRadii.emplace_back(bond->getEndAtomIdx(), 2.16);
-        } else if (begMolNum != synthSetNum && endMolNum == synthSetNum) {
-          fragAtoms.push_back(bond->getBeginAtomIdx());
-          fragAtoms.push_back(bond->getEndAtomIdx());
-          dummies.push_back(bond->getBeginAtomIdx());
-          dummyRadii.emplace_back(bond->getBeginAtomIdx(), 2.16);
-        }
-      } else {
-        if (bond->getProp<unsigned int>("molNum") == synthSetNum) {
-          fragAtoms.push_back(bond->getBeginAtomIdx());
-          fragAtoms.push_back(bond->getEndAtomIdx());
+    auto allShapes = std::make_unique<SearchShapeInput>();
+    for (auto &isomer : isomerConfs) {
+      std::vector<unsigned int> splitBonds;
+      std::vector<unsigned int> fragAtoms;
+      std::vector<unsigned int> dummies;
+      std::vector<std::pair<unsigned int, double>> dummyRadii;
+      for (const auto &bond : isomer->bonds()) {
+        if (!bond->hasProp("molNum")) {
+          splitBonds.push_back(bond->getIdx());
+          auto begMolNum =
+              bond->getBeginAtom()->getProp<unsigned int>("molNum");
+          auto endMolNum = bond->getEndAtom()->getProp<unsigned int>("molNum");
+          if (begMolNum == synthSetNum && endMolNum != synthSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+            dummies.push_back(bond->getEndAtomIdx());
+            dummyRadii.emplace_back(bond->getEndAtomIdx(), 2.16);
+          } else if (begMolNum != synthSetNum && endMolNum == synthSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+            dummies.push_back(bond->getBeginAtomIdx());
+            dummyRadii.emplace_back(bond->getBeginAtomIdx(), 2.16);
+          }
+        } else {
+          if (bond->getProp<unsigned int>("molNum") == synthSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+          }
         }
       }
-    }
-    std::ranges::sort(fragAtoms);
-    fragAtoms.erase(std::unique(fragAtoms.begin(), fragAtoms.end()),
-                    fragAtoms.end());
-    std::ranges::sort(dummies);
-    dummies.erase(std::unique(dummies.begin(), dummies.end()), dummies.end());
-    shapeOpts.atomRadii = dummyRadii;
-    shapeOpts.notColorAtoms = dummies;
-    shapeOpts.atomSubset = fragAtoms;
-    noDummyOpts.atomSubset = fragAtoms;
+      std::ranges::sort(fragAtoms);
+      fragAtoms.erase(std::unique(fragAtoms.begin(), fragAtoms.end()),
+                      fragAtoms.end());
+      std::ranges::sort(dummies);
+      dummies.erase(std::unique(dummies.begin(), dummies.end()), dummies.end());
+      shapeOpts.atomRadii = dummyRadii;
+      shapeOpts.notColorAtoms = dummies;
+      shapeOpts.atomSubset = fragAtoms;
+      noDummyOpts.atomSubset = fragAtoms;
 
-    auto shapes = PrepareConformers(*sampleMolHs, shapeOpts, 1.9);
-    synthons[synthSetNum][molNum].second->setShapes(std::move(shapes));
+      auto shapes =
+          PrepareConformers(*isomer, shapeOpts, shapeParams.shapeSimThreshold);
+      // Because stereoisomers should all have the same number of atoms and
+      // bonds, we can just combine the shapes into one set.  We don't need
+      // to keep track of which stereoisomer they came from.
+
+      allShapes->merge(*shapes);
+    }
+    pruneShapes(*allShapes, shapeParams.shapeSimThreshold);
+    synthons[synthSetNum][molNum].second->setShapes(std::move(allShapes));
   }
 }
 
 void makeShapesFromMols(
     std::vector<std::unique_ptr<ROMol>> &sampleMols, const size_t synthSetNum,
-    DGeomHelpers::EmbedParameters &dgParams, const unsigned int numConfs,
-    int numThreads,
+    DGeomHelpers::EmbedParameters &dgParams,
+    const ShapeBuildParams &shapeParams,
     std::vector<std::vector<std::pair<std::string, Synthon *>>> &synthons) {
   std::atomic<std::int64_t> mostRecentMol = -1;
-  if (const auto numThreadsToUse = getNumThreadsToUse(numThreads);
+  if (const auto numThreadsToUse = getNumThreadsToUse(shapeParams.numThreads);
       numThreadsToUse > 1) {
+    std::cout << "Num threads to use : " << numThreadsToUse << std::endl;
     std::vector<std::thread> threads;
     for (unsigned int i = 0u;
          i < std::min(static_cast<size_t>(numThreadsToUse), sampleMols.size());
          ++i) {
       threads.emplace_back(makeShapesFromMol, std::ref(sampleMols),
                            std::ref(mostRecentMol), synthSetNum,
-                           std::ref(dgParams), numConfs, std::ref(synthons));
+                           std::ref(dgParams), shapeParams, std::ref(synthons));
     }
     for (auto &t : threads) {
       t.join();
     }
   } else {
     makeShapesFromMol(sampleMols, mostRecentMol, synthSetNum, dgParams,
-                      numConfs, synthons);
+                      shapeParams, synthons);
   }
 }
 }  // namespace
-void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
-                                    int numThreads, int randomSeed) {
-  std::cout << "Building shapes for " << getId() << std::endl;
+
+void SynthonSet::buildSynthonShapes(const ShapeBuildParams &shapeParams) {
   // Each synthon is built into a product, its conformers generated
   // and then split out again into the original pieces.
   auto synthonMolCopies = copySynthons();
@@ -738,21 +756,38 @@ void SynthonSet::buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
   // Now build sets of sample molecules using each synthon set in turn.
   auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = 1;
-  dgParams.pruneRmsThresh = rmsThreshold;
-  dgParams.randomSeed = randomSeed;
+  dgParams.pruneRmsThresh = shapeParams.rmsThreshold;
+  dgParams.randomSeed = shapeParams.randomSeed;
   for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
-    auto sampleMols =
-        buildSampleMolecules(synthonMolCopies, synthSetNum, *this);
-    makeShapesFromMols(sampleMols, synthSetNum, dgParams, numConfs, numThreads,
-                       d_synthons);
-    for (const auto &synthon : d_synthons[synthSetNum]) {
-      std::cout << synthSetNum << " : " << synthon.first << " : "
-                << synthon.second->getShapes()->confCoords.size() << std::endl;
+    auto sampleMols = buildSampleMolecules(synthonMolCopies, synthSetNum);
+    for (size_t i = 0; i < sampleMols.size(); ++i) {
+      if (d_synthons[synthSetNum][i].second->getShapes()) {
+        std::cout << d_synthons[synthSetNum][i].first << " has shapes"
+                  << std::endl;
+        sampleMols[i].reset();
+      }
     }
+    sampleMols.erase(std::remove_if(sampleMols.begin(), sampleMols.end(),
+                                    [](const auto &m) -> bool { return !m; }),
+                     sampleMols.end());
+    // Do the molecules in descending order of size to minimise the chance
+    // of sitting waiting for the last big molecule to be processed.
+    std::ranges::sort(sampleMols, [](const auto &m1, const auto &m2) -> bool {
+      return m1->getNumAtoms() > m2->getNumAtoms();
+    });
+    std::cout << "make " << sampleMols.size() << " shapes for " << synthSetNum;
+    if (!sampleMols.empty()) {
+      std::cout << " :: " << sampleMols.front()->getNumAtoms() << " to "
+                << sampleMols.back()->getNumAtoms();
+    }
+    std::cout << " originally " << d_synthons[synthSetNum].size() << std::endl;
+    makeShapesFromMols(sampleMols, synthSetNum, dgParams, shapeParams,
+                       d_synthons);
     if (ControlCHandler::getGotSignal()) {
       return;
     }
   }
+  std::cout << "leaving buildSynthonShapes for " << getId() << std::endl;
 }
 
 std::string SynthonSet::buildProductName(

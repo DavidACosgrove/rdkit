@@ -29,6 +29,7 @@ namespace SynthonSpaceSearch {
 class Synthon;
 class SynthonSpace;
 struct SynthonSpaceSearchParams;
+struct ShapeBuildParams;
 
 // This class holds pointers to all the synthons for a particular
 // reaction.  The synthons themselves are in a pool in the
@@ -119,15 +120,9 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   /*!
    * Create conformers for the synthons ready for shape searching.
    *
-   * @param numConfs: Maximum number of conformers per synthon.
-   * @param rmsThreshold: threshold for pruning conformations.  Passed directly
-   *                      to EmbedMultipleConfs.
-   * @param numThreads: number of threads to use in parallel steps.
-   * @param randomSeed: seed for the random number generator. -1 means the RNG
-   *                    is not seeded.
+   * @param shapeParams : parameters controlling the shape building
    */
-  void buildSynthonShapes(unsigned int numConfs, double rmsThreshold,
-                          int numThreads, int randomSeed);
+  void buildSynthonShapes(const ShapeBuildParams &shapeParams);
 
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as
@@ -198,6 +193,14 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   // Synthons are shared, so sometimes we need to copy the molecules into a
   // new set that we can fiddle with without upsetting anything else.
   std::vector<std::vector<std::unique_ptr<RWMol>>> copySynthons() const;
+
+  // Take the synthons and build molecules from them.  longVecNum is the number
+  // of the vector containing the synthon set of interest.  Each product is
+  // a molecule made from the corresponding member of longVecNum and a small
+  // element of the other vectors.  synthonMols are from copySynthons.
+  std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
+      const std::vector<std::vector<std::unique_ptr<RWMol>>> &synthonMols,
+      size_t longVecNum) const;
 };
 
 }  // namespace SynthonSpaceSearch

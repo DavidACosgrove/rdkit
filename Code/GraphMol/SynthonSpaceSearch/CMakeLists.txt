@@ -5,7 +5,8 @@ rdkit_library(SynthonSpaceSearch
         SynthonSpaceRascalSearcher.cpp SynthonSpaceShapeSearcher.cpp
         SynthonSpaceHitSet.cpp SearchResults.cpp SearchShapeInput.cpp MemoryMappedFileReader.cpp
         LINK_LIBRARIES SmilesParse FileParsers ChemTransforms Fingerprints SubstructMatch GraphMol RascalMCES
-        GeneralizedSubstruct DistGeomHelpers DistGeometry SimDivPickers PubChemShape Descriptors)
+        GeneralizedSubstruct DistGeomHelpers DistGeometry SimDivPickers PubChemShape Descriptors
+        EnumerateStereoisomers)
 target_compile_definitions(SynthonSpaceSearch PRIVATE RDKIT_SYNTHONSPACESEARCH_BUILD)
 
 rdkit_headers(SynthonSpace.h SynthonSet.h Synthon.h SearchResults.h

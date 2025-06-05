@@ -71,6 +71,14 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    * @return int
    */
   size_t getNumReactions() const;
+
+  /*!
+   * Get the number of unique synthons in the SynthonSpace.  Synthons
+   * can be used in more than 1 reaction.
+   *
+   * @return int
+   */
+  size_t getNumSynthons() const;
   /*!
    * Get a list of the names of all the reactions in the SynthonSpace.
    *
@@ -254,17 +262,14 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
       const FingerprintGenerator<std::uint64_t> &fpGen);
 
   /*!
-   * Create conformers for the synthons ready for shape searching.
+   * Create conformers for the synthons ready for shape searching.  If a synthon
+   * has unspecified stereochemistry, all possibilities will be enumerated and
+   * shapes generated for each.
    *
-   * @param numConfs: Maximum number of conformers per synthon.
-   * @param rmsThreshold: threshold for pruning conformations.  Passed directly
-   *                      to EmbedMultipleConfs.
-   * @param numThreads: number of threads to use in parallel steps.
-   * @param randomSeed: seed for the random number generator. -1 means the RNG
-   *                    is not seeded.
+   * @param options: controls the shape generation for each synthon
    */
-  void buildSynthonShapes(unsigned int numConfs = 10, double rmsThreshold = 1.0,
-                          int numThreads = 1, int randomSeed = -1);
+  void buildSynthonShapes(bool &cancelled,
+                          const ShapeBuildParams &options = ShapeBuildParams());
 
  protected:
   unsigned int getMaxNumSynthons() const { return d_maxNumSynthons; }
@@ -343,8 +348,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
 RDKIT_SYNTHONSPACESEARCH_EXPORT void convertTextToDBFile(
     const std::string &inFilename, const std::string &outFilename,
     bool &cancelled, const FingerprintGenerator<std::uint64_t> *fpGen = nullptr,
-    unsigned int numConfs = 0, double rmsThreshold = 1.0, int numThreads = 1,
-    int randomSeed = -1);
+    const ShapeBuildParams &shapeParams = ShapeBuildParams());
 
 /*!
  * Format an integer with spaces every 3 digits for ease

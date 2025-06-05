@@ -14,6 +14,7 @@
 #include <RDBoost/Wrap.h>
 
 #include <GraphMol/ROMol.h>
+#include <GraphMol/EnumerateStereoisomers/EnumerateStereoisomers.h>
 #include <GraphMol/RascalMCES/RascalOptions.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 
@@ -119,7 +120,7 @@ SynthonSpaceSearch::SearchResults fingerprintSearch_helper(
   }
   if (results.getCancelled()) {
     PyErr_SetString(PyExc_KeyboardInterrupt, "FingerprintSearch cancelled");
-    boost::python::throw_error_already_set();
+    python::throw_error_already_set();
   }
   return results;
 }
@@ -161,7 +162,7 @@ SynthonSpaceSearch::SearchResults shapeSearch_helper(
   }
   if (results.getCancelled()) {
     PyErr_SetString(PyExc_KeyboardInterrupt, "ShapeSearch cancelled");
-    boost::python::throw_error_already_set();
+    python::throw_error_already_set();
   }
   return results;
 }
@@ -172,16 +173,23 @@ void summariseHelper(SynthonSpaceSearch::SynthonSpace &self) {
 
 void convertTextToDBFile_helper(const std::string &inFilename,
                                 const std::string &outFilename,
-                                python::object fpGen) {
+                                python::object fpGen,
+                                python::object py_params) {
   const FingerprintGenerator<std::uint64_t> *fpGenCpp = nullptr;
   if (fpGen) {
     fpGenCpp = python::extract<FingerprintGenerator<std::uint64_t> *>(fpGen);
   }
+  SynthonSpaceSearch::ShapeBuildParams shapeParams;
+  if (!py_params.is_none()) {
+    shapeParams =
+        python::extract<SynthonSpaceSearch::ShapeBuildParams>(py_params);
+  }
   bool cancelled = false;
   SynthonSpaceSearch::convertTextToDBFile(inFilename, outFilename, cancelled,
-                                          fpGenCpp);
+                                          fpGenCpp, shapeParams);
   if (cancelled) {
-    throw_runtime_error("Database conversion cancelled");
+    PyErr_SetString(PyExc_KeyboardInterrupt, "Database conversion cancelled");
+    python::throw_error_already_set();
   }
 }
 
@@ -193,7 +201,25 @@ void readTextFile_helper(SynthonSpaceSearch::SynthonSpace &self,
     self.readTextFile(inFilename, cancelled);
   }
   if (cancelled) {
-    throw_runtime_error("Database read cancelled.");
+    PyErr_SetString(PyExc_KeyboardInterrupt, "Database read cancelled");
+    python::throw_error_already_set();
+  }
+}
+
+void buildShapes_helper(SynthonSpaceSearch::SynthonSpace &spc,
+                        const python::object &py_params) {
+  SynthonSpaceSearch::ShapeBuildParams params;
+  if (!py_params.is_none()) {
+    params = python::extract<SynthonSpaceSearch::ShapeBuildParams>(py_params);
+  }
+  bool cancelled = false;
+  {
+    NOGIL gil;
+    spc.buildSynthonShapes(cancelled, params);
+  }
+  if (cancelled) {
+    PyErr_SetString(PyExc_KeyboardInterrupt, "Shape building cancelled");
+    python::throw_error_already_set();
   }
 }
 
@@ -242,13 +268,6 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
                      &SynthonSpaceSearch::SynthonSpaceSearchParams::buildHits,
                      "If false, reports the maximum number of hits that"
                      " the search could produce, but doesn't return them.")
-      .def_readwrite(
-          "numRandomSweeps",
-          &SynthonSpaceSearch::SynthonSpaceSearchParams::numRandomSweeps,
-          "The random sampling doesn't always produce the"
-          " required number of hits in 1 go.  This parameter"
-          " controls how many loops it makes to try and get"
-          " the hits before giving up.  Default=10.")
       .def_readwrite(
           "similarityCutoff",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::similarityCutoff,
@@ -307,6 +326,17 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           &SynthonSpaceSearch::SynthonSpaceSearchParams::confRMSThreshold,
           "When doing a shape search, the RMS threshold to use when pruning"
           " conformers.  Default=1.0.")
+      .def_readwrite("enumerateUnspecifiedStereo",
+                     &SynthonSpaceSearch::SynthonSpaceSearchParams::
+                         enumerateUnspecifiedStereo,
+                     "When doing a shape search, if there is"
+                     " unspecified stereochemistry in either"
+                     " the query or potential hit, enumerate"
+                     " test all possibilities.  Default=False.")
+      .def_readwrite(
+          "stereoEnumOpts",
+          &SynthonSpaceSearch::SynthonSpaceSearchParams::stereoEnumOpts,
+          "Options for stereoisomer enumeration.")
       .def_readwrite(
           "timeOut", &SynthonSpaceSearch::SynthonSpaceSearchParams::timeOut,
           "Time limit for search, in seconds.  Default is 600s, 0 means no"
@@ -319,6 +349,33 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           " threads plus this number.  So if the number of"
           " hardware threads is 8, and numThreads is -1, it will"
           " use 7 threads.  Default=1.")
+      .def("__setattr__", &safeSetattr);
+
+  docString = "Parameters for building shape objects for SynthonSpaceSearch.";
+  python::class_<SynthonSpaceSearch::ShapeBuildParams, boost::noncopyable>(
+      "ShapeBuildParams", docString.c_str())
+      .def_readwrite(
+          "numConfs", &SynthonSpaceSearch::ShapeBuildParams::numConfs,
+          "Maximum number of conformers per synthon or query.  Default=10")
+      .def_readwrite(
+          "rmsThreshold", &SynthonSpaceSearch::ShapeBuildParams::rmsThreshold,
+          "RMS threshold to use when pruning conformations.  Default=1.0.")
+      .def_readwrite(
+          "shapeSimThreshold",
+          &SynthonSpaceSearch::ShapeBuildParams::shapeSimThreshold,
+          "When generating shapes, similarity threshold for pruning.  No 2 shapes"
+          " for each synthon or query will be more similar than this threshold.  Default=1.9.")
+      .def_readwrite(
+          "numThreads", &SynthonSpaceSearch::ShapeBuildParams::numThreads,
+          "The number of threads to use for shape building.  If > 0, will use that"
+          " number.  If <= 0, will use the number of hardware"
+          " threads plus this number.Default=1.")
+      .def_readwrite(
+          "randomSeed", &SynthonSpaceSearch::ShapeBuildParams::randomSeed,
+          "Seed for random number generator.  Default=-1 means use system random seed.")
+      .def_readwrite("stereoEnumOpts",
+                     &SynthonSpaceSearch::ShapeBuildParams::stereoEnumOpts,
+                     "Options for stereoisomer enumeration.")
       .def("__setattr__", &safeSetattr);
 
   docString = "SynthonSpaceSearch object.";
@@ -391,10 +448,8 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           " converting a text file to binary format it might need to be done"
           " explicitly.")
       .def(
-          "BuildSynthonShapes",
-          &SynthonSpaceSearch::SynthonSpace::buildSynthonShapes,
-          (python::arg("self"), python::arg("numConfs") = 10,
-           python::arg("rmsThreshold") = 1.0, python::arg("numThreads") = 1),
+          "BuildSynthonShapes", &buildShapes_helper,
+          (python::arg("self"), python::arg("py_params") = python::object()),
           "Build shapes for the synthons.  The conformations are generated, pruned"
           " with the given threshold, which is passed directly to EmbedMultipleConfs.");
 
@@ -408,7 +463,8 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       "- optional fingerprint generator";
   python::def("ConvertTextToDBFile", &RDKit::convertTextToDBFile_helper,
               (python::arg("inFilename"), python::arg("outFilename"),
-               python::arg("fpGen") = python::object()),
+               python::arg("fpGen") = python::object(),
+               python::arg("py_shapeParams") = python::object()),
               docString.c_str());
 
   docString =

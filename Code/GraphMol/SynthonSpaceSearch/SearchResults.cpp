@@ -33,8 +33,10 @@ void SearchResults::mergeResults(SearchResults &other) {
   if (other.d_timedOut) d_timedOut = true;
   if (other.d_cancelled) d_cancelled = true;
   if (d_molNames.empty()) {
-    for (const auto &mol : d_hitMolecules) {
-      d_molNames.insert(mol->getProp<std::string>(common_properties::_Name));
+    for (size_t i = 0; i < d_hitMolecules.size(); i++) {
+      d_molNames.insert(std::make_pair(
+          d_hitMolecules[i]->getProp<std::string>(common_properties::_Name),
+          i));
     }
   }
   d_hitMolecules.reserve(d_hitMolecules.size() + other.d_hitMolecules.size());
@@ -42,8 +44,19 @@ void SearchResults::mergeResults(SearchResults &other) {
     if (auto it = d_molNames.find(
             mol->getProp<std::string>(common_properties::_Name));
         it == d_molNames.end()) {
-      d_molNames.insert(mol->getProp<std::string>(common_properties::_Name));
+      d_molNames.insert(
+          std::make_pair(mol->getProp<std::string>(common_properties::_Name),
+                         d_hitMolecules.size()));
       d_hitMolecules.emplace_back(std::move(mol));
+    } else {
+      auto &currHit = d_hitMolecules[it->second];
+      double currSim, newSim;
+      if (currHit->getPropIfPresent<double>("Similarity", currSim) &&
+          mol->getPropIfPresent<double>("Similarity", newSim)) {
+        if (newSim > currSim) {
+          currHit = std::move(mol);
+        }
+      }
     }
   }
   other.d_hitMolecules.clear();

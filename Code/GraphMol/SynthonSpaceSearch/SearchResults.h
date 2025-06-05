@@ -11,6 +11,8 @@
 #ifndef RDKIT_SYNTHONSPACE_SEARCHRESULTS_H
 #define RDKIT_SYNTHONSPACE_SEARCHRESULTS_H
 
+#include <unordered_map>
+
 #include <RDGeneral/export.h>
 #include <GraphMol/ROMol.h>
 
@@ -22,8 +24,8 @@ namespace RDKit::SynthonSpaceSearch {
 class RDKIT_SYNTHONSPACESEARCH_EXPORT SearchResults {
  public:
   explicit SearchResults() : d_maxNumResults(0) {}
-  SearchResults(std::vector<std::unique_ptr<ROMol>> &&mols, std::uint64_t maxNumRes,
-                bool timedOut, bool cancelled);
+  SearchResults(std::vector<std::unique_ptr<ROMol>> &&mols,
+                std::uint64_t maxNumRes, bool timedOut, bool cancelled);
   SearchResults(const SearchResults &other);
   SearchResults(SearchResults &&other) = default;
   ~SearchResults() = default;
@@ -62,14 +64,17 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SearchResults {
   bool getCancelled() const { return d_cancelled; }
 
   // Merge other into this, keeping only molecules with unique
-  // names and destroying contents of other on exit.
+  // names and destroying contents of other on exit.  If an
+  // incoming molecule is the same name as one already present
+  // and both have "Similarity" prop, then the one with the
+  // higher value is kept.
   void mergeResults(SearchResults &other);
 
  private:
   std::vector<std::unique_ptr<ROMol>> d_hitMolecules;
   // Only used when merging in another set, so will be
   // filled in then if needed, empty otherwise.
-  std::unordered_set<std::string> d_molNames;
+  std::unordered_map<std::string, size_t> d_molNames;
 
   std::uint64_t d_maxNumResults;
   bool d_timedOut{false};

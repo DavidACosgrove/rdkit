@@ -29,6 +29,12 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SearchShapeInput : ShapeInput {
   SearchShapeInput &operator=(SearchShapeInput &&other) = default;
   ~SearchShapeInput() override = default;
 
+  // Merge the other ShapeInputSet, assuming it has the correct number
+  // of atoms etc.  Unless this is empty, in which case it copies it
+  // straight over.  Empties other, unless they can't be merged
+  // in which case it returns unscathed.
+  void merge(SearchShapeInput &other);
+
   bool hasNoShapes() const { return confCoords.empty(); }
 
   // Make a single ShapeInput from the given conformer number.
@@ -53,6 +59,11 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SearchShapeInput : ShapeInput {
   std::vector<double> sofs;
 };
 
+// Cut the shapes down so that none of them are more than the simThreshold
+// in similarity with each other.
+RDKIT_SYNTHONSPACESEARCH_EXPORT void pruneShapes(SearchShapeInput &shapes,
+                                                 double simThreshold);
+
 // Make a SearchShapeInput from all conformations of a molecule and then
 // prune them at the given threshold. so that all selected shapes have
 // a similarity score with each other that's less than the threshold.
@@ -69,7 +80,7 @@ PrepareConformers(const RDKit::ROMol &mol,
 // tanimoto and color tanimoto, but the two values are returned separately.
 // The similarity is between 0.0 and 2.0 so the default threshold of 3.0
 // effectively means no threshold.
-RDKIT_PUBCHEMSHAPE_EXPORT std::pair<double, double> BestSimilarity(
+RDKIT_PUBCHEMSHAPE_EXPORT std::pair<double, double> bestSimilarity(
     SearchShapeInput &refShape, SearchShapeInput &fitShape,
     std::vector<float> &matrix, double threshold = 3.0, double opt_param = 1.0,
     unsigned int max_preiters = 10u, unsigned int max_postiters = 30u);

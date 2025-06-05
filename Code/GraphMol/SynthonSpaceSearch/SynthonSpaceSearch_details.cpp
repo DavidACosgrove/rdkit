@@ -899,6 +899,30 @@ unsigned int countChiralAtoms(ROMol &mol, unsigned int *numExcDummies) {
   return numChiralAtoms;
 }
 
+bool hasUnspecifiedStereo(ROMol &mol) {
+  auto sis = Chirality::findPotentialStereo(mol, true, true);
+  for (auto &si : sis) {
+    if (si.type == Chirality::StereoType::Atom_Tetrahedral ||
+        si.type == Chirality::StereoType::Atom_SquarePlanar ||
+        si.type == Chirality::StereoType::Atom_TrigonalBipyramidal ||
+        si.type == Chirality::StereoType::Atom_Octahedral) {
+      Atom *atom = mol.getAtomWithIdx(si.centeredOn);
+      if (atom->getChiralTag() == Atom::CHI_UNSPECIFIED) {
+        return true;
+      }
+    } else if (si.type == Chirality::StereoType::Bond_Double ||
+               si.type == Chirality::StereoType::Bond_Cumulene_Even ||
+               si.type == Chirality::StereoType::Bond_Atropisomer) {
+      Bond *bond = mol.getBondWithIdx(si.centeredOn);
+      if (bond->getStereo() == Bond::BondStereo::STEREONONE ||
+          bond->getStereo() == Bond::BondStereo::STEREOANY) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void pruneShapes(ShapeSet &shapeSet, double simThreshold) {
   if (shapeSet.empty()) {
     return;
@@ -937,6 +961,43 @@ void pruneShapes(ShapeSet &shapeSet, double simThreshold) {
     newShapes.push_back(std::move(shapeSet[p]));
   }
   shapeSet = std::move(newShapes);
+}
+
+std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
+    const ROMol &mol, unsigned int numConformers, bool enumerateStereo,
+    const EnumerateStereoisomers::StereoEnumerationOptions &enumOpts,
+    DGeomHelpers::EmbedParameters &dgParams) {
+  std::vector<std::unique_ptr<RWMol>> confMols;
+  EnumerateStereoisomers::StereoisomerEnumerator enu(mol, enumOpts);
+  if (enumerateStereo) {
+    while (auto isomer = enu.next()) {
+      confMols.emplace_back(static_cast<RWMol *>(isomer.release()));
+    }
+  } else {
+    confMols.push_back(std::make_unique<RWMol>(mol));
+  }
+  for (auto &cm : confMols) {
+    if (ControlCHandler::getGotSignal()) {
+      confMols.clear();
+      break;
+    }
+    MolOps::addHs(*cm);
+    auto cids = DGeomHelpers::EmbedMultipleConfs(*cm, numConformers, dgParams);
+    if (cids.empty()) {
+      BOOST_LOG(rdErrorLog)
+          << "Couldn't generate conformers for isomer " << MolToCXSmiles(*cm)
+          << " of molecule." << std::endl;
+      cm.reset();
+      continue;
+    }
+    MolOps::removeHs(*cm);
+  }
+  confMols.erase(std::remove_if(confMols.begin(), confMols.end(),
+                                [](const std::unique_ptr<RWMol> &m) -> bool {
+                                  return !m;
+                                }),
+                 confMols.end());
+  return confMols;
 }
 
 }  // namespace RDKit::SynthonSpaceSearch::details

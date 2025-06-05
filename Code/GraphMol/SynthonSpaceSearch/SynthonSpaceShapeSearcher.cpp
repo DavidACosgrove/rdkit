@@ -14,6 +14,7 @@
 #include <Geometry/Transform3D.h>
 #include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <GraphMol/EnumerateStereoisomers/EnumerateStereoisomers.h>
 #include <GraphMol/MolTransforms/MolTransforms.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearchHelpers.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceShapeSearcher.h>
@@ -83,7 +84,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
           synthons[j].second->getShapes()->hasNoShapes()) {
         continue;
       }
-      if (const auto sim = BestSimilarity(*fragShapes[fragNum],
+      if (const auto sim = bestSimilarity(*fragShapes[fragNum],
                                           *synthons[j].second->getShapes(),
                                           matrix, similarityCutoff);
           sim.first + sim.second >= similarityCutoff) {
@@ -135,10 +136,6 @@ SynthonSpaceShapeSearcher::searchFragSet(
     const std::vector<std::unique_ptr<ROMol>> &fragSet,
     const SynthonSet &reaction) const {
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> results;
-
-  // if (fragSet.size() != 3) {
-  //   return results;
-  // }
   if (fragSet.size() > reaction.getSynthons().size()) {
     return results;
   }
@@ -290,30 +287,38 @@ void generateSomeShapes(
 }
 }  // namespace
 
-void SynthonSpaceShapeSearcher::extraSearchSetup(
+bool SynthonSpaceShapeSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
   // Use the given conformers if there are some unless it looks like a
   // 2D molecule.
-  ShapeInputOptions opts;
   auto queryMol = std::unique_ptr<RWMol>(new RWMol(getQuery()));
   if (!queryMol->getNumConformers() || !queryMol->getConformer().is3D()) {
     std::cout << "Making query conformers" << std::endl;
-    MolOps::addHs(*queryMol);
+    if (details::hasUnspecifiedStereo(*queryMol) &&
+        !getParams().enumerateUnspecifiedStereo) {
+      BOOST_LOG(rdErrorLog)
+          << "The query molecule has unspecified stereochemistry."
+             "  You need either to correct this or set the option "
+             "'enumerateUnspecifiedStereo' to true."
+          << std::endl;
+      return false;
+    }
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = getParams().numThreads;
     dgParams.pruneRmsThresh = getParams().confRMSThreshold;
     dgParams.randomSeed = getParams().randomSeed;
-    // Build shapes for multiple conformations of the query molecule.
-    auto cids = DGeomHelpers::EmbedMultipleConfs(
-        *queryMol, getParams().numConformers, dgParams);
-    if (cids.empty()) {
-      BOOST_LOG(rdWarningLog)
-          << "Couldn't generate conformers for query molecule." << std::endl;
-      return;
+    // Make conformers for this molecule, but without generating
+    // isomers.  If that was needed, it will already have been done.
+    auto queryMols = details::generateIsomerConformers(
+        *queryMol, getParams().numConformers, false, getParams().stereoEnumOpts,
+        dgParams);
+    if (queryMols.empty()) {
+      return false;
     }
-    MolOps::removeHs(*static_cast<RWMol *>(queryMol.get()));
+    queryMol = std::move(queryMols.front());
   }
   std::cout << "Generating  query shapes" << std::endl;
+  ShapeInputOptions opts;
   dp_queryShapes = PrepareConformers(*queryMol, opts, 1.9);
   std::cout << "Number of query shapes : " << dp_queryShapes->confCoords.size()
             << std::endl;
@@ -335,7 +340,7 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
   bool cancelled = false;
   auto fragSmiToFrag = details::mapFragsBySmiles(fragSets, cancelled);
   if (cancelled) {
-    return;
+    return false;
   }
 
   // Compute ShapeSets for the fragments
@@ -380,6 +385,7 @@ void SynthonSpaceShapeSearcher::extraSearchSetup(
     return p1.first > p2.first;
   });
   std::cout << "Done extra setup" << std::endl;
+  return true;
 }
 
 bool SynthonSpaceShapeSearcher::quickVerify(
@@ -420,34 +426,48 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   dgParams.numThreads = 1;
   dgParams.pruneRmsThresh = getParams().confRMSThreshold;
   dgParams.randomSeed = getParams().randomSeed;
-  std::unique_ptr<ROMol> hitMolHs(MolOps::addHs(hit));
-  DGeomHelpers::EmbedMultipleConfs(*hitMolHs, getParams().numConformers,
-                                   dgParams);
-  MolOps::removeHs(*static_cast<RWMol *>(hitMolHs.get()));
-  std::vector<float> matrix(12, 0.0);
-  RDGeom::Transform3D qshift;
-  qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
-                                        -dp_queryShapes->shift[1],
-                                        -dp_queryShapes->shift[2]});
-  // std::cout << "Verifying hit for " << MolToSmiles(hit) << std::endl;
-  for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
-    dp_queryShapes->setActiveConformer(i);
-    for (unsigned int j = 0u; j < hitMolHs->getNumConformers(); ++j) {
-      // std::cout << "Checking conf " << j << " against query conf " << i <<
-      // std::endl;
-      auto [st, ct] = AlignMolecule(*dp_queryShapes, *hitMolHs, matrix, j);
-      MolTransforms::transformConformer(hitMolHs->getConformer(j), qshift);
-      if (st + ct >= getParams().similarityCutoff) {
-        // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
-        // << std::endl;
-        hit.setProp<double>("Similarity", st + ct);
-        hit.setProp<unsigned int>("Query_Conformer", i);
-        hit.addConformer(new Conformer(hitMolHs->getConformer(j)));
-        return true;
+  auto hitConfs =
+      details::generateIsomerConformers(hit, getParams().numConformers, true,
+                                        getParams().stereoEnumOpts, dgParams);
+  bool foundHit = false;
+  double bestSim = getParams().similarityCutoff;
+  for (auto &isomer : hitConfs) {
+    std::vector<float> matrix(12, 0.0);
+    RDGeom::Transform3D qshift;
+    qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
+                                          -dp_queryShapes->shift[1],
+                                          -dp_queryShapes->shift[2]});
+    std::cout << "Verifying hit for " << MolToSmiles(*isomer) << " of "
+              << MolToSmiles(hit) << std::endl;
+    for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
+      dp_queryShapes->setActiveConformer(i);
+      for (unsigned int j = 0u; j < isomer->getNumConformers(); ++j) {
+        auto [st, ct] = AlignMolecule(*dp_queryShapes, *isomer, matrix, j);
+        if (st + ct > getParams().similarityCutoff) {
+          std::cout << "sims : " << st << ", " << ct << " : " << st + ct
+                    << " for " << MolToSmiles(*isomer) << " query conf " << i
+                    << " poss hit conf " << j << std::endl;
+        }
+        MolTransforms::transformConformer(isomer->getConformer(j), qshift);
+        if (st + ct >= bestSim) {
+          std::cout << "HIT sims : " << st << ", " << ct << " : " << st + ct
+                    << " for " << MolToSmiles(*isomer) << " query conf " << i
+                    << std::endl;
+          hit.setProp<double>("Similarity", st + ct);
+          hit.setProp<unsigned int>("Query_Conformer", i);
+          hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(getQuery()));
+          hit.addConformer(new Conformer(isomer->getConformer(j)));
+          MolOps::assignStereochemistryFrom3D(hit);
+          if (!getParams().bestHit) {
+            return true;
+          }
+          foundHit = true;
+          bestSim = st + ct;
+        }
       }
     }
   }
-  return false;
+  return foundHit;
 }
 
 }  // namespace RDKit::SynthonSpaceSearch

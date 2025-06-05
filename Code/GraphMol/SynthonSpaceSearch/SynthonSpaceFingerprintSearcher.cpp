@@ -152,14 +152,14 @@ std::vector<std::vector<size_t>> getHitSynthons(
 }
 }  // namespace
 
-void SynthonSpaceFingerprintSearcher::extraSearchSetup(
+bool SynthonSpaceFingerprintSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
   if (!getSpace().hasFingerprints() ||
       getSpace().getSynthonFingerprintType() != d_fpGen.infoString()) {
     getSpace().buildSynthonFingerprints(d_fpGen);
   }
   if (ControlCHandler::getGotSignal()) {
-    return;
+    return false;
   }
 
   // Slightly convoluted way of doing it to prepare for multi-threading.
@@ -168,7 +168,7 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
   bool cancelled = false;
   auto fragSmiToFrag = details::mapFragsBySmiles(fragSets, cancelled);
   if (cancelled) {
-    return;
+    return false;
   }
 
   // Generate the fingerprints for the fragments.  This is the
@@ -177,7 +177,7 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
   unsigned int fragNum = 0;
   for (auto &[fragSmi, frags] : fragSmiToFrag) {
     if (ControlCHandler::getGotSignal()) {
-      return;
+      return false;
     }
     d_fragFPPool[fragNum++].reset(d_fpGen.getFingerprint(*frags.front()));
   }
@@ -194,6 +194,7 @@ void SynthonSpaceFingerprintSearcher::extraSearchSetup(
   std::ranges::sort(d_fragFPs, [](const auto &p1, const auto &p2) -> bool {
     return p1.first > p2.first;
   });
+  return true;
 }
 
 std::vector<std::unique_ptr<SynthonSpaceHitSet>>
