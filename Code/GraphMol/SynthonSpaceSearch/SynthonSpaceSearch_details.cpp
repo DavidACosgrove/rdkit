@@ -34,6 +34,7 @@
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceHitSet.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
+#include <GraphMol/SynthonSpaceSearch/ProgressBar.h>
 #include <RDGeneral/RDThreads.h>
 #include <SimDivPickers/DistPicker.h>
 #include <SimDivPickers/LeaderPicker.h>
@@ -998,6 +999,128 @@ std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
                                 }),
                  confMols.end());
   return confMols;
+}
+
+void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
+                       std::atomic<std::int64_t> &mostRecentMol,
+                       DGeomHelpers::EmbedParameters &dgParams,
+                       const ShapeBuildParams &shapeParams, ProgressBar &pbar) {
+  ShapeInputOptions shapeOpts;
+  shapeOpts.includeDummies = true;
+  shapeOpts.dummyRadius = 2.16;
+  ShapeInputOptions noDummyOpts;
+  noDummyOpts.includeDummies = false;
+
+  while (!ControlCHandler::getGotSignal()) {
+    size_t molNum = ++mostRecentMol;
+    if (molNum >= sampleMols.size()) {
+      return;
+    }
+    // If we have a shape object in the synthon with some shapes, don't do
+    // anything.  If there's a shape object but no shapes then probably
+    // the embedding failed last time, so try again.  It might be the
+    // fault of this synthon, but it might conceivably have been a problem
+    // with whatever it was attached to, and another reaction might have
+    // bolted on something more amenable.
+    if (sampleMols[molNum]->d_synthon->getShapes() &&
+        !sampleMols[molNum]->d_synthon->getShapes()->hasNoShapes()) {
+      continue;
+    }
+    auto isomerConfs = details::generateIsomerConformers(
+        *sampleMols[molNum]->d_mol, shapeParams.numConfs, true,
+        shapeParams.stereoEnumOpts, dgParams);
+    if (isomerConfs.empty()) {
+      BOOST_LOG(rdWarningLog)
+          << "No conformers generated for sample molecule "
+          << sampleMols[molNum]->d_mol->getProp<std::string>(
+                 common_properties::_Name)
+          << " : " << MolToSmiles(*sampleMols[molNum]->d_mol)
+          << " when generating conformers for synthon "
+          << sampleMols[molNum]->d_synthon->getSmiles() << std::endl;
+      continue;
+    }
+    auto allShapes = std::make_unique<SearchShapeInput>();
+    for (auto &isomer : isomerConfs) {
+      std::vector<unsigned int> splitBonds;
+      std::vector<unsigned int> fragAtoms;
+      std::vector<unsigned int> dummies;
+      std::vector<std::pair<unsigned int, double>> dummyRadii;
+      for (const auto &bond : isomer->bonds()) {
+        if (!bond->hasProp("molNum")) {
+          splitBonds.push_back(bond->getIdx());
+          auto begMolNum =
+              bond->getBeginAtom()->getProp<unsigned int>("molNum");
+          auto endMolNum = bond->getEndAtom()->getProp<unsigned int>("molNum");
+          if (begMolNum == sampleMols[molNum]->d_synthonSetNum &&
+              endMolNum != sampleMols[molNum]->d_synthonSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+            dummies.push_back(bond->getEndAtomIdx());
+            dummyRadii.emplace_back(bond->getEndAtomIdx(), 2.16);
+          } else if (begMolNum != sampleMols[molNum]->d_synthonSetNum &&
+                     endMolNum == sampleMols[molNum]->d_synthonSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+            dummies.push_back(bond->getBeginAtomIdx());
+            dummyRadii.emplace_back(bond->getBeginAtomIdx(), 2.16);
+          }
+        } else {
+          if (bond->getProp<unsigned int>("molNum") ==
+              sampleMols[molNum]->d_synthonSetNum) {
+            fragAtoms.push_back(bond->getBeginAtomIdx());
+            fragAtoms.push_back(bond->getEndAtomIdx());
+          }
+        }
+      }
+      std::ranges::sort(fragAtoms);
+      fragAtoms.erase(std::unique(fragAtoms.begin(), fragAtoms.end()),
+                      fragAtoms.end());
+      std::ranges::sort(dummies);
+      dummies.erase(std::unique(dummies.begin(), dummies.end()), dummies.end());
+      shapeOpts.atomRadii = dummyRadii;
+      shapeOpts.notColorAtoms = dummies;
+      shapeOpts.atomSubset = fragAtoms;
+      noDummyOpts.atomSubset = fragAtoms;
+
+      auto shapes =
+          PrepareConformers(*isomer, shapeOpts, shapeParams.shapeSimThreshold);
+      // Because stereoisomers should all have the same number of atoms and
+      // bonds, we can just combine the shapes into one set.  We don't need
+      // to keep track of which stereoisomer they came from.
+
+      allShapes->merge(*shapes);
+    }
+    pruneShapes(*allShapes, shapeParams.shapeSimThreshold);
+    sampleMols[molNum]->d_synthon->setShapes(std::move(allShapes));
+    float progress = 100.0 * static_cast<float>(molNum) /
+                     static_cast<float>(sampleMols.size());
+    // std::cout << progress << std::endl;
+    pbar.update(progress);
+  }
+}
+
+void makeShapesFromMols(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
+                        DGeomHelpers::EmbedParameters &dgParams,
+                        const ShapeBuildParams &shapeParams) {
+  std::atomic<std::int64_t> mostRecentMol = -1;
+  ProgressBar pbar(70);
+  if (const auto numThreadsToUse = getNumThreadsToUse(shapeParams.numThreads);
+      numThreadsToUse > 1) {
+    std::cout << "Num threads to use : " << numThreadsToUse << std::endl;
+    std::vector<std::thread> threads;
+    for (unsigned int i = 0u;
+         i < std::min(static_cast<size_t>(numThreadsToUse), sampleMols.size());
+         ++i) {
+      threads.emplace_back(makeShapesFromMol, std::ref(sampleMols),
+                           std::ref(mostRecentMol), std::ref(dgParams),
+                           shapeParams, std::ref(pbar));
+    }
+    for (auto &t : threads) {
+      t.join();
+    }
+  } else {
+    makeShapesFromMol(sampleMols, mostRecentMol, dgParams, shapeParams, pbar);
+  }
 }
 
 }  // namespace RDKit::SynthonSpaceSearch::details

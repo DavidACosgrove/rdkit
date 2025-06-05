@@ -24,7 +24,10 @@ using TimePoint = std::chrono::time_point<Clock>;
 
 namespace RDKit {
 class ROMol;
-namespace SynthonSpaceSearch::details {
+namespace SynthonSpaceSearch {
+struct SampleMolRec;
+
+namespace details {
 
 RDKIT_SYNTHONSPACESEARCH_EXPORT bool checkTimeOut(const TimePoint *endTime);
 
@@ -187,7 +190,17 @@ generateIsomerConformers(
     const EnumerateStereoisomers::StereoEnumerationOptions &enumOpts,
     DGeomHelpers::EmbedParameters &dgParams);
 
-}  // namespace SynthonSpaceSearch::details
+// Make the synthon shapes for the given molecules based on the passed in
+// synthons.  The synthon of interest in each molecule is from the
+// synthSetNum vector of the synthons.  Works in parallel on the number of
+// threads given in shapeParams.
+RDKIT_SYNTHONSPACESEARCH_EXPORT void makeShapesFromMols(
+    std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
+    DGeomHelpers::EmbedParameters &dgParams,
+    const ShapeBuildParams &shapeParams);
+
+}  // namespace details
+}  // namespace SynthonSpaceSearch
 }  // namespace RDKit
 
 #endif  // RDKIT_SYNTHONSPACESEARCHDETAILS_H

@@ -334,6 +334,13 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
     auto synthonNum = getSynthonNum(format, nextSynthon[2]);
     auto newSynth = addSynthonToPool(nextSynthon[0]);
     currReaction->addSynthon(synthonNum, newSynth, nextSynthon[1]);
+    // if (auto it = d_synthonReactions.find(nextSynthon[0]);
+    //     it != d_synthonReactions.end()) {
+    //   it->second.push_back(currReaction.get());
+    // } else {
+    //   d_synthonReactions.insert(std::make_pair(
+    //       nextSynthon[0], std::vector<SynthonSet *>(1, currReaction.get())));
+    // }
   }
   // Do some final processing.
   for (auto &[id, reaction] : d_reactions) {
@@ -665,23 +672,56 @@ void SynthonSpace::buildSynthonFingerprints(
 }
 
 void SynthonSpace::buildSynthonShapes(bool &cancelled,
-                                      const ShapeBuildParams &options) {
-  if (d_numConformers == options.numConfs) {
-    BOOST_LOG(rdWarningLog) << "SynthonSpace has already been built with "
-                            << options.numConfs << " conformers." << std::endl;
+                                      const ShapeBuildParams &shapeParams) {
+  if (d_numConformers == shapeParams.numConfs) {
+    BOOST_LOG(rdWarningLog)
+        << "SynthonSpace has already been built with " << shapeParams.numConfs
+        << " conformers." << std::endl;
     return;
   }
-  BOOST_LOG(rdWarningLog) << "Building the conformers may take some time."
-                          << std::endl;
-  d_numConformers = options.numConfs;
+  BOOST_LOG(rdWarningLog) << "Building the conformers of "
+                          << d_synthonPool.size()
+                          << " synthons may take some time." << std::endl;
+  if (d_synthonReactions.empty()) {
+    fillSynthonReactions();
+  }
+  d_numConformers = shapeParams.numConfs;
+  std::vector<unsigned int> doneRxns(d_synthonPool.size(), 0u);
   cancelled = false;
-  for (const auto &[id, synthSet] : d_reactions) {
-    std::cout << "Building shapes for " << id << std::endl;
+  while (true && !cancelled) {
+    // Loop around until all synthons have some shapes or we've run out
+    // of synthon/reaction combinations.
+    std::vector<std::unique_ptr<SampleMolRec>> sampleMols;
+    sampleMols.reserve(d_synthonPool.size());
+    size_t sn = 0;
+    for (const auto &it : d_synthonReactions) {
+      auto reactions = d_synthonReactions.find(it.first);
+      auto synthon = getSynthonFromPool(it.first);
+      if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
+        if (doneRxns[sn] < reactions->second.size()) {
+          sampleMols.push_back(
+              reactions->second[doneRxns[sn]]->makeSampleMolecule(synthon));
+          // In the unlikely event that we didn't get anything, drop it.
+          if (!sampleMols.back()->d_mol) {
+            sampleMols.pop_back();
+          }
+        }
+        doneRxns[sn]++;
+      }
+      ++sn;
+    }
+    std::cout << "Number of sample mols : " << sampleMols.size() << std::endl;
+    if (sampleMols.empty()) {
+      break;
+    }
+    auto dgParams = DGeomHelpers::ETKDGv3;
+    dgParams.numThreads = 1;
+    dgParams.pruneRmsThresh = shapeParams.rmsThreshold;
+    dgParams.randomSeed = shapeParams.randomSeed;
+    details::makeShapesFromMols(sampleMols, dgParams, shapeParams);
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;
-      return;
     }
-    synthSet->buildSynthonShapes(options);
   }
 }
 
@@ -793,6 +833,27 @@ SearchResults SynthonSpace::extendedSearch(
     results.mergeResults(theseResults);
   }
   return results;
+}
+
+void SynthonSpace::fillSynthonReactions() {
+  std::cout << "fillSynthonREactions" << std::endl;
+  for (auto &[id, rxn] : d_reactions) {
+    auto rxnSynthons = rxn->getSynthons();
+    for (auto &synthonSet : rxnSynthons) {
+      for (auto &[id, synthon] : synthonSet) {
+        auto smiles = synthon->getSmiles();
+        if (auto it = d_synthonReactions.find(smiles);
+            it != d_synthonReactions.end()) {
+          it->second.push_back(rxn.get());
+        } else {
+          d_synthonReactions.insert(
+              std::make_pair(smiles, std::vector<SynthonSet *>(1, rxn.get())));
+        }
+      }
+    }
+  }
+  std::cout << "synthon reactions size : " << d_synthonReactions.size()
+            << std::endl;
 }
 
 void convertTextToDBFile(const std::string &inFilename,

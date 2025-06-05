@@ -1,0 +1,75 @@
+//
+// Copyright (C) David Cosgrove 2025.
+//
+//   @@ All Rights Reserved @@
+//  This file is part of the RDKit.
+//  The contents are covered by the terms of the BSD license
+//  which is included in the file license.txt, found at the root
+//  of the RDKit source tree.
+//
+// This implements a very basic thread-safe progress bar, based on code
+// here
+// https://www.cppstories.com/2020/02/inidicators.html/
+// which is written by the author of https://github.com/p-ranav/indicators
+// which is released under an MIT license.
+
+#ifndef PROGRESSBAR_H
+#define PROGRESSBAR_H
+
+#include <atomic>
+#include <mutex>
+#include <iostream>
+
+namespace RDKit {
+class ProgressBar {
+ public:
+  ProgressBar() = default;
+  ProgressBar(int width) : d_bar_width(width) {}
+  ProgressBar(const ProgressBar &) = delete;
+  ProgressBar &operator=(const ProgressBar &) = delete;
+  ProgressBar(ProgressBar &&) = delete;
+  ProgressBar &operator=(ProgressBar &&) = delete;
+  ~ProgressBar() = default;
+
+  void update(float value, std::ostream &os = std::cout) {
+    set_progress(value);
+    write_progress(os);
+  }
+
+  void set_progress(float value) {
+    std::unique_lock lock{d_mutex};
+    d_progress = value;
+  }
+
+  void write_progress(std::ostream &os = std::cout) {
+    std::unique_lock lock{d_mutex};
+    if (d_progress > 100.0f) {
+      return;
+    }
+    os << "\r" << std::flush;
+    os << "[";
+    const auto completed = static_cast<size_t>(
+        d_progress * static_cast<float>(d_bar_width) / 100.0);
+    for (size_t i = 0; i < d_bar_width; ++i) {
+      if (i <= completed)
+        os << "*";
+      else
+        os << " ";
+    }
+
+    // End bar
+    os << "]";
+
+    // Write progress percentage
+    os << " " << std::min(static_cast<size_t>(d_progress), size_t(100)) << "%"
+       << std::flush;
+  }
+
+ private:
+  std::mutex d_mutex;
+  float d_progress{0.0};
+  unsigned int d_bar_width{60};
+};
+}  // namespace RDKit
+
+#endif  // PROGRESSBAR_H

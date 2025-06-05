@@ -31,6 +31,15 @@ class SynthonSpace;
 struct SynthonSpaceSearchParams;
 struct ShapeBuildParams;
 
+// For holding a sample molecule from this set, based on the given
+// synthon which is in the d_synthonSetNum vector of d_synthons
+// of the SynthonSet.  Used for building shapes.
+struct SampleMolRec {
+  std::unique_ptr<ROMol> d_mol{nullptr};
+  Synthon *d_synthon{nullptr};
+  size_t d_synthonSetNum;
+};
+
 // This class holds pointers to all the synthons for a particular
 // reaction.  The synthons themselves are in a pool in the
 // SynthonSpace.
@@ -139,6 +148,11 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
       const std::function<bool(const Synthon *synthon1,
                                const Synthon *synthon2)> &cmp);
 
+  // make a sample molecule for this synthon, which is expected
+  // to be in the SynthonSet.  Returns an empty object if it isn't,
+  // but that really shouldn't happen.
+  std::unique_ptr<SampleMolRec> makeSampleMolecule(Synthon *synthon);
+
  private:
   std::string d_id;
   // The lists of synthons.  A product of the reaction is created by
@@ -192,6 +206,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
 
   // Synthons are shared, so sometimes we need to copy the molecules into a
   // new set that we can fiddle with without upsetting anything else.
+  std::unique_ptr<RWMol> copySynthon(size_t synthonSetNum,
+                                     size_t synthonIdx) const;
   std::vector<std::vector<std::unique_ptr<RWMol>>> copySynthons() const;
 
   // Take the synthons and build molecules from them.  longVecNum is the number
@@ -201,6 +217,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
       const std::vector<std::vector<std::unique_ptr<RWMol>>> &synthonMols,
       size_t longVecNum) const;
+  std::unique_ptr<ROMol> buildMolecule(
+      const std::vector<size_t> &synthonNums) const;
 };
 
 }  // namespace SynthonSpaceSearch

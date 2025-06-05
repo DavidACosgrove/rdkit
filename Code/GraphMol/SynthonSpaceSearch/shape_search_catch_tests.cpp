@@ -205,7 +205,7 @@ TEST_CASE("Build conformer DB") {
   std::string libName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567.csv";
   libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1.txt";
+      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_2.txt";
   bool cancelled = false;
   SynthonSpace synthonspace;
   synthonspace.readTextFile(libName, cancelled);
@@ -225,7 +225,7 @@ TEST_CASE("Build conformer DB") {
   auto spaceName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
   spaceName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_shapes.spc";
+      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_2_shapes.spc";
   std::cout << "writing to " << spaceName << std::endl;
   synthonspace.writeDBFile(spaceName);
 }
@@ -256,7 +256,7 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
   shapeBuildOptions.rmsThreshold = 1.0;
-  shapeBuildOptions.numThreads = -1;
+  shapeBuildOptions.numThreads = 2;
   shapeBuildOptions.randomSeed = -1;
   synthonspace.buildSynthonShapes(cancelled, shapeBuildOptions);
 
@@ -264,7 +264,7 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
       "c1cc(Nc2nccc(c3cn(C)c4ccccc34)n2)ccc1 |(-30.966,18.467,-10.003;-29.741,18.8,-10.881;-29.776,18.58,-12.402;-28.626,18.878,-13.264;-27.858,20.11,-13.139;-26.809,20.446,-14.135;-26.039,21.676,-14.006;-26.301,22.606,-12.864;-27.356,22.266,-11.866;-27.643,23.19,-10.674;-26.776,24.159,-10.172;-27.396,24.761,-9.099;-26.842,25.83,-8.286;-28.633,24.178,-8.929;-29.782,24.445,-7.884;-31.052,23.635,-7.939;-31.218,22.587,-8.984;-30.11,22.344,-9.979;-28.784,23.198,-9.912;-28.114,21.037,-12.005;-31.044,18.019,-13.045;-32.253,17.694,-12.176;-32.227,17.912,-10.676)|"_smiles;
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
-  params.numThreads = -1;
+  params.numThreads = 1;
   params.similarityCutoff = 1.0;
   params.numConformers = 100;
   params.confRMSThreshold = 1.0;
@@ -278,7 +278,8 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
   tag_centre /= tagrisso_pdb_core->getNumAtoms();
   // The random nature of the conformation generation etc means that we don't
   // always get a hit.
-  for (int i = 0; i < 5; ++i) {
+  bool foundHit = false;
+  for (int i = 0; i < 1; ++i) {
     auto results = synthonspace.shapeSearch(*tagrisso_pdb_core, params);
     std::string outFileName = "tagrisso_core_hits.sdf";
     if (!results.getHitMolecules().empty()) {
@@ -296,10 +297,14 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
                   << m->getProp<std::string>("Similarity") << " : "
                   << m->getProp<std::string>("_Name") << std::endl;
         CHECK((hit_centre - tag_centre).length() < 2.0);
+        foundHit = true;
       }
       break;
+    } else {
+      std::cout << "No hits in run " << i << std::endl;
     }
   }
+  CHECK(foundHit);
 }
 
 TEST_CASE("Unspecified Stereo") {

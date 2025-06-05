@@ -266,10 +266,10 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    * has unspecified stereochemistry, all possibilities will be enumerated and
    * shapes generated for each.
    *
-   * @param options: controls the shape generation for each synthon
+   * @param shapeParams: controls the shape generation for each synthon
    */
-  void buildSynthonShapes(bool &cancelled,
-                          const ShapeBuildParams &options = ShapeBuildParams());
+  void buildSynthonShapes(bool &cancelled, const ShapeBuildParams &shapeParams =
+                                               ShapeBuildParams());
 
  protected:
   unsigned int getMaxNumSynthons() const { return d_maxNumSynthons; }
@@ -315,6 +315,10 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   // for via first, which is its SMILES string.
   std::vector<std::pair<std::string, std::unique_ptr<Synthon>>> d_synthonPool;
 
+  // This maps the Synthons (keyed by its SMILES) to the reactions/SynthonSets
+  // they're in.
+  std::unordered_map<std::string, std::vector<SynthonSet *>> d_synthonReactions;
+
   // For the fingerprint similarity search, this records the generator
   // used for creating synthon fingerprints that are read from a binary file.
   std::string d_fpType;
@@ -333,6 +337,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   SearchResults extendedSearch(const TautomerQuery &query,
                                const SubstructMatchParameters &matchParams,
                                const SynthonSpaceSearchParams &params);
+
+  void fillSynthonReactions();
 };
 
 /*!
