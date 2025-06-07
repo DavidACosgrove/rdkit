@@ -716,12 +716,13 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
               << sampleMols.front()->d_synthon->getNumHeavyAtoms() << std::endl;
     std::cout << sampleMols.back()->d_mol->getNumAtoms() << " : "
               << MolToSmiles(*sampleMols.back()->d_mol) << " : "
-              << sampleMols.back()->d_synthon->getNumHeavyAtoms() << " : "
-              << sampleMols.back()->d_synthon->getSmiles() << std::endl;
+              << sampleMols.back()->d_synthon->getSmiles() << " : "
+              << sampleMols.back()->d_synthon->getNumHeavyAtoms() << std::endl;
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = 1;
     dgParams.pruneRmsThresh = shapeParams.rmsThreshold;
     dgParams.randomSeed = shapeParams.randomSeed;
+    dgParams.maxIterations = shapeParams.maxEmbedAttempts;
     details::makeShapesFromMols(sampleMols, dgParams, shapeParams);
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;

@@ -14,7 +14,6 @@
 #include <Geometry/Transform3D.h>
 #include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
-#include <GraphMol/EnumerateStereoisomers/EnumerateStereoisomers.h>
 #include <GraphMol/MolTransforms/MolTransforms.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearchHelpers.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceShapeSearcher.h>
@@ -139,15 +138,6 @@ SynthonSpaceShapeSearcher::searchFragSet(
   if (fragSet.size() > reaction.getSynthons().size()) {
     return results;
   }
-  // if (MolToSmiles(*fragSet[0]) != "[1*]NC1C[C@@H](C)CN(C(=O)c([2*])[3*])C1")
-  // {
-  //   return results;
-  // }
-  // std::cout << "\nSearchFragSet : ";
-  // for (const auto &f : fragSet) {
-  //   std::cout << MolToSmiles(*f) << " ";
-  // }
-  // std::cout << std::endl;
   // Collect the ShapeSets for the fragSet
   std::vector<SearchShapeInput *> fragShapes;
   fragShapes.reserve(fragSet.size());
@@ -290,7 +280,7 @@ void generateSomeShapes(
 bool SynthonSpaceShapeSearcher::extraSearchSetup(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
   // Use the given conformers if there are some unless it looks like a
-  // 2D molecule.
+  // 2D molecule.  We assume that the steroisomer is defined.
   auto queryMol = std::unique_ptr<RWMol>(new RWMol(getQuery()));
   if (!queryMol->getNumConformers() || !queryMol->getConformer().is3D()) {
     std::cout << "Making query conformers" << std::endl;
@@ -315,11 +305,14 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     if (queryMols.empty()) {
       return false;
     }
-    queryMol = std::move(queryMols.front());
+    dp_queryConfs = std::move(queryMols.front());
+  } else {
+    dp_queryConfs = std::make_unique<RWMol>(getQuery());
   }
-  std::cout << "Generating  query shapes" << std::endl;
+  std::cout << "Generating query shapes for "
+            << dp_queryConfs->getNumConformers() << " conformers" << std::endl;
   ShapeInputOptions opts;
-  dp_queryShapes = PrepareConformers(*queryMol, opts, 1.9);
+  dp_queryShapes = PrepareConformers(*dp_queryConfs, opts, 1.9);
   std::cout << "Number of query shapes : " << dp_queryShapes->confCoords.size()
             << std::endl;
   std::cout << "query shift : " << dp_queryShapes->shift[0] << ", "
@@ -355,22 +348,21 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   unsigned int fragNum = 0;
   if (const auto numThreads = getNumThreadsToUse(getParams().numThreads);
       numThreads > 1) {
-    std::cout << "numThreads: " << numThreads << std::endl;
     const size_t eachThread = 1 + fragsForShape.size() / numThreads;
     size_t start = 0;
     std::vector<std::thread> threads;
     for (unsigned int i = 0U; i < numThreads; ++i, start += eachThread) {
       threads.push_back(std::thread(generateSomeShapes, std::ref(fragsForShape),
                                     start, start + eachThread,
-                                    std::ref(*queryMol), 1.9,
+                                    std::ref(*dp_queryConfs), 1.9,
                                     std::ref(d_fragShapesPool)));
     }
     for (auto &t : threads) {
       t.join();
     }
   } else {
-    generateSomeShapes(fragsForShape, 0, fragsForShape.size(), *queryMol, 1.9,
-                       d_fragShapesPool);
+    generateSomeShapes(fragsForShape, 0, fragsForShape.size(), *dp_queryConfs,
+                       1.9, d_fragShapesPool);
   }
   // Use the pooled ShapeSets to populate the vectors for each fragSet
   fragNum = 0;
@@ -423,6 +415,9 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
+  if (MolToSmiles(hit) == MolToSmiles(getQuery())) {
+    std::cout << "It's itself" << std::endl;
+  }
   dgParams.numThreads = 1;
   dgParams.pruneRmsThresh = getParams().confRMSThreshold;
   dgParams.randomSeed = getParams().randomSeed;
@@ -437,25 +432,26 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
     qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
                                           -dp_queryShapes->shift[1],
                                           -dp_queryShapes->shift[2]});
-    std::cout << "Verifying hit for " << MolToSmiles(*isomer) << " of "
-              << MolToSmiles(hit) << std::endl;
+    // std::cout << "Verifying hit for " << MolToSmiles(*isomer) << " of "
+    // << MolToSmiles(hit) << std::endl;
     for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
       dp_queryShapes->setActiveConformer(i);
       for (unsigned int j = 0u; j < isomer->getNumConformers(); ++j) {
         auto [st, ct] = AlignMolecule(*dp_queryShapes, *isomer, matrix, j);
-        if (st + ct > getParams().similarityCutoff) {
-          std::cout << "sims : " << st << ", " << ct << " : " << st + ct
-                    << " for " << MolToSmiles(*isomer) << " query conf " << i
-                    << " poss hit conf " << j << std::endl;
-        }
+        // if (st + ct > getParams().similarityCutoff) {
+        // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
+        // << " for " << MolToSmiles(*isomer) << " query conf " << i
+        // << " poss hit conf " << j << std::endl;
+        // }
         MolTransforms::transformConformer(isomer->getConformer(j), qshift);
         if (st + ct >= bestSim) {
-          std::cout << "HIT sims : " << st << ", " << ct << " : " << st + ct
-                    << " for " << MolToSmiles(*isomer) << " query conf " << i
-                    << std::endl;
+          // std::cout << "HIT sims : " << st << ", " << ct << " : " << st + ct
+          // << " for " << MolToSmiles(*isomer) << " query conf " << i
+          // << std::endl;
           hit.setProp<double>("Similarity", st + ct);
           hit.setProp<unsigned int>("Query_Conformer", i);
-          hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(getQuery()));
+          ROMol thisConf(*dp_queryConfs, false, i);
+          hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
           hit.addConformer(new Conformer(isomer->getConformer(j)));
           MolOps::assignStereochemistryFrom3D(hit);
           if (!getParams().bestHit) {
@@ -466,6 +462,9 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
         }
       }
     }
+  }
+  if (MolToSmiles(hit) == MolToSmiles(getQuery())) {
+    std::cout << "It's itself a hit" << std::endl;
   }
   return foundHit;
 }

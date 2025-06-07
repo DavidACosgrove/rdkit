@@ -24,8 +24,8 @@ namespace RDKit {
 class ProgressBar {
  public:
   ProgressBar() = default;
-  ProgressBar(unsigned int width, std::uint64_t num)
-      : d_bar_width(width), d_numToDo(num) {}
+  ProgressBar(unsigned int width, std::uint64_t numToDo)
+      : d_bar_width(width), d_numToDo(numToDo) {}
   ProgressBar(const ProgressBar &) = delete;
   ProgressBar &operator=(const ProgressBar &) = delete;
   ProgressBar(ProgressBar &&) = delete;

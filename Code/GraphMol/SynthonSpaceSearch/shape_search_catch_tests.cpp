@@ -227,8 +227,7 @@ TEST_CASE("Build conformer DB") {
   synthonspace.buildSynthonShapes(cancelled, shapeBuildOptions);
   auto spaceName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-  spaceName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_shapes.spc";
+  spaceName = fName + "/cmake-mine/random_real_1_shapes.spc";
   // spaceName =
   // "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/difficult.spc";
   std::cout << "writing to " << spaceName << std::endl;

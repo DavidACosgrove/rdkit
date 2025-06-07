@@ -1030,6 +1030,9 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
     // bolted on something more amenable.
     if (sampleMols[molNum]->d_synthon->getShapes() &&
         !sampleMols[molNum]->d_synthon->getShapes()->hasNoShapes()) {
+      if (pbar) {
+        pbar->increment();
+      }
       continue;
     }
     auto isomerConfs = details::generateIsomerConformers(
@@ -1043,6 +1046,9 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
           << " : " << MolToSmiles(*sampleMols[molNum]->d_mol)
           << " when generating conformers for synthon "
           << sampleMols[molNum]->d_synthon->getSmiles() << std::endl;
+      if (pbar) {
+        pbar->increment();
+      }
       continue;
     }
     auto allShapes = std::make_unique<SearchShapeInput>();

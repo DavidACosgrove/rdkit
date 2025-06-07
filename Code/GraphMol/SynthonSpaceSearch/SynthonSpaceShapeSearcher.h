@@ -37,6 +37,9 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
  private:
   // Shapes for all the conformers of the query.
   std::unique_ptr<SearchShapeInput> dp_queryShapes;
+  // If a conformational expansion was done, keep it here, otherwise
+  // just copy the query.
+  std::unique_ptr<RWMol> dp_queryConfs;
   // These are the fragment shapes for this search, derived from
   // d_query.  The shapes in d_fragShapes are keyed on the address
   // of the corresponding fragment.  d_fragShapesPool is never read,

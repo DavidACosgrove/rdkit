@@ -99,7 +99,7 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                         // hit conformer with the best shape match to a query
                         // conformer.  If false it will just return the first
                         // hit conformer that exceeds the similarity cutoff.
-                        // This will be faster but the returned hit
+                        // The latter will be faster but the returned hit
                         // conformations likely to be less relevant.
   bool enumerateUnspecifiedStereo{
       false};  // When doing a shape search, if there is
@@ -110,7 +110,6 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
       true, true, false, true,
       0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
                   // tryEmbedding of false.
-
   std::uint64_t timeOut{600};  // Maximum number of seconds to spend on a single
                                // search.  0 means no maximum.
   int numThreads = 1;  // The number of threads to use.  If > 0, will use that
@@ -118,6 +117,7 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                        // threads plus this number.  So if the number of
                        // hardware threads is 8, and numThreads is -1, it will
                        // use 7 threads.
+  bool useProgressBar{true};  // If true, displays a progress bar
 };
 
 // Options to be passed to buildSynthonShapes.
@@ -136,10 +136,11 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
       true, true, false, true,
       0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
                   // tryEmbedding of false.
-  bool useProgressBar{true};        // If true, displays a progress bar
-  unsigned int maxSynthonAtoms{0};  // If > 0, puts a maximum number of heavy
-                                    // atoms, excluding dummies, for a synthon
-                                    // to have a shape made.
+  bool useProgressBar{true};          // If true, displays a progress bar
+  unsigned int maxSynthonAtoms{0};    // If > 0, puts a maximum number of heavy
+                                      // atoms, excluding dummies, for a synthon
+                                      // to have a shape made.
+  unsigned int maxEmbedAttempts{10};  // Maximum attempts for an embedding.
 };
 
 using ShapeSet = std::vector<std::unique_ptr<SearchShapeInput>>;

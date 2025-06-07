@@ -326,6 +326,13 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           &SynthonSpaceSearch::SynthonSpaceSearchParams::confRMSThreshold,
           "When doing a shape search, the RMS threshold to use when pruning"
           " conformers.  Default=1.0.")
+      .def_readwrite(
+          "bestHit", &SynthonSpaceSearch::SynthonSpaceSearchParams::bestHit,
+          "If True, when doing a shape search it will return the hit conformer"
+          " with the best shape match to the query conformer.  If False, it just"
+          " returns the first hit conformer that exceeds the similarity cutoff."
+          "  The latter will be faster but the returned hit conformations are likely"
+          " to be less relevant.")
       .def_readwrite("enumerateUnspecifiedStereo",
                      &SynthonSpaceSearch::SynthonSpaceSearchParams::
                          enumerateUnspecifiedStereo,
