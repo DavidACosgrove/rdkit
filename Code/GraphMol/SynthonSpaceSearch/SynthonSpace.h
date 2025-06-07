@@ -271,6 +271,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   void buildSynthonShapes(bool &cancelled, const ShapeBuildParams &shapeParams =
                                                ShapeBuildParams());
 
+  void reportSynthonUsage(std::ostream &os) const;
+
  protected:
   unsigned int getMaxNumSynthons() const { return d_maxNumSynthons; }
 
@@ -338,7 +340,19 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
                                const SubstructMatchParameters &matchParams,
                                const SynthonSpaceSearchParams &params);
 
+  // Fill up the d_synthonReactions object, listing all the reactions
+  // each synthon is found in.
   void fillSynthonReactions();
+  // For each synthon, build a sample molecule for each reaction it's in,
+  // using d_synthonReactions.  Return them so the samples for a synthon
+  // are in descending order of size so that when building shapes, we
+  // do it on the smallest available example to save time, by popping
+  // them off the back.  If maxSynthonAtoms > 0 and the synthon has
+  // more heavy atoms than that (excluding dummy atoms) it is skipped.
+  void buildSynthonSampleMolecules(
+      unsigned int maxSynthonAtoms,
+      std::vector<std::vector<std::unique_ptr<SampleMolRec>>> &sampleMols)
+      const;
 };
 
 /*!

@@ -984,6 +984,11 @@ std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
     }
     MolOps::addHs(*cm);
     auto cids = DGeomHelpers::EmbedMultipleConfs(*cm, numConformers, dgParams);
+    if (ControlCHandler::getGotSignal()) {
+      std::cout << "returning" << std::endl;
+      confMols.clear();
+      return confMols;
+    }
     if (cids.empty()) {
       BOOST_LOG(rdErrorLog)
           << "Couldn't generate conformers for isomer " << MolToCXSmiles(*cm)
@@ -1004,7 +1009,8 @@ std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
 void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
                        std::atomic<std::int64_t> &mostRecentMol,
                        DGeomHelpers::EmbedParameters &dgParams,
-                       const ShapeBuildParams &shapeParams, ProgressBar &pbar) {
+                       const ShapeBuildParams &shapeParams,
+                       std::unique_ptr<ProgressBar> &pbar) {
   ShapeInputOptions shapeOpts;
   shapeOpts.includeDummies = true;
   shapeOpts.dummyRadius = 2.16;
@@ -1092,7 +1098,9 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
     }
     pruneShapes(*allShapes, shapeParams.shapeSimThreshold);
     sampleMols[molNum]->d_synthon->setShapes(std::move(allShapes));
-    pbar.increment();
+    if (pbar) {
+      pbar->increment();
+    }
   }
 }
 
@@ -1100,7 +1108,10 @@ void makeShapesFromMols(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
                         DGeomHelpers::EmbedParameters &dgParams,
                         const ShapeBuildParams &shapeParams) {
   std::atomic<std::int64_t> mostRecentMol = -1;
-  ProgressBar pbar(70, sampleMols.size());
+  std::unique_ptr<ProgressBar> pbar;
+  if (shapeParams.useProgressBar) {
+    pbar.reset(new ProgressBar(70, sampleMols.size()));
+  }
   if (const auto numThreadsToUse = getNumThreadsToUse(shapeParams.numThreads);
       numThreadsToUse > 1) {
     std::cout << "Num threads to use : " << numThreadsToUse << std::endl;

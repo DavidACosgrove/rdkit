@@ -41,7 +41,6 @@
 #include <RDGeneral/StreamOps.h>
 
 namespace RDKit::SynthonSpaceSearch {
-
 // used for serialization
 constexpr int32_t versionMajor = 3;
 constexpr int32_t versionMinor = 2;
@@ -685,35 +684,40 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
   if (d_synthonReactions.empty()) {
     fillSynthonReactions();
   }
+  reportSynthonUsage(std::cout);
+
   d_numConformers = shapeParams.numConfs;
   std::vector<unsigned int> doneRxns(d_synthonPool.size(), 0u);
   cancelled = false;
+  std::vector<std::vector<std::unique_ptr<SampleMolRec>>> allSampleMols;
+  buildSynthonSampleMolecules(shapeParams.maxSynthonAtoms, allSampleMols);
+
   while (true && !cancelled) {
     // Loop around until all synthons have some shapes or we've run out
     // of synthon/reaction combinations.
     std::vector<std::unique_ptr<SampleMolRec>> sampleMols;
     sampleMols.reserve(d_synthonPool.size());
-    size_t sn = 0;
-    for (const auto &it : d_synthonReactions) {
-      auto reactions = d_synthonReactions.find(it.first);
-      auto synthon = getSynthonFromPool(it.first);
-      if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
-        if (doneRxns[sn] < reactions->second.size()) {
-          sampleMols.push_back(
-              reactions->second[doneRxns[sn]]->makeSampleMolecule(synthon));
-          // In the unlikely event that we didn't get anything, drop it.
-          if (!sampleMols.back()->d_mol) {
-            sampleMols.pop_back();
-          }
-        }
-        doneRxns[sn]++;
+    for (auto &allSampleMol : allSampleMols) {
+      if (!allSampleMol.empty()) {
+        sampleMols.push_back(std::move(allSampleMol.back()));
+        allSampleMol.pop_back();
       }
-      ++sn;
     }
     std::cout << "Number of sample mols : " << sampleMols.size() << std::endl;
     if (sampleMols.empty()) {
       break;
     }
+    std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
+      return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
+    });
+    std::cout << sampleMols.front()->d_mol->getNumAtoms() << " : "
+              << MolToSmiles(*sampleMols.front()->d_mol) << " : "
+              << sampleMols.front()->d_synthon->getSmiles() << " : "
+              << sampleMols.front()->d_synthon->getNumHeavyAtoms() << std::endl;
+    std::cout << sampleMols.back()->d_mol->getNumAtoms() << " : "
+              << MolToSmiles(*sampleMols.back()->d_mol) << " : "
+              << sampleMols.back()->d_synthon->getNumHeavyAtoms() << " : "
+              << sampleMols.back()->d_synthon->getSmiles() << std::endl;
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = 1;
     dgParams.pruneRmsThresh = shapeParams.rmsThreshold;
@@ -722,6 +726,23 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;
     }
+  }
+}
+
+void SynthonSpace::reportSynthonUsage(std::ostream &os) const {
+  size_t maxSize = 0;
+  for (const auto &it : d_synthonReactions) {
+    if (it.second.size() > maxSize) {
+      maxSize = it.second.size();
+    }
+  }
+  os << "Max number of reactions for a synthon: " << maxSize << std::endl;
+  std::vector<size_t> counts(maxSize + 1, 0);
+  for (const auto &it : d_synthonReactions) {
+    counts[it.second.size()]++;
+  }
+  for (size_t i = 1; i < maxSize + 1; i++) {
+    os << counts[i] << " synthons in " << i << " reaction(s)" << std::endl;
   }
 }
 
@@ -854,6 +875,31 @@ void SynthonSpace::fillSynthonReactions() {
   }
   std::cout << "synthon reactions size : " << d_synthonReactions.size()
             << std::endl;
+}
+
+void SynthonSpace::buildSynthonSampleMolecules(
+    unsigned int maxSynthonAtoms,
+    std::vector<std::vector<std::unique_ptr<SampleMolRec>>> &sampleMols) const {
+  sampleMols.reserve(d_synthonReactions.size());
+  for (const auto &[synthonSmiles, reactions] : d_synthonReactions) {
+    auto synthon = getSynthonFromPool(synthonSmiles);
+    if (maxSynthonAtoms && synthon->getNumHeavyAtoms() > maxSynthonAtoms) {
+      continue;
+    }
+    std::vector<std::unique_ptr<SampleMolRec>> theseSamples;
+    theseSamples.reserve(reactions.size());
+    for (auto &reaction : reactions) {
+      theseSamples.push_back(reaction->makeSampleMolecule(synthon));
+      // In the unlikely event that we didn't get anything, drop it.
+      if (!theseSamples.back()->d_mol) {
+        theseSamples.pop_back();
+      }
+    }
+    std::ranges::sort(theseSamples, [](const auto &a, const auto &b) -> bool {
+      return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
+    });
+    sampleMols.push_back(std::move(theseSamples));
+  }
 }
 
 void convertTextToDBFile(const std::string &inFilename,

@@ -67,9 +67,9 @@ class ProgressBar {
     // End bar
     os << "]";
 
-    // Write progress percentage
+    // Write progress percentage and actual values
     os << " " << std::min(static_cast<size_t>(d_progress), size_t(100)) << "%"
-       << std::flush;
+       << " " << d_done << "/" << d_numToDo << std::flush;
   }
 
  private:

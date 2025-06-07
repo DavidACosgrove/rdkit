@@ -136,6 +136,10 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
       true, true, false, true,
       0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
                   // tryEmbedding of false.
+  bool useProgressBar{true};        // If true, displays a progress bar
+  unsigned int maxSynthonAtoms{0};  // If > 0, puts a maximum number of heavy
+                                    // atoms, excluding dummies, for a synthon
+                                    // to have a shape made.
 };
 
 using ShapeSet = std::vector<std::unique_ptr<SearchShapeInput>>;

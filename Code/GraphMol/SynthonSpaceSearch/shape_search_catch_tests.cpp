@@ -206,6 +206,8 @@ TEST_CASE("Build conformer DB") {
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567.csv";
   libName =
       "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1.txt";
+  // libName =
+  // "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/difficult.txt";
   bool cancelled = false;
   SynthonSpace synthonspace;
   synthonspace.readTextFile(libName, cancelled);
@@ -219,13 +221,16 @@ TEST_CASE("Build conformer DB") {
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
   shapeBuildOptions.rmsThreshold = 1.0;
-  shapeBuildOptions.numThreads = -1;
+  shapeBuildOptions.numThreads = 1;
+  shapeBuildOptions.maxSynthonAtoms = 5;
 
   synthonspace.buildSynthonShapes(cancelled, shapeBuildOptions);
   auto spaceName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
   spaceName =
       "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_shapes.spc";
+  // spaceName =
+  // "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/difficult.spc";
   std::cout << "writing to " << spaceName << std::endl;
   synthonspace.writeDBFile(spaceName);
 }
