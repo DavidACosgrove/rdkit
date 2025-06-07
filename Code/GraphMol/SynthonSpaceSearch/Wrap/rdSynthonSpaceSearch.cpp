@@ -356,6 +356,10 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           " threads plus this number.  So if the number of"
           " hardware threads is 8, and numThreads is -1, it will"
           " use 7 threads.  Default=1.")
+      .def_readwrite(
+          "useProgressBar",
+          &SynthonSpaceSearch::SynthonSpaceSearchParams::useProgressBar,
+          "If True (default), display progress bars.")
       .def("__setattr__", &safeSetattr);
 
   docString = "Parameters for building shape objects for SynthonSpaceSearch.";
@@ -383,6 +387,18 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def_readwrite("stereoEnumOpts",
                      &SynthonSpaceSearch::ShapeBuildParams::stereoEnumOpts,
                      "Options for stereoisomer enumeration.")
+      .def_readwrite("useProgressBar",
+                     &SynthonSpaceSearch::ShapeBuildParams::useProgressBar,
+                     "If True (default), display progress bars.")
+      .def_readwrite(
+          "maxSynthonAtoms",
+          &SynthonSpaceSearch::ShapeBuildParams::maxSynthonAtoms,
+          "If >0, sets a maximum number of heavy atoms, excluding dummies,"
+          " for synthon to have a shape made.  Default=0.")
+      .def_readwrite(
+          "maxEmbedAttempts",
+          &SynthonSpaceSearch::ShapeBuildParams::maxEmbedAttempts,
+          "Maximum number of attempts for embedding a single synthon.  Default=10.")
       .def("__setattr__", &safeSetattr);
 
   docString = "SynthonSpaceSearch object.";

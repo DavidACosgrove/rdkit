@@ -137,7 +137,7 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
       0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
                   // tryEmbedding of false.
   bool useProgressBar{true};          // If true, displays a progress bar
-  unsigned int maxSynthonAtoms{0};    // If > 0, puts a maximum number of heavy
+  unsigned int maxSynthonAtoms{0};    // If > 0, sets a maximum number of heavy
                                       // atoms, excluding dummies, for a synthon
                                       // to have a shape made.
   unsigned int maxEmbedAttempts{10};  // Maximum attempts for an embedding.
