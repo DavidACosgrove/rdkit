@@ -886,7 +886,7 @@ void SynthonSpace::buildSynthonSampleMolecules(
   sampleMols.reserve(d_synthonReactions.size());
   for (const auto &[synthonSmiles, reactions] : d_synthonReactions) {
     auto synthon = getSynthonFromPool(synthonSmiles);
-    if (maxSynthonAtoms && synthon->getNumHeavyAtoms() > maxSynthonAtoms ||
+    if ((maxSynthonAtoms && synthon->getNumHeavyAtoms() > maxSynthonAtoms) ||
         (synthon->getShapes() && !synthon->getShapes()->hasNoShapes())) {
       continue;
     }
