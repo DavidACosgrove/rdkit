@@ -197,7 +197,7 @@ generateIsomerConformers(
 RDKIT_SYNTHONSPACESEARCH_EXPORT void makeShapesFromMols(
     std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
     DGeomHelpers::EmbedParameters &dgParams,
-    const ShapeBuildParams &shapeParams);
+    const ShapeBuildParams &shapeParams, const SynthonSpace &space);
 
 }  // namespace details
 }  // namespace SynthonSpaceSearch

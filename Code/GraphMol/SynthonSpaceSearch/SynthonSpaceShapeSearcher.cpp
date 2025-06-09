@@ -392,6 +392,9 @@ bool SynthonSpaceShapeSearcher::quickVerify(
   for (size_t i = 0; i < synthNums.size(); i++) {
     const auto &synth = hitset->synthonsToUse[i][synthNums[i]].second;
     const auto &shapes = synth->getShapes();
+    if (!shapes || shapes->hasNoShapes()) {
+      return false;
+    }
     maxVol += shapes->sovs.front() - shapes->dummyVols.front();
     featureVol += shapes->sofs.front();
     // std::cout << "quickVerify synth " << i << " : " << synth->getSmiles()

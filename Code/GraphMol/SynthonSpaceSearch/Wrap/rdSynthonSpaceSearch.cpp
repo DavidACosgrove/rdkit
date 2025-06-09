@@ -399,6 +399,14 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           "maxEmbedAttempts",
           &SynthonSpaceSearch::ShapeBuildParams::maxEmbedAttempts,
           "Maximum number of attempts for embedding a single synthon.  Default=10.")
+      .def_readwrite(
+          "interimFile", &SynthonSpaceSearch::ShapeBuildParams::interimFile,
+          "Interim file to write the SynthonSpace to during shape generation.  In the"
+          " event of a failure, a restart from this file will be possible.")
+      .def_readwrite(
+          "interimWrites", &SynthonSpaceSearch::ShapeBuildParams::interimWrites,
+          "If an interim file has been given, every this many shapes write a"
+          " new version of the file.  Default=1000.")
       .def("__setattr__", &safeSetattr);
 
   docString = "SynthonSpaceSearch object.";

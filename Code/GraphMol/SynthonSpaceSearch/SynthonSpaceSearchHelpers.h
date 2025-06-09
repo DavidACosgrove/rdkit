@@ -141,6 +141,12 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
                                       // atoms, excluding dummies, for a synthon
                                       // to have a shape made.
   unsigned int maxEmbedAttempts{10};  // Maximum attempts for an embedding.
+  std::string
+      interimFile;  // Interim file to write SynthonSpace to.  In the event of
+                    // a failure, a restart from this file will be possible.
+  std::uint64_t interimWrites{
+      1000};  // If an interim file has been given, every this
+              // many shapes write a new version of the file.
 };
 
 using ShapeSet = std::vector<std::unique_ptr<SearchShapeInput>>;

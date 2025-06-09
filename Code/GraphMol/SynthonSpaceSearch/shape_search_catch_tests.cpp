@@ -17,6 +17,7 @@
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SearchResults.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
+#include <boost/spirit/home/support/common_terminals.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -205,7 +206,12 @@ TEST_CASE("Build conformer DB") {
   std::string libName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567.csv";
   libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1.txt";
+      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_0.txt";
+
+  auto spaceName =
+      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
+  spaceName = fName + "/cmake-mine/random_real_0_shapes.spc";
+
   bool cancelled = false;
   SynthonSpace synthonspace;
   synthonspace.readTextFile(libName, cancelled);
@@ -219,13 +225,12 @@ TEST_CASE("Build conformer DB") {
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
   shapeBuildOptions.rmsThreshold = 1.0;
-  shapeBuildOptions.numThreads = 1;
-  shapeBuildOptions.maxSynthonAtoms = 5;
+  shapeBuildOptions.numThreads = -1;
+  shapeBuildOptions.maxSynthonAtoms = 0;
+  shapeBuildOptions.interimFile = spaceName;
+  shapeBuildOptions.interimWrites = 100;
 
   synthonspace.buildSynthonShapes(cancelled, shapeBuildOptions);
-  auto spaceName =
-      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-  spaceName = fName + "/cmake-mine/random_real_1_shapes.spc";
   std::cout << "writing to " << spaceName << std::endl;
   synthonspace.writeDBFile(spaceName);
 }
@@ -383,4 +388,32 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
             << hitMol2->getProp<std::string>("Query_CXSmiles") << std::endl;
   double bestSim = hitMol2->getProp<double>("Similarity");
   CHECK(bestSim > firstSim);
+}
+
+TEST_CASE("Test Test") {
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
+  std::string spaceName = fName + "/cmake-mine/random_real_0_shapes.spc";
+
+  bool cancelled = false;
+  SynthonSpace space;
+  space.readDBFile(spaceName, cancelled);
+  std::cout << "Number of reactions " << space.getNumReactions() << std::endl;
+  std::cout << "Number of products : " << space.getNumProducts() << std::endl;
+  std::cout << "Number of unique synthons : " << space.getNumSynthons()
+            << std::endl;
+  SynthonSpaceSearchParams params;
+  params.maxHits = -1;
+  params.numThreads = 1;
+  params.similarityCutoff = 1.0;
+  params.numConformers = 100;
+  params.confRMSThreshold = 1.0;
+  params.timeOut = 0;
+  params.randomSeed = -1;
+
+  auto mol = "NCCN[C@@]12CCC[C@@H]1C2"_smiles;
+  REQUIRE(mol);
+  auto results = space.shapeSearch(*mol, params);
+  std::cout << "Number of hits : " << results.getHitMolecules().size()
+            << std::endl;
 }

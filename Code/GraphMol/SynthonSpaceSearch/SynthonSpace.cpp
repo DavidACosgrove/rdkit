@@ -600,6 +600,14 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
       d_maxNumSynthons = reaction->getSynthons().size();
     }
   }
+  size_t numNoShapes = 0;
+  for (const auto &[smiles, synthon] : d_synthonPool) {
+    if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
+      numNoShapes++;
+    }
+  }
+  std::cout << "Number of synthons : " << d_synthonPool.size() << " of which "
+            << numNoShapes << " have no shapes" << std::endl;
 }
 
 void SynthonSpace::summarise(std::ostream &os) {
@@ -691,6 +699,8 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
   cancelled = false;
   std::vector<std::vector<std::unique_ptr<SampleMolRec>>> allSampleMols;
   buildSynthonSampleMolecules(shapeParams.maxSynthonAtoms, allSampleMols);
+  std::cout << "number of allSampleMols : " << allSampleMols.size()
+            << std::endl;
 
   while (true && !cancelled) {
     // Loop around until all synthons have some shapes or we've run out
@@ -710,20 +720,12 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
       return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
     });
-    std::cout << sampleMols.front()->d_mol->getNumAtoms() << " : "
-              << MolToSmiles(*sampleMols.front()->d_mol) << " : "
-              << sampleMols.front()->d_synthon->getSmiles() << " : "
-              << sampleMols.front()->d_synthon->getNumHeavyAtoms() << std::endl;
-    std::cout << sampleMols.back()->d_mol->getNumAtoms() << " : "
-              << MolToSmiles(*sampleMols.back()->d_mol) << " : "
-              << sampleMols.back()->d_synthon->getSmiles() << " : "
-              << sampleMols.back()->d_synthon->getNumHeavyAtoms() << std::endl;
     auto dgParams = DGeomHelpers::ETKDGv3;
     dgParams.numThreads = 1;
     dgParams.pruneRmsThresh = shapeParams.rmsThreshold;
     dgParams.randomSeed = shapeParams.randomSeed;
     dgParams.maxIterations = shapeParams.maxEmbedAttempts;
-    details::makeShapesFromMols(sampleMols, dgParams, shapeParams);
+    details::makeShapesFromMols(sampleMols, dgParams, shapeParams, *this);
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;
     }
@@ -884,7 +886,8 @@ void SynthonSpace::buildSynthonSampleMolecules(
   sampleMols.reserve(d_synthonReactions.size());
   for (const auto &[synthonSmiles, reactions] : d_synthonReactions) {
     auto synthon = getSynthonFromPool(synthonSmiles);
-    if (maxSynthonAtoms && synthon->getNumHeavyAtoms() > maxSynthonAtoms) {
+    if (maxSynthonAtoms && synthon->getNumHeavyAtoms() > maxSynthonAtoms ||
+        (synthon->getShapes() && !synthon->getShapes()->hasNoShapes())) {
       continue;
     }
     std::vector<std::unique_ptr<SampleMolRec>> theseSamples;
