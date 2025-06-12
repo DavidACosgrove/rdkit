@@ -206,11 +206,11 @@ TEST_CASE("Build conformer DB") {
   std::string libName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567.csv";
   libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_0.txt";
+      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1.txt";
 
   auto spaceName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-  spaceName = fName + "/cmake-mine/random_real_0_shapes.spc";
+  spaceName = fName + "/cmake-mine/random_real_1_shapes.spc";
 
   bool cancelled = false;
   SynthonSpace synthonspace;
@@ -227,6 +227,7 @@ TEST_CASE("Build conformer DB") {
   shapeBuildOptions.rmsThreshold = 1.0;
   shapeBuildOptions.numThreads = -1;
   shapeBuildOptions.maxSynthonAtoms = 0;
+  shapeBuildOptions.maxEmbedAttempts = 10;
   shapeBuildOptions.interimFile = spaceName;
   shapeBuildOptions.interimWrites = 100;
 
@@ -393,7 +394,7 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
 TEST_CASE("Test Test") {
   REQUIRE(rdbase);
   std::string fName(rdbase);
-  std::string spaceName = fName + "/cmake-mine/random_real_0_shapes.spc";
+  std::string spaceName = fName + "/cmake-mine/random_real_1_shapes.spc";
 
   bool cancelled = false;
   SynthonSpace space;
@@ -404,8 +405,8 @@ TEST_CASE("Test Test") {
             << std::endl;
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
-  params.numThreads = 1;
-  params.similarityCutoff = 1.0;
+  params.numThreads = -1;
+  params.similarityCutoff = 1.6;
   params.numConformers = 100;
   params.confRMSThreshold = 1.0;
   params.timeOut = 0;

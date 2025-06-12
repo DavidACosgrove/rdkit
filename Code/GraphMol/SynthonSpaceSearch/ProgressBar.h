@@ -17,15 +17,19 @@
 #define PROGRESSBAR_H
 
 #include <atomic>
+#include <chrono>
+#include <ctime>
 #include <mutex>
 #include <iostream>
 
 namespace RDKit {
 class ProgressBar {
  public:
-  ProgressBar() = default;
+  ProgressBar() : d_startTime(std::chrono::system_clock::now()) {}
   ProgressBar(unsigned int width, std::uint64_t numToDo)
-      : d_bar_width(width), d_numToDo(numToDo) {}
+      : d_bar_width(width),
+        d_numToDo(numToDo),
+        d_startTime(std::chrono::system_clock::now()) {}
   ProgressBar(const ProgressBar &) = delete;
   ProgressBar &operator=(const ProgressBar &) = delete;
   ProgressBar(ProgressBar &&) = delete;
@@ -67,9 +71,30 @@ class ProgressBar {
     // End bar
     os << "]";
 
+    auto currTime = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed = currTime - d_startTime;
+    std::chrono::duration<double> totToDo = elapsed / (d_progress / 100.0);
+    auto projFinish =
+        d_startTime +
+        std::chrono::duration_cast<std::chrono::system_clock::duration>(
+            totToDo);
+
+    // Convert to time_t for localtime
+    std::time_t finish_time_t =
+        std::chrono::system_clock::to_time_t(projFinish);
+
+    // Convert to local time structure
+    std::tm local_tm = *std::localtime(&finish_time_t);
+    std::string fmt = "%H:%M %a";
+    static constexpr std::int64_t weekSecs = 7 * 24 * 3600;
+    if (std::chrono::duration_cast<std::chrono::seconds>(totToDo).count() >
+        weekSecs) {
+      fmt = "%d %m %y";
+    }
     // Write progress percentage and actual values
     os << " " << std::min(static_cast<size_t>(d_progress), size_t(100)) << "%"
-       << " " << d_done << "/" << d_numToDo << std::flush;
+       << " " << d_done << "/" << d_numToDo << " "
+       << std::put_time(&local_tm, fmt.c_str()) << std::flush;
   }
 
  private:
@@ -78,6 +103,7 @@ class ProgressBar {
   unsigned int d_bar_width{60};
   std::uint64_t d_numToDo{0};
   std::atomic<std::uint64_t> d_done{0};
+  std::chrono::time_point<std::chrono::system_clock> d_startTime;
 };
 }  // namespace RDKit
 

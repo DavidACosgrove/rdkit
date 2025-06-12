@@ -1008,29 +1008,11 @@ std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
   return confMols;
 }
 
-void writeInterimFile(const SynthonSpace &space, const std::string &filename) {
-  // Write to a temporary file and then move it onto filename.  That way
-  // if there's a crash during the write, we reduce the chance of losing
-  // everything.
-  std::string tempFile = std::tmpnam(nullptr);
-  space.writeDBFile(tempFile);
-  // it seems unlikely that 2 threads will want to do this at the same time,
-  // if there is a sensible number given for the frequency of interim
-  // writing of the space, but you never know.
-  {
-    std::mutex mtx;
-    std::lock_guard<std::mutex> lock(mtx);
-    std::cout << "renaming " << tempFile << " to " << filename << std::endl;
-    std::filesystem::rename(tempFile, filename);
-  }
-}
-
 void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
                        std::atomic<std::int64_t> &mostRecentMol,
                        DGeomHelpers::EmbedParameters &dgParams,
                        const ShapeBuildParams &shapeParams,
-                       std::unique_ptr<ProgressBar> &pbar,
-                       const SynthonSpace &space) {
+                       std::unique_ptr<ProgressBar> &pbar) {
   ShapeInputOptions shapeOpts;
   shapeOpts.includeDummies = true;
   shapeOpts.dummyRadius = 2.16;
@@ -1041,10 +1023,6 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
     size_t molNum = ++mostRecentMol;
     if (molNum >= sampleMols.size()) {
       return;
-    }
-    if (!shapeParams.interimFile.empty() && molNum &&
-        !(molNum % shapeParams.interimWrites)) {
-      writeInterimFile(space, shapeParams.interimFile);
     }
     // If we have a shape object in the synthon with some shapes, don't do
     // anything.  If there's a shape object but no shapes then probably
@@ -1136,29 +1114,23 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
 void makeShapesFromMols(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
                         DGeomHelpers::EmbedParameters &dgParams,
                         const ShapeBuildParams &shapeParams,
-                        const SynthonSpace &space) {
+                        std::unique_ptr<ProgressBar> &pbar) {
   std::atomic<std::int64_t> mostRecentMol = -1;
-  std::unique_ptr<ProgressBar> pbar;
-  if (shapeParams.useProgressBar) {
-    pbar.reset(new ProgressBar(70, sampleMols.size()));
-  }
   if (const auto numThreadsToUse = getNumThreadsToUse(shapeParams.numThreads);
       numThreadsToUse > 1) {
-    std::cout << "Num threads to use : " << numThreadsToUse << std::endl;
     std::vector<std::thread> threads;
     for (unsigned int i = 0u;
          i < std::min(static_cast<size_t>(numThreadsToUse), sampleMols.size());
          ++i) {
       threads.emplace_back(makeShapesFromMol, std::ref(sampleMols),
                            std::ref(mostRecentMol), std::ref(dgParams),
-                           shapeParams, std::ref(pbar), std::ref(space));
+                           shapeParams, std::ref(pbar));
     }
     for (auto &t : threads) {
       t.join();
     }
   } else {
-    makeShapesFromMol(sampleMols, mostRecentMol, dgParams, shapeParams, pbar,
-                      space);
+    makeShapesFromMol(sampleMols, mostRecentMol, dgParams, shapeParams, pbar);
   }
   std::cout << std::endl;
 }

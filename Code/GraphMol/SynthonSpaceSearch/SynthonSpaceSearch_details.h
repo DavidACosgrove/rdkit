@@ -24,6 +24,7 @@ using TimePoint = std::chrono::time_point<Clock>;
 
 namespace RDKit {
 class ROMol;
+class ProgressBar;
 namespace SynthonSpaceSearch {
 struct SampleMolRec;
 
@@ -197,7 +198,7 @@ generateIsomerConformers(
 RDKIT_SYNTHONSPACESEARCH_EXPORT void makeShapesFromMols(
     std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
     DGeomHelpers::EmbedParameters &dgParams,
-    const ShapeBuildParams &shapeParams, const SynthonSpace &space);
+    const ShapeBuildParams &shapeParams, std::unique_ptr<ProgressBar> &pbar);
 
 }  // namespace details
 }  // namespace SynthonSpaceSearch

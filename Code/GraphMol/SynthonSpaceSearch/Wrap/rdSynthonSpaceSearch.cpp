@@ -400,6 +400,10 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
           &SynthonSpaceSearch::ShapeBuildParams::maxEmbedAttempts,
           "Maximum number of attempts for embedding a single synthon.  Default=10.")
       .def_readwrite(
+          "timeOut", &SynthonSpaceSearch::ShapeBuildParams::timeOut,
+          "Maximum time in seconds to spend on each synthon when generating"
+          " conformers.  Default=600 means no timeout.")
+      .def_readwrite(
           "interimFile", &SynthonSpaceSearch::ShapeBuildParams::interimFile,
           "Interim file to write the SynthonSpace to during shape generation.  In the"
           " event of a failure, a restart from this file will be possible.")

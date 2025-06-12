@@ -35,6 +35,7 @@
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSubstructureSearcher.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSet.h>
+#include <GraphMol/SynthonSpaceSearch/ProgressBar.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <RDGeneral/ControlCHandler.h>
 #include <RDGeneral/RDThreads.h>
@@ -678,6 +679,17 @@ void SynthonSpace::buildSynthonFingerprints(
   }
 }
 
+namespace {
+void writeInterimFile(const SynthonSpace &space, const std::string &filename) {
+  // Write to a temporary file and then move it onto filename.  That way
+  // if there's a crash during the write, we reduce the chance of losing
+  // everything.
+  const std::string tempFile = filename + ".tmp";
+  space.writeDBFile(tempFile);
+  std::filesystem::rename(tempFile, filename);
+}
+}  // namespace
+
 void SynthonSpace::buildSynthonShapes(bool &cancelled,
                                       const ShapeBuildParams &shapeParams) {
   if (d_numConformers == shapeParams.numConfs) {
@@ -699,8 +711,24 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
   cancelled = false;
   std::vector<std::vector<std::unique_ptr<SampleMolRec>>> allSampleMols;
   buildSynthonSampleMolecules(shapeParams.maxSynthonAtoms, allSampleMols);
+  std::ranges::sort(allSampleMols,
+                    [](const auto &sm1, const auto &sm2) -> bool {
+                      return sm1.front()->d_mol->getNumAtoms() >
+                             sm2.front()->d_mol->getNumAtoms();
+                    });
   std::cout << "number of allSampleMols : " << allSampleMols.size()
-            << std::endl;
+            << " size range : "
+            << allSampleMols.front().front()->d_mol->getNumAtoms() << " to "
+            << allSampleMols.back().front()->d_mol->getNumAtoms() << std::endl;
+
+  bool interimWrite = true;
+  if (shapeParams.interimWrites == 0 || shapeParams.interimFile.empty()) {
+    interimWrite = false;
+  }
+  std::unique_ptr<ProgressBar> pbar;
+  if (shapeParams.useProgressBar) {
+    pbar.reset(new ProgressBar(70, allSampleMols.size()));
+  }
 
   while (true && !cancelled) {
     // Loop around until all synthons have some shapes or we've run out
@@ -712,20 +740,26 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
         sampleMols.push_back(std::move(allSampleMol.back()));
         allSampleMol.pop_back();
       }
+      if (interimWrite && shapeParams.interimWrites == sampleMols.size()) {
+        break;
+      }
     }
-    std::cout << "Number of sample mols : " << sampleMols.size() << std::endl;
     if (sampleMols.empty()) {
       break;
     }
     std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
       return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
     });
-    auto dgParams = DGeomHelpers::ETKDGv3;
+    auto dgParams = DGeomHelpers::KDG;
     dgParams.numThreads = 1;
     dgParams.pruneRmsThresh = shapeParams.rmsThreshold;
     dgParams.randomSeed = shapeParams.randomSeed;
     dgParams.maxIterations = shapeParams.maxEmbedAttempts;
-    details::makeShapesFromMols(sampleMols, dgParams, shapeParams, *this);
+    dgParams.timeout = shapeParams.timeOut;
+    details::makeShapesFromMols(sampleMols, dgParams, shapeParams, pbar);
+    if (interimWrite) {
+      writeInterimFile(*this, shapeParams.interimFile);
+    }
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;
     }

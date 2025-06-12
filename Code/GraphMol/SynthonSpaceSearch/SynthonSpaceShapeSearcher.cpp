@@ -297,6 +297,7 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     dgParams.numThreads = getParams().numThreads;
     dgParams.pruneRmsThresh = getParams().confRMSThreshold;
     dgParams.randomSeed = getParams().randomSeed;
+    dgParams.timeout = getParams().timeOut;
     // Make conformers for this molecule, but without generating
     // isomers.  If that was needed, it will already have been done.
     auto queryMols = details::generateIsomerConformers(
@@ -414,22 +415,25 @@ bool SynthonSpaceShapeSearcher::quickVerify(
 }
 
 bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
-  auto dgParams = DGeomHelpers::ETKDGv3;
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
   if (MolToSmiles(hit) == MolToSmiles(getQuery())) {
     std::cout << "It's itself" << std::endl;
   }
+  auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = 1;
   dgParams.pruneRmsThresh = getParams().confRMSThreshold;
   dgParams.randomSeed = getParams().randomSeed;
+  dgParams.timeout = getParams().timeOut;
   auto hitConfs =
       details::generateIsomerConformers(hit, getParams().numConformers, true,
                                         getParams().stereoEnumOpts, dgParams);
   bool foundHit = false;
   double bestSim = getParams().similarityCutoff;
   for (auto &isomer : hitConfs) {
+    std::cout << "isomer " << MolToSmiles(*isomer)
+              << "  num confs : " << isomer->getNumConformers() << std::endl;
     std::vector<float> matrix(12, 0.0);
     RDGeom::Transform3D qshift;
     qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
@@ -467,7 +471,7 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
     }
   }
   if (MolToSmiles(hit) == MolToSmiles(getQuery())) {
-    std::cout << "It's itself a hit" << std::endl;
+    std::cout << "It's itself a hit : " << foundHit << std::endl;
   }
   return foundHit;
 }

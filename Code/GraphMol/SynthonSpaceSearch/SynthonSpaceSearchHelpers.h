@@ -92,7 +92,7 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                                     // -1 means no maximum.
   unsigned int numConformers{100};  // When doing a shape search, the number of
                                     // conformers to use for each molecule.
-  double confRMSThreshold{1.0};  // When doing a shape search, the RMS threshold
+  double confRMSThreshold{0.5};  // When doing a shape search, the RMS threshold
                                  // to use when pruning conformers.  Passed
                                  // directly EmbedMultipleConfs.
   bool bestHit{false};  // If true, when doing a shape search it will return the
@@ -104,7 +104,7 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
   bool enumerateUnspecifiedStereo{
       false};  // When doing a shape search, if there is
                // unspecified stereochemistry in either
-               // the query or potential hit, enumerate
+               // the query or potential hit, enumerate and
                // test all possibilities.
   EnumerateStereoisomers::StereoEnumerationOptions stereoEnumOpts{
       true, true, false, true,
@@ -124,14 +124,16 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
 struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
   // The relevant ones are passed directly into EmbedMultipleConfs.
   unsigned int numConfs{10};  // Max number of conformations per synthon
-  double rmsThreshold{1.0};   // RMS threshold used when pruning conformations
+  double rmsThreshold{0.5};   // RMS threshold used when pruning conformations
   // This is passed to pruneShapes(). For each synthon, no 2 shapes will
   // be more similar to each other than the threshold.
   double shapeSimThreshold{1.9};
-  int numThreads{1};   // The number of threads to use.  If > 0, will use that
-                       // number.  If <= 0, will use the number of hardware
-                       // threads plus this number.
-  int randomSeed{-1};  // Seed for random number generator.
+  int numThreads{1};  // The number of threads to use.  If > 0, will use that
+                      // number.  If <= 0, will use the number of hardware
+                      // threads plus this number.
+  int randomSeed{
+      0xdac};  // Seed for random number generator.  Fixed by default
+               // so the same synthon conformers are produced each time.
   EnumerateStereoisomers::StereoEnumerationOptions stereoEnumOpts{
       true, true, false, true,
       0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
@@ -141,12 +143,15 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
                                       // atoms, excluding dummies, for a synthon
                                       // to have a shape made.
   unsigned int maxEmbedAttempts{10};  // Maximum attempts for an embedding.
+  unsigned int timeOut{60};  // Maximum time in seconds to spend on each synthon
+                             // when generating conformers.
   std::string
       interimFile;  // Interim file to write SynthonSpace to.  In the event of
                     // a failure, a restart from this file will be possible.
   std::uint64_t interimWrites{
       1000};  // If an interim file has been given, every this
-              // many shapes write a new version of the file.
+              // many shapes write a new version of the file.  If 0, don't
+              // do any writing.
 };
 
 using ShapeSet = std::vector<std::unique_ptr<SearchShapeInput>>;

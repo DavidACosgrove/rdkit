@@ -68,7 +68,6 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
     return SearchResults{std::move(results), 0ULL, timedOut,
                          ControlCHandler::getGotSignal()};
   }
-  std::cout << "Number of fragment sets : " << fragments.size() << std::endl;
   if (!extraSearchSetup(fragments) || ControlCHandler::getGotSignal()) {
     return SearchResults{std::move(results), 0ULL, timedOut, true};
   }
@@ -76,21 +75,6 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
 
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);
-  // std::cout << "Found " << allHits.size() << " sets of hits" << std::endl;
-  // for (const auto &hit : allHits) {
-  // std::cout << "Reaction : " << hit->d_reaction->getId() << std::endl;
-  // std::cout << "Fragments : ";
-  // for (const auto f : hit->frags) {
-  // std::cout << MolToSmiles(*f) << " ";
-  // }
-  // std::cout << std::endl;
-  // for (const auto &stu : hit->synthonsToUse) {
-  // for (const auto &p : stu) {
-  // std::cout << "  " << p.first << " : " << p.second->getSmiles()
-  // << std::endl;
-  // }
-  // }
-  // }
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
@@ -209,9 +193,8 @@ void processReactions(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragments,
     const TimePoint *endTime, std::atomic<std::int64_t> &mostRecentReaction,
     std::int64_t lastReaction,
-    std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>>
-        &reactionHits,
-        std::unique_ptr<ProgressBar> &pbar) {
+    std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> &reactionHits,
+    std::unique_ptr<ProgressBar> &pbar) {
   bool timedOut = false;
 
   while (true) {
@@ -225,7 +208,8 @@ void processReactions(
     }
     const auto &reaction =
         searcher->getSpace().getReaction(reactionNames[thisR]);
-    auto theseHits = searchReaction(searcher, *reaction, endTime, 1, fragments, pbar);
+    auto theseHits =
+        searchReaction(searcher, *reaction, endTime, 1, fragments, pbar);
     reactionHits[thisR] = std::move(theseHits);
     timedOut = details::checkTimeOut(endTime);
     if (timedOut) {
@@ -245,8 +229,6 @@ SynthonSpaceSearcher::doTheSearch(
   auto reactionNames = getSpace().getReactionNames();
   std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> reactionHits;
   const unsigned int numThreads = getNumThreadsToUse(d_params.numThreads);
-  std::cout << "numThreads: " << numThreads << " from " << d_params.numThreads
-            << std::endl;
 
   if (threadMode == ThreadMode::ThreadFragments) {
     // Do the reactions one at a time, parallelising the fragSet searches.
@@ -438,6 +420,8 @@ void SynthonSpaceSearcher::buildHits(
     std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
     const TimePoint *endTime, bool &timedOut,
     std::vector<std::unique_ptr<ROMol>> &results) const {
+  std::cout << "Building and verifying possible hits for " << hitsets.size()
+            << " reactions" << std::endl;
   if (hitsets.empty()) {
     return;
   }
@@ -586,6 +570,8 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
   std::atomic<std::int64_t> mostRecentTry = -1;
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
+    std::cout << "Making and checking hits." << std::endl;
+
     pbar.reset(new ProgressBar(70, toTry.size()));
   }
 #if RDK_BUILD_THREADSAFE_SSS
@@ -619,7 +605,7 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
   }
 #else
   processPartHitsFromDetails(toTry, endTime, results, this, mostRecentTry,
-                             lastTry);
+                             lastTry, pbar);
 #endif
 
   // Take out any gaps in the results set, where products didn't make the grade.
