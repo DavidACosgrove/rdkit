@@ -40,8 +40,8 @@ class ProgressBar {
     set_progress(value);
     write_progress(os);
   }
-  void increment(std::ostream &os = std::cout) {
-    ++d_done;
+  void increment(std::uint64_t incr = 1, std::ostream &os = std::cout) {
+    d_done += incr;
     float newProgress =
         100.0 * static_cast<float>(d_done) / static_cast<float>(d_numToDo);
     update(newProgress, os);
