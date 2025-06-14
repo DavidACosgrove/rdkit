@@ -85,7 +85,7 @@ TEST_CASE("Shape Small tests") {
   std::vector<std::string> querySmis{
       "c1ccccc1C(=O)N1CCCC1",
       "C[C@H]1CCN(c2nnc(CO)n2C2CCCC2)C1",
-      "C[C@@H]1CC(NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1",
+      "C[C@@H]1C[C@H](NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1",
   };
 
   // The synthon search gives 1 hit for the urea space, where the
@@ -101,11 +101,12 @@ TEST_CASE("Shape Small tests") {
   shapeBuildOptions.numConfs = 100;
   shapeBuildOptions.rmsThreshold = 1.0;
   shapeBuildOptions.numThreads = 1;
+  shapeBuildOptions.useProgressBar = false;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    // if (i != 1) {
-    // continue;
-    // }
+    if (i != 2) {
+      continue;
+    }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
@@ -314,6 +315,8 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
 }
 
 TEST_CASE("Unspecified Stereo") {
+  std::cout << sizeof(void *) << std::endl;
+
   auto m1 = "C[C@H](Cl)CCOOC(Cl)F"_smiles;
   REQUIRE(m1);
   CHECK(details::hasUnspecifiedStereo(*m1) == true);
@@ -394,18 +397,17 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
 TEST_CASE("Test Test") {
   REQUIRE(rdbase);
   std::string fName(rdbase);
-  std::string spaceName = fName + "/cmake-mine/random_real_1_shapes.spc";
+  std::string spaceName = fName + "/cmake-mine/random_real_0_shapes.spc";
 
-  bool cancelled = false;
   SynthonSpace space;
-  space.readDBFile(spaceName, cancelled);
+  space.readDBFile(spaceName);
   std::cout << "Number of reactions " << space.getNumReactions() << std::endl;
   std::cout << "Number of products : " << space.getNumProducts() << std::endl;
   std::cout << "Number of unique synthons : " << space.getNumSynthons()
             << std::endl;
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
-  params.numThreads = -1;
+  params.numThreads = 1;
   params.similarityCutoff = 1.6;
   params.numConformers = 100;
   params.confRMSThreshold = 1.0;

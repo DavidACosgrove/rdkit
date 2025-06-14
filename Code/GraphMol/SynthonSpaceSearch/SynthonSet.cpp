@@ -200,6 +200,7 @@ void readSearchOrderSet(std::istream &is,
 
 void SynthonSet::readFromDBStream(std::istream &is, const SynthonSpace &space,
                                   std::uint32_t version) {
+  std::cout << getId() << " :: version  " << version << std::endl;
   PRECONDITION(version >= 3000, "Binary database version no longer supported.");
   streamRead(is, d_id, 0);
   std::uint64_t numConnRegs;

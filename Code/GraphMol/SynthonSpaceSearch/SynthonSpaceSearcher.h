@@ -94,8 +94,7 @@ class SynthonSpaceSearcher {
   // for all the fragments.  The SubstructureSearcher needs connector
   // regions and information about them.
   virtual bool extraSearchSetup(
-      [[maybe_unused]] std::vector<std::vector<std::unique_ptr<ROMol>>>
-          &fragSets) {
+      std::vector<std::vector<std::unique_ptr<ROMol>>> &) {
     return true;
   }
 

@@ -93,9 +93,9 @@ TEST_CASE("FP Small tests") {
   std::vector<size_t> expNumHits{2, 3, 4};
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    if (i != 2) {
-      continue;
-    }
+    // if (i != 2) {
+    // continue;
+    // }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
@@ -103,6 +103,7 @@ TEST_CASE("FP Small tests") {
     params.randomSeed = 1;
     params.approxSimilarityAdjuster = 0.2;
     params.numThreads = 1;
+    params.useProgressBar = false;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
         MorganFingerprint::getMorganGenerator<std::uint64_t>(2));

@@ -9,6 +9,7 @@
 //
 
 #include <algorithm>
+#include <mutex>
 #include <ranges>
 
 #include <DataStructs/BitOps.h>
@@ -18,6 +19,7 @@
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceFingerprintSearcher.h>
 #include <RDGeneral/ControlCHandler.h>
+#include <RDGeneral/RDThreads.h>
 
 namespace RDKit::SynthonSpaceSearch {
 
@@ -150,6 +152,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
   }
   return retSynthons;
 }
+
 }  // namespace
 
 bool SynthonSpaceFingerprintSearcher::extraSearchSetup(
@@ -172,7 +175,7 @@ bool SynthonSpaceFingerprintSearcher::extraSearchSetup(
   }
 
   // Generate the fingerprints for the fragments.  This is the
-  // time-consuming bit that will be threaded.
+  // time-consuming bit that will be threaded if the need arises.
   d_fragFPPool.resize(fragSmiToFrag.size());
   unsigned int fragNum = 0;
   for (auto &[fragSmi, frags] : fragSmiToFrag) {
@@ -194,6 +197,7 @@ bool SynthonSpaceFingerprintSearcher::extraSearchSetup(
   std::ranges::sort(d_fragFPs, [](const auto &p1, const auto &p2) -> bool {
     return p1.first > p2.first;
   });
+
   return true;
 }
 

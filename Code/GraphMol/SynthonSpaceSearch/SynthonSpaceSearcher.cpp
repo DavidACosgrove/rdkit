@@ -549,12 +549,12 @@ void processPartHitsFromDetails(
       if (details::checkTimeOut(endTime)) {
         break;
       }
+      if (pbar) {
+        pbar->increment(numTries);
+      }
     }
     if (ControlCHandler::getGotSignal()) {
       break;
-    }
-    if (pbar) {
-      pbar->increment();
     }
   }
 }

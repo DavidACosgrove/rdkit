@@ -23,7 +23,6 @@
 #include <boost/dynamic_bitset.hpp>
 
 #include <../External/pubchem_shape/PubChemShape.hpp>
-#include <RDGeneral/ControlCHandler.h>
 #include <GraphMol/Chirality.h>
 #include <GraphMol/MolOps.h>
 #include <GraphMol/QueryAtom.h>
@@ -37,6 +36,7 @@
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/ProgressBar.h>
+#include <RDGeneral/ControlCHandler.h>
 #include <RDGeneral/RDThreads.h>
 #include <SimDivPickers/DistPicker.h>
 #include <SimDivPickers/LeaderPicker.h>
@@ -911,6 +911,8 @@ bool hasUnspecifiedStereo(ROMol &mol) {
         si.type == Chirality::StereoType::Atom_Octahedral) {
       Atom *atom = mol.getAtomWithIdx(si.centeredOn);
       if (atom->getChiralTag() == Atom::CHI_UNSPECIFIED) {
+        std::cout << "Unspecified stereo on atom " << atom->getIdx()
+                  << std::endl;
         return true;
       }
     } else if (si.type == Chirality::StereoType::Bond_Double ||
@@ -919,6 +921,8 @@ bool hasUnspecifiedStereo(ROMol &mol) {
       Bond *bond = mol.getBondWithIdx(si.centeredOn);
       if (bond->getStereo() == Bond::BondStereo::STEREONONE ||
           bond->getStereo() == Bond::BondStereo::STEREOANY) {
+        std::cout << "Unspecified stereo on bond " << bond->getIdx()
+                  << std::endl;
         return true;
       }
     }
@@ -980,11 +984,11 @@ std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
     confMols.push_back(std::make_unique<RWMol>(mol));
   }
   for (auto &cm : confMols) {
+    MolOps::addHs(*cm);
     if (ControlCHandler::getGotSignal()) {
       confMols.clear();
       break;
     }
-    MolOps::addHs(*cm);
     auto cids = DGeomHelpers::EmbedMultipleConfs(*cm, numConformers, dgParams);
     if (ControlCHandler::getGotSignal()) {
       std::cout << "returning" << std::endl;

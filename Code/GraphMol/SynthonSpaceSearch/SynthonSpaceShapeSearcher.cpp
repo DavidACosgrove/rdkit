@@ -37,6 +37,18 @@ SynthonSpaceShapeSearcher::SynthonSpaceShapeSearcher(
   }
 }
 
+bool SynthonSpaceShapeSearcher::fragMatchedSynthon(const void *frag,
+                                                   const void *synthon,
+                                                   float &sim) const {
+  auto it = d_fragSynthonSims.find(std::make_pair(frag, synthon));
+  if (it == d_fragSynthonSims.end()) {
+    sim = -1.0;
+    return false;
+  }
+  sim = it->second;
+  return true;
+}
+
 namespace {
 
 // Take the fragged mol ShapeSets and flag all those synthons that have a
@@ -44,7 +56,8 @@ namespace {
 std::vector<std::vector<size_t>> getHitSynthons(
     const std::vector<SearchShapeInput *> &fragShapes,
     const double similarityCutoff, const SynthonSet &reaction,
-    const std::vector<unsigned int> &synthonSetOrder) {
+    const std::vector<unsigned int> &synthonSetOrder,
+    const SynthonSpaceShapeSearcher &shapeSearcher) {
   std::vector<boost::dynamic_bitset<>> synthonsToUse;
   std::vector<std::vector<size_t>> retSynthons;
   std::vector<std::vector<std::pair<size_t, double>>> fragSims(
@@ -69,6 +82,7 @@ std::vector<std::vector<size_t>> getHitSynthons(
     synthonsToUse.emplace_back(synthonSet.size());
   }
   std::vector<float> matrix(12, 0.0);
+  float sim;
   for (size_t i = 0; i < synthonSetOrder.size(); i++) {
     const auto fragNum = fragOrders[i].first;
     const auto &synthons = reaction.getSynthons()[synthonSetOrder[fragNum]];
@@ -83,14 +97,22 @@ std::vector<std::vector<size_t>> getHitSynthons(
           synthons[j].second->getShapes()->hasNoShapes()) {
         continue;
       }
-      if (const auto sim = bestSimilarity(*fragShapes[fragNum],
-                                          *synthons[j].second->getShapes(),
-                                          matrix, similarityCutoff);
-          sim.first + sim.second >= similarityCutoff) {
+      if (shapeSearcher.hasPrecomputedSims() &&
+          shapeSearcher.fragMatchedSynthon(fragShapes[fragNum],
+                                           synthons[j].second, sim)) {
         synthonsToUse[synthonSetOrder[fragNum]][j] = true;
-        fragSims[synthonSetOrder[fragNum]].emplace_back(j,
-                                                        sim.first + sim.second);
+        fragSims[synthonSetOrder[fragNum]].emplace_back(j, sim);
         fragMatched = true;
+      } else {
+        if (const auto sim = bestSimilarity(*fragShapes[fragNum],
+                                            *synthons[j].second->getShapes(),
+                                            matrix, similarityCutoff);
+            sim.first + sim.second >= similarityCutoff) {
+          synthonsToUse[synthonSetOrder[fragNum]][j] = true;
+          fragSims[synthonSetOrder[fragNum]].emplace_back(
+              j, sim.first + sim.second);
+          fragMatched = true;
+        }
       }
     }
     if (!fragMatched) {
@@ -185,7 +207,7 @@ SynthonSpaceShapeSearcher::searchFragSet(
       auto theseSynthons = getHitSynthons(
           fragShapes,
           getParams().similarityCutoff - getParams().fragSimilarityAdjuster,
-          reaction, synthonOrder);
+          reaction, synthonOrder, *this);
       // std::cout << "Num hit synthons : " << theseSynthons.size() <<
       // std::endl;
       if (!theseSynthons.empty()) {
@@ -377,8 +399,94 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   std::ranges::sort(d_fragShapes, [](const auto &p1, const auto &p2) -> bool {
     return p1.first > p2.first;
   });
+
+  if (!computeFragSynthonSims()) {
+    return false;
+  }
+
   std::cout << "Done extra setup" << std::endl;
   return true;
+}
+
+namespace {
+void computeSomeFragSynthonSims(
+    std::atomic<std::int64_t> &mostRecentPair,
+    const std::vector<std::unique_ptr<SearchShapeInput>> &fragShapesPool,
+    const std::vector<std::pair<std::string, std::unique_ptr<Synthon>>>
+        &synthonPool,
+    std::int64_t numPairs, float threshold, std::mutex &mtx,
+    FragSynthonSims &fragSynthonSims) {
+  auto step = fragShapesPool.size();
+  bool doSwap = fragShapesPool.size() < synthonPool.size() ? true : false;
+  SearchShapeInput *fragShape;
+  Synthon *synthon;
+  std::vector<float> matrix(12, 0.0);
+
+  while (true) {
+    std::int64_t thisPair = ++mostRecentPair;
+    if (thisPair >= numPairs) {
+      break;
+    }
+    if (ControlCHandler::getGotSignal()) {
+      return;
+    }
+    std::int64_t i = thisPair / step;
+    std::int64_t j = thisPair % step;
+    if (doSwap) {
+      fragShape = fragShapesPool[i].get();
+      synthon = synthonPool[j].second.get();
+    } else {
+      fragShape = fragShapesPool[j].get();
+      synthon = synthonPool[i].second.get();
+    }
+    if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
+      continue;
+    }
+    std::cout << i << ", " << j << " : " << fragShape << "  " << synthon
+              << std::endl;
+    const auto sim = bestSimilarity(*fragShape, *synthon->getShapes().get(),
+                                    matrix, threshold);
+
+    if (sim.first + sim.second >= threshold) {
+      std::unique_lock lock1{mtx};
+      std::pair<const void *, const void *> p{fragShape, synthon};
+      fragSynthonSims.insert(std::make_pair(p, sim.first + sim.second));
+    }
+  }
+}
+}  // namespace
+
+bool SynthonSpaceShapeSearcher::computeFragSynthonSims() {
+  float threshold =
+      getParams().similarityCutoff - getParams().fragSimilarityAdjuster;
+
+  std::int64_t numPairs =
+      d_fragShapesPool.size() * getSpace().d_synthonPool.size();
+  std::atomic<std::int64_t> pairNum(-1);
+  std::mutex mtx;
+  std::cout << "Number of shapes : " << d_fragShapesPool.size() << std::endl;
+  std::cout << "Number of synthons : " << getSpace().d_synthonPool.size()
+            << std::endl;
+  if (const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
+      numThreadsToUse > 1) {
+    std::vector<std::thread> threads;
+    for (unsigned int i = 0u; i < std::min(static_cast<size_t>(numThreadsToUse),
+                                           static_cast<size_t>(numPairs));
+         ++i) {
+      threads.emplace_back(
+          computeSomeFragSynthonSims, std::ref(pairNum),
+          std::ref(d_fragShapesPool), std::ref(getSpace().d_synthonPool),
+          numPairs, threshold, std::ref(mtx), std::ref(d_fragSynthonSims));
+    }
+    for (auto &t : threads) {
+      t.join();
+    }
+  } else {
+    computeSomeFragSynthonSims(pairNum, d_fragShapesPool,
+                               getSpace().d_synthonPool, numPairs, threshold,
+                               mtx, d_fragSynthonSims);
+  }
+  return !ControlCHandler::getGotSignal();
 }
 
 bool SynthonSpaceShapeSearcher::quickVerify(

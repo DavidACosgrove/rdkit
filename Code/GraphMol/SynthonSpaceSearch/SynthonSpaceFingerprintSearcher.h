@@ -46,8 +46,6 @@ class SynthonSpaceFingerprintSearcher : public SynthonSpaceSearcher {
   // corresponding fragment.  There are usually multiple fragments
   // with the same SMILES and this way the fingerprints are
   // generated the minimum number of times.
-  // d_fragFPPool is never read, it is just used as a repository
-  // for the fragFPs for the lifetime of the search.
   std::vector<std::unique_ptr<ExplicitBitVect>> d_fragFPPool;
   std::vector<std::pair<void *, ExplicitBitVect *>> d_fragFPs;
 
