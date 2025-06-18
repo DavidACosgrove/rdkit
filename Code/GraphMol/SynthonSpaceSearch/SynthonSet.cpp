@@ -184,15 +184,15 @@ void readSearchOrderSet(std::istream &is,
                         std::vector<std::vector<size_t>> &orderSet) {
   std::uint64_t s;
   streamRead(is, s);
-  orderSet.reserve(s);
+  orderSet.resize(s);
   for (size_t i = 0; i < s; ++i) {
     std::uint64_t t;
     streamRead(is, t);
-    orderSet[i].reserve(t);
+    orderSet[i].resize(t);
     for (size_t j = 0; j < t; ++j) {
       std::uint64_t u;
       streamRead(is, u);
-      orderSet[i].push_back(u);
+      orderSet[i][t] = u;
     }
   }
 }
@@ -200,7 +200,6 @@ void readSearchOrderSet(std::istream &is,
 
 void SynthonSet::readFromDBStream(std::istream &is, const SynthonSpace &space,
                                   std::uint32_t version) {
-  std::cout << getId() << " :: version  " << version << std::endl;
   PRECONDITION(version >= 3000, "Binary database version no longer supported.");
   streamRead(is, d_id, 0);
   std::uint64_t numConnRegs;
@@ -594,60 +593,6 @@ void SynthonSet::buildAddAndSubtractFPs(
 }
 
 namespace {}  // namespace
-
-#if 0
-void SynthonSet::buildSynthonShapes(const ShapeBuildParams &shapeParams) {
-  // Each synthon is built into a product, its conformers generated
-  // and then split out again into the original pieces.
-  auto synthonMolCopies = copySynthons();
-  std::vector<std::pair<unsigned int, unsigned int>> dummyLabels;
-  for (unsigned int i = 1; i <= MAX_CONNECTOR_NUM; ++i) {
-    dummyLabels.emplace_back(i, i);
-  }
-
-  ShapeInputOptions shapeOpts;
-  shapeOpts.includeDummies = true;
-  shapeOpts.dummyRadius = 2.16;
-  ShapeInputOptions noDummyOpts;
-  noDummyOpts.includeDummies = false;
-
-  // Now build sets of sample molecules using each synthon set in turn.
-  auto dgParams = DGeomHelpers::ETKDGv3;
-  dgParams.numThreads = 1;
-  dgParams.pruneRmsThresh = shapeParams.rmsThreshold;
-  dgParams.randomSeed = shapeParams.randomSeed;
-  for (size_t synthSetNum = 0; synthSetNum < d_synthons.size(); ++synthSetNum) {
-    auto sampleMols = buildSampleMolecules(synthonMolCopies, synthSetNum);
-    for (size_t i = 0; i < sampleMols.size(); ++i) {
-      if (d_synthons[synthSetNum][i].second->getShapes()) {
-        std::cout << d_synthons[synthSetNum][i].first << " has shapes"
-                  << std::endl;
-        sampleMols[i].reset();
-      }
-    }
-    sampleMols.erase(std::remove_if(sampleMols.begin(), sampleMols.end(),
-                                    [](const auto &m) -> bool { return !m; }),
-                     sampleMols.end());
-    // Do the molecules in descending order of size to minimise the chance
-    // of sitting waiting for the last big molecule to be processed.
-    std::ranges::sort(sampleMols, [](const auto &m1, const auto &m2) -> bool {
-      return m1->getNumAtoms() > m2->getNumAtoms();
-    });
-    std::cout << "make " << sampleMols.size() << " shapes for " << synthSetNum;
-    if (!sampleMols.empty()) {
-      std::cout << " :: " << sampleMols.front()->getNumAtoms() << " to "
-                << sampleMols.back()->getNumAtoms();
-    }
-    std::cout << " originally " << d_synthons[synthSetNum].size() << std::endl;
-    details::makeShapesFromMols(sampleMols, synthSetNum, dgParams, shapeParams,
-                                d_synthons);
-    if (ControlCHandler::getGotSignal()) {
-      return;
-    }
-  }
-  std::cout << "leaving buildSynthonShapes for " << getId() << std::endl;
-}
-#endif
 
 std::string SynthonSet::buildProductName(
     const std::vector<size_t> &synthNums) const {

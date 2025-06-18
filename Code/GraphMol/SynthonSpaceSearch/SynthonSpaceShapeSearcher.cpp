@@ -433,11 +433,11 @@ void computeSomeFragSynthonSims(
     std::int64_t i = thisPair / step;
     std::int64_t j = thisPair % step;
     if (doSwap) {
-      fragShape = fragShapesPool[i].get();
-      synthon = synthonPool[j].second.get();
-    } else {
       fragShape = fragShapesPool[j].get();
       synthon = synthonPool[i].second.get();
+    } else {
+      fragShape = fragShapesPool[i].get();
+      synthon = synthonPool[j].second.get();
     }
     if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
       continue;

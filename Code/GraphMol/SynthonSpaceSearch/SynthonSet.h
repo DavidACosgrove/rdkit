@@ -126,13 +126,6 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   void buildAddAndSubtractFPs(const FingerprintGenerator<std::uint64_t> &fpGen,
                               unsigned int numBits);
 
-  /*!
-   * Create conformers for the synthons ready for shape searching.
-   *
-   * @param shapeParams : parameters controlling the shape building
-   */
-  void buildSynthonShapes(const ShapeBuildParams &shapeParams);
-
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as
   // d_synthons.
