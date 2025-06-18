@@ -54,9 +54,8 @@ std::map<std::string, std::unique_ptr<ExplicitBitVect>> getFingerprints(
 
 std::set<std::string> bruteForceSearch(
     std::map<std::string, std::unique_ptr<ExplicitBitVect>> &fps,
-    const ROMol &queryMol, const double simCutoff) {
-  std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen;
-  fpGen.reset(MorganFingerprint::getMorganGenerator<std::uint64_t>(2));
+    const ROMol &queryMol, const double simCutoff,
+    std::unique_ptr<FingerprintGenerator<std::uint64_t>> &fpGen) {
   const auto queryFP =
       std::unique_ptr<ExplicitBitVect>(fpGen->getFingerprint(queryMol));
   std::set<std::string> fullSmi;
@@ -100,14 +99,14 @@ TEST_CASE("FP Small tests") {
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
     SynthonSpaceSearchParams params;
+    params.useProgressBar = false;
     params.randomSeed = 1;
     params.approxSimilarityAdjuster = 0.2;
     params.numThreads = 1;
-    params.useProgressBar = false;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
         MorganFingerprint::getMorganGenerator<std::uint64_t>(2));
-
+    synthonspace.buildSynthonFingerprints(*fpGen);
     auto results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
     CHECK(results.getHitMolecules().size() == expNumHits[i]);
     std::set<std::string> resSmis;
@@ -118,7 +117,8 @@ TEST_CASE("FP Small tests") {
     // Do the enumerated library, just to check
     std::map<std::string, std::unique_ptr<RWMol>> mols;
     auto fps = getFingerprints(enumLibNames[i], mols, fpGen);
-    auto names = bruteForceSearch(fps, *queryMol, params.similarityCutoff);
+    auto names =
+        bruteForceSearch(fps, *queryMol, params.similarityCutoff, fpGen);
     std::set<std::string> fullSmis;
     for (const auto &r : names) {
       fullSmis.insert(MolToSmiles(*mols[r]));
@@ -149,13 +149,14 @@ TEST_CASE("FP Binary File") {
   SearchResults results;
   auto queryMol = "O=C(Nc1c(CNC=O)cc[s]1)c1nccnc1"_smiles;
   SynthonSpaceSearchParams params;
+  params.useProgressBar = false;
   for (auto numThreads : std::vector<int>{1, 2, -1}) {
     synthonspace.readDBFile(libName, numThreads);
     params.numThreads = numThreads;
     CHECK_NOTHROW(
         results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params));
-    CHECK(results.getHitMolecules().size() == 4);
-    CHECK(results.getMaxNumResults() == 420);
+    CHECK(results.getHitMolecules().size() == 92);
+    CHECK(results.getMaxNumResults() == 400);
   }
 
   // Make sure it rejects the wrong sort of fingerprint.
@@ -194,12 +195,14 @@ TEST_CASE("Hit Filters") {
   SearchResults results;
   auto queryMol = "CCNC(=O)Cc1cncc(CCOC2c3ccccc3CC2)c1"_smiles;
   SynthonSpaceSearchParams params;
+  params.useProgressBar = false;
   params.similarityCutoff = 0.45;
   synthonspace.readDBFile(libName);
   results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
   CHECK(results.getHitMolecules().size() == 18);
   {
     SynthonSpaceSearchParams params;
+    params.useProgressBar = false;
     params.minHitHeavyAtoms = 28;
     params.similarityCutoff = 0.45;
     results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
@@ -214,6 +217,7 @@ TEST_CASE("Hit Filters") {
   }
   {
     SynthonSpaceSearchParams params;
+    params.useProgressBar = false;
     params.similarityCutoff = 0.45;
     params.minHitMolWt = 375.0;
     results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
@@ -228,19 +232,20 @@ TEST_CASE("Hit Filters") {
   }
   {
     SynthonSpaceSearchParams params;
+    params.useProgressBar = false;
     params.similarityCutoff = 0.45;
     auto chiralQuery = "Cc1nccn1CCc1ccsc1COO[C@@H]1CCC[C@H](N)C1"_smiles;
     results = synthonspace.fingerprintSearch(*chiralQuery, *fpGen, params);
-    CHECK(results.getHitMolecules().size() == 17);
+    CHECK(results.getHitMolecules().size() == 210);
     params.minHitChiralAtoms = 1;
     results = synthonspace.fingerprintSearch(*chiralQuery, *fpGen, params);
-    CHECK(results.getHitMolecules().size() == 11);
+    CHECK(results.getHitMolecules().size() == 161);
     params.maxHitChiralAtoms = 1;
     results = synthonspace.fingerprintSearch(*chiralQuery, *fpGen, params);
-    CHECK(results.getHitMolecules().size() == 4);
+    CHECK(results.getHitMolecules().size() == 39);
     for (const auto &r : results.getHitMolecules()) {
       auto numChiralAtoms = details::countChiralAtoms(*r);
-      CHECK((numChiralAtoms >= 1 && numChiralAtoms <= 3));
+      CHECK((numChiralAtoms >= 1 && numChiralAtoms <= 1));
     }
   }
 }

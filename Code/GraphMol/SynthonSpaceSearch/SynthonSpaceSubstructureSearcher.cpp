@@ -452,6 +452,18 @@ SynthonSpaceSubstructureSearcher::searchFragSet(
   return results;
 }
 
+double SynthonSpaceSubstructureSearcher::approxSimilarity(
+    const SynthonSpaceHitSet *hitset,
+    const std::vector<size_t> &synthNums) const {
+  int qbit = getQuery().getNumAtoms();
+  int numAtoms = 0;
+  for (size_t i = 0; i < synthNums.size(); i++) {
+    const auto &synth = hitset->synthonsToUse[i][synthNums[i]].second;
+    numAtoms += synth->getNumHeavyAtoms();
+  }
+  return static_cast<double>(qbit) / static_cast<double>(numAtoms);
+}
+
 bool SynthonSpaceSubstructureSearcher::verifyHit(ROMol &hit) const {
   if (!SynthonSpaceSearcher::verifyHit(hit)) {
     return false;

@@ -209,27 +209,37 @@ bool SynthonSpaceRascalSearcher::quickVerify(
   if (!SynthonSpaceSearcher::quickVerify(hitset, synthNums)) {
     return false;
   }
+  auto approxSim = approxSimilarity(hitset, synthNums);
+  return approxSim >= d_rascalOptions.similarityThreshold;
+}
+
+double SynthonSpaceRascalSearcher::approxSimilarity(
+    const SynthonSpaceHitSet *hitset,
+    const std::vector<size_t> &synthNums) const {
   // If the query is an exact substructure of the product, then that's an upper
   // bound on the Johnson similarity.  Check that that is not below the
   // threshold.
   int qbit = getQuery().getNumAtoms() + getQuery().getNumBonds();
-  int numAtoms = 0, numBonds = 0;
+  int numAtoms = 0, numBonds = 0, numConns = 0;
   for (size_t i = 0; i < synthNums.size(); i++) {
     const auto &synth = hitset->synthonsToUse[i][synthNums[i]].second;
-    // Adjust for connector points that aren't in the final product.
-    numAtoms += synth->getOrigMol()->getNumAtoms() -
-                hitset->d_reaction->getSynthonConnectorPatterns()[i].count();
-    numBonds += synth->getOrigMol()->getNumBonds() -
-                hitset->d_reaction->getSynthonConnectorPatterns()[i].count();
+    numAtoms += synth->getNumHeavyAtoms();
+    numBonds += synth->getOrigMol()->getNumBonds() - synth->getNumDummies();
+    numConns += synth->getNumDummies();
   }
+  // Pairs of dummies will form a bond in the final result, which need to
+  // be accounted for.  If there are hanging dummy atoms the result will
+  // be an over-estimate of the similarity because we won't be adding enough
+  // bonds to the denominator.  That's ok for this.
+  numConns /= 2;
   // The Johnson similarity is
   // (commonNatoms + commonNbonds)**2 /
   // ((Natoms1 + Nbonds1) * (Natoms2 + Natoms2))
   // and in this case the common atoms are the whole query, so the square
   // cancels out.
-  double bestSim =
-      static_cast<double>(qbit) / static_cast<double>(numAtoms + numBonds);
-  return bestSim >= d_rascalOptions.similarityThreshold;
+  double bestSim = static_cast<double>(qbit) /
+                   static_cast<double>(numAtoms + numBonds + numConns);
+  return bestSim;
 }
 
 bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) const {

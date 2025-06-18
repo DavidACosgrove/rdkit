@@ -9,6 +9,7 @@
 //
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -41,7 +42,8 @@
 #include <RDGeneral/RDThreads.h>
 #include <RDGeneral/StreamOps.h>
 
-namespace RDKit::SynthonSpaceSearch {
+namespace RDKit {
+namespace SynthonSpaceSearch {
 // used for serialization
 constexpr int32_t versionMajor = 3;
 constexpr int32_t versionMinor = 2;
@@ -656,26 +658,71 @@ unsigned int SynthonSpace::getNumConformers() const { return d_numConformers; }
 
 void SynthonSpace::buildSynthonFingerprints(
     const FingerprintGenerator<std::uint64_t> &fpGen) {
-  if (const auto fpType = fpGen.infoString();
-      fpType != d_fpType || !hasFingerprints()) {
-    BOOST_LOG(rdWarningLog)
-        << "Building the fingerprints may take some time." << std::endl;
-    d_fpType = fpType;
-    unsigned int numBits = 0;
-    for (const auto &[id, synthSet] : d_reactions) {
-      if (ControlCHandler::getGotSignal()) {
-        return;
+  BOOST_LOG(rdWarningLog) << "Building the fingerprints of "
+                          << d_synthonPool.size()
+                          << " synthons may take some time." << std::endl;
+  if (d_synthonReactions.empty()) {
+    fillSynthonReactions();
+  }
+  reportSynthonUsage(std::cout);
+
+  std::vector<unsigned int> doneRxns(d_synthonPool.size(), 0u);
+  bool cancelled = false;
+  std::vector<std::vector<std::unique_ptr<SampleMolRec>>> allSampleMols;
+  buildSynthonSampleMolecules(1000, allSampleMols);
+  std::ranges::sort(allSampleMols,
+                    [](const auto &sm1, const auto &sm2) -> bool {
+                      return sm1.front()->d_mol->getNumAtoms() >
+                             sm2.front()->d_mol->getNumAtoms();
+                    });
+  AdditionalOutput addlOutput;
+  addlOutput.allocateAtomToBits();
+
+  while (true && !cancelled) {
+    // Loop around until all synthons have a fingerprint or we've run out
+    // of synthon/reaction combinations.
+    std::vector<std::unique_ptr<SampleMolRec>> sampleMols;
+    sampleMols.reserve(d_synthonPool.size());
+    for (auto &allSampleMol : allSampleMols) {
+      if (!allSampleMol.empty() && !allSampleMol.back()->d_synthon->getFP()) {
+        sampleMols.push_back(std::move(allSampleMol.back()));
+        allSampleMol.pop_back();
       }
-      synthSet->buildSynthonFingerprints(fpGen);
-      if (!numBits) {
-        numBits = synthSet->getSynthons()
-                      .front()
-                      .front()
-                      .second->getFP()
-                      ->getNumBits();
-      }
-      synthSet->buildAddAndSubtractFPs(fpGen, numBits);
     }
+    if (sampleMols.empty()) {
+      break;
+    }
+    std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
+      return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
+    });
+    std::unique_ptr<ExplicitBitVect> fullFP;
+    for (const auto &sm : sampleMols) {
+      fullFP.reset(
+          fpGen.getFingerprint(*sm->d_mol, nullptr, nullptr, -1, &addlOutput));
+      auto atomToBits = *addlOutput.atomToBits;
+      // Make a fingerprint for the whole molecule, and extract just the
+      // bits set by the atoms from this synthon.
+      std::unique_ptr<ExplicitBitVect> sampleFP(
+          new ExplicitBitVect(fullFP->getNumBits()));
+      for (const auto atom : sm->d_mol->atoms()) {
+        unsigned int molNum;
+        if (atom->getPropIfPresent<unsigned int>("molNum", molNum)) {
+          if (molNum == sm->d_synthonSetNum) {
+            for (const auto bitIdx : atomToBits[atom->getIdx()]) {
+              sampleFP->setBit(bitIdx);
+            }
+          }
+        }
+      }
+      sm->d_synthon->setFP(std::move(sampleFP));
+    }
+    if (ControlCHandler::getGotSignal()) {
+      cancelled = true;
+    }
+  }
+  d_fpType = fpGen.infoString();
+  for (auto &rxn : d_reactions) {
+    rxn.second->initializeSearchOrders();
   }
 }
 
@@ -693,10 +740,22 @@ void writeInterimFile(const SynthonSpace &space, const std::string &filename) {
 void SynthonSpace::buildSynthonShapes(bool &cancelled,
                                       const ShapeBuildParams &shapeParams) {
   if (d_numConformers == shapeParams.numConfs) {
-    BOOST_LOG(rdWarningLog)
-        << "SynthonSpace has already been built with " << shapeParams.numConfs
-        << " conformers." << std::endl;
-    return;
+    bool missingShapes = false;
+    for (const auto &[id, synthon] : d_synthonPool) {
+      if (!synthon->getShapes()) {
+        missingShapes = true;
+        break;
+      }
+    }
+    if (missingShapes) {
+      BOOST_LOG(rdWarningLog)
+          << "Resuming building SynthonSpace shapes." << std::endl;
+    } else {
+      BOOST_LOG(rdWarningLog)
+          << "SynthonSpace has already been built with " << shapeParams.numConfs
+          << " conformers." << std::endl;
+      return;
+    }
   }
   BOOST_LOG(rdWarningLog) << "Building the conformers of "
                           << d_synthonPool.size()
@@ -983,5 +1042,5 @@ std::string formattedIntegerString(std::int64_t value) {
   oss << value;
   return oss.str();
 }
-
-}  // namespace RDKit::SynthonSpaceSearch
+}  // namespace SynthonSpaceSearch
+}  // namespace RDKit

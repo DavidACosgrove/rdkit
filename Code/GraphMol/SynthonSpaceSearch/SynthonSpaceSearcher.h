@@ -74,6 +74,14 @@ class SynthonSpaceSearcher {
   // if appropriate, which required a non-const ROMol.
   virtual bool verifyHit(ROMol &mol) const;
 
+  // Compute an approximate similarity between the hit and query.  It's used
+  // to sort the possible hits in descending approximate similarity to try
+  // and get the most similar hits to the top of the list.  It will probably
+  // be the same one as used in quickVerify, if appropriate.
+  virtual double approxSimilarity(
+      const SynthonSpaceHitSet *hitset,
+      const std::vector<size_t> &synthNums) const = 0;
+
   // Do a check against number of heavy atoms etc. if options call for it
   // which can be done without having to build the full molecule from the
   // synthons. Some of the search methods (fingerprints, for example) can do
@@ -120,6 +128,9 @@ class SynthonSpaceSearcher {
           std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>> &toTry,
       const TimePoint *endTime,
       std::vector<std::unique_ptr<ROMol>> &results) const;
+  void sortToTryByApproxSimilarity(
+      std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
+          &toTry) const;
   void processToTrySet(
       std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
           &toTry,

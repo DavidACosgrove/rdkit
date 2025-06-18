@@ -991,7 +991,6 @@ std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
     }
     auto cids = DGeomHelpers::EmbedMultipleConfs(*cm, numConformers, dgParams);
     if (ControlCHandler::getGotSignal()) {
-      std::cout << "returning" << std::endl;
       confMols.clear();
       return confMols;
     }

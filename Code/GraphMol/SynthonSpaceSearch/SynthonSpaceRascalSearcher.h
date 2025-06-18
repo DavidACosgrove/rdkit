@@ -40,7 +40,8 @@ class SynthonSpaceRascalSearcher : public SynthonSpaceSearcher {
  protected:
   bool quickVerify(const SynthonSpaceHitSet *hitset,
                    const std::vector<size_t> &synthNums) const override;
-
+  double approxSimilarity(const SynthonSpaceHitSet *hitset,
+                          const std::vector<size_t> &synthNums) const override;
   bool verifyHit(ROMol &hit) const override;
 
  private:

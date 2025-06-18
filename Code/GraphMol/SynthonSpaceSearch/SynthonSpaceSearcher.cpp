@@ -372,6 +372,7 @@ void sortHits(std::vector<std::unique_ptr<ROMol>> &hits) {
 void sortAndUniquifyToTry(
     std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
         &toTry) {
+  // Uniquify on hit name.
   std::vector<std::pair<size_t, std::string>> tmp;
   tmp.reserve(toTry.size());
   for (size_t i = 0; i < toTry.size(); i++) {
@@ -616,6 +617,30 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
                 results.end());
 }
 
+void SynthonSpaceSearcher::sortToTryByApproxSimilarity(
+    std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
+        &toTry) const {
+  std::vector<std::pair<size_t, double>> tmp;
+  tmp.reserve(toTry.size());
+  for (size_t i = 0; i < toTry.size(); i++) {
+    tmp.emplace_back(i, approxSimilarity(toTry[i].first, toTry[i].second));
+  }
+  std::sort(tmp.begin(), tmp.end(),
+            [](const auto &lhs, const auto &rhs) -> bool {
+              return lhs.second > rhs.second;
+            });
+  std::cout << "tmp front " << tmp.front().first << " : " << tmp.front().second
+            << std::endl;
+  std::cout << "tmp back : " << tmp.back().first << " : " << tmp.back().second
+            << std::endl;
+  std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
+      newToTry;
+  newToTry.reserve(tmp.size());
+  std::transform(tmp.begin(), tmp.end(), back_inserter(newToTry),
+                 [&](const auto &p) -> auto { return toTry[p.first]; });
+  toTry = newToTry;
+}
+
 void SynthonSpaceSearcher::processToTrySet(
     std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
         &toTry,
@@ -633,7 +658,15 @@ void SynthonSpaceSearcher::processToTrySet(
 
   if (d_params.randomSample) {
     std::shuffle(toTry.begin(), toTry.end(), *d_randGen);
+  } else {
+    sortToTryByApproxSimilarity(toTry);
   }
+  std::cout << "front : "
+            << approxSimilarity(toTry.front().first, toTry.front().second)
+            << std::endl;
+  std::cout << "back  : "
+            << approxSimilarity(toTry.back().first, toTry.back().second)
+            << std::endl;
   makeHitsFromToTry(toTry, endTime, results);
 }
 }  // namespace RDKit::SynthonSpaceSearch

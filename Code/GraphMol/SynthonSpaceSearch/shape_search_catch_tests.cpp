@@ -398,6 +398,7 @@ TEST_CASE("Test Test") {
   REQUIRE(rdbase);
   std::string fName(rdbase);
   std::string spaceName = fName + "/cmake-mine/random_real_0_shapes.spc";
+  std::cout << spaceName << std::endl;
 
   SynthonSpace space;
   space.readDBFile(spaceName);

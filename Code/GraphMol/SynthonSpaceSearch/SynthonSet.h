@@ -123,8 +123,6 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
 
   void buildSynthonFingerprints(
       const FingerprintGenerator<std::uint64_t> &fpGen);
-  void buildAddAndSubtractFPs(const FingerprintGenerator<std::uint64_t> &fpGen,
-                              unsigned int numBits);
 
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as
@@ -190,7 +188,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   // When doing an approximate FP similarity by ORing together
   // the synthonFPs, adding d_addFP and subtracting d_subtractFP
   // accounts (a bit) for the joins and the dummy atoms
-  // respectively.
+  // respectively.  Not used at present, but left in for
+  // compatibility with old databases.
   std::unique_ptr<ExplicitBitVect> d_addFP;
   std::unique_ptr<ExplicitBitVect> d_subtractFP;
 

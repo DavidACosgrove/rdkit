@@ -35,6 +35,13 @@ class SynthonSpaceSubstructureSearcher : public SynthonSpaceSearcher {
       const std::vector<std::unique_ptr<ROMol>> &fragSet,
       const SynthonSet &reaction) const override;
 
+ protected:
+  // In this case, it's just the number of atoms in the query
+  // divided by the number of atoms in the product.
+  double approxSimilarity(const SynthonSpaceHitSet *hitset,
+                          const std::vector<size_t> &synthNums) const override;
+  bool verifyHit(ROMol &hit) const override;
+
  private:
   // These are the pattern fingerprints for the fragments in this
   // search.  They are used for screening the fragments prior to
@@ -59,8 +66,6 @@ class SynthonSpaceSubstructureSearcher : public SynthonSpaceSearcher {
 
   bool extraSearchSetup(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
-
-  bool verifyHit(ROMol &hit) const override;
 
   void getConnectorRegions(
       const std::vector<std::unique_ptr<ROMol>> &molFrags,

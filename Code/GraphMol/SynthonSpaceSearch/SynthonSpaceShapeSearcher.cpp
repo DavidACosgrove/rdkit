@@ -442,8 +442,8 @@ void computeSomeFragSynthonSims(
     if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
       continue;
     }
-    std::cout << i << ", " << j << " : " << fragShape << "  " << synthon
-              << std::endl;
+    // std::cout << i << ", " << j << " : " << fragShape << "  " << synthon
+    // << std::endl;
     const auto sim = bestSimilarity(*fragShape, *synthon->getShapes().get(),
                                     matrix, threshold);
 
@@ -492,6 +492,14 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims() {
 bool SynthonSpaceShapeSearcher::quickVerify(
     const SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &synthNums) const {
+  auto approxSim = approxSimilarity(hitset, synthNums);
+  return approxSim >=
+         getParams().similarityCutoff - getParams().approxSimilarityAdjuster;
+}
+
+double SynthonSpaceShapeSearcher::approxSimilarity(
+    const SynthonSpaceHitSet *hitset,
+    const std::vector<size_t> &synthNums) const {
   double maxVol = 0.0;
   double featureVol = 0.0;
   // The synthon shapes are sorted in descending order of sov + sof.
@@ -506,20 +514,12 @@ bool SynthonSpaceShapeSearcher::quickVerify(
     }
     maxVol += shapes->sovs.front() - shapes->dummyVols.front();
     featureVol += shapes->sofs.front();
-    // std::cout << "quickVerify synth " << i << " : " << synth->getSmiles()
-    //           << " : " << shapes->sovs.front() << " and "
-    //           << shapes->dummyVols.front() << std::endl;
   }
   double maxSt = std::min(maxVol, dp_queryShapes->sovs.front()) /
                  std::max(maxVol, dp_queryShapes->sovs.front());
   double maxCt = std::min(featureVol, dp_queryShapes->sofs.front()) /
                  std::max(featureVol, dp_queryShapes->sofs.front());
-  // std::cout << maxSt << " " << maxCt << " : " << maxSt + maxCt << " : "
-  //           << (maxSt + maxCt >= getParams().similarityCutoff -
-  //                                    getParams().approxSimilarityAdjuster)
-  //           << std::endl;
-  return maxSt + maxCt >=
-         getParams().similarityCutoff - getParams().approxSimilarityAdjuster;
+  return maxSt + maxCt;
 }
 
 bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {

@@ -64,6 +64,13 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
                           float &sim) const;
   bool hasPrecomputedSims() const { return !d_fragSynthonSims.empty(); }
 
+ protected:
+  bool quickVerify(const SynthonSpaceHitSet *hitset,
+                   const std::vector<size_t> &synthNums) const override;
+  double approxSimilarity(const SynthonSpaceHitSet *hitset,
+                          const std::vector<size_t> &synthNums) const override;
+  bool verifyHit(ROMol &hit) const override;
+
  private:
   // Shapes for all the conformers of the query.
   std::unique_ptr<SearchShapeInput> dp_queryShapes;
@@ -90,10 +97,6 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
 
   bool extraSearchSetup(
       std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
-
-  bool quickVerify(const SynthonSpaceHitSet *hitset,
-                   const std::vector<size_t> &synthNums) const override;
-  bool verifyHit(ROMol &hit) const override;
 
   // Fill in the d_fragSynthonSims map.
   bool computeFragSynthonSims();

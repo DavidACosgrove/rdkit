@@ -270,6 +270,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    */
   void buildSynthonShapes(bool &cancelled, const ShapeBuildParams &shapeParams =
                                                ShapeBuildParams());
+  void buildSynthonFPs(const FingerprintGenerator<std::uint64_t> &fpGen);
 
   void reportSynthonUsage(std::ostream &os) const;
 
