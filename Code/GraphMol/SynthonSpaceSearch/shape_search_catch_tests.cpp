@@ -394,6 +394,24 @@ FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
   CHECK(bestSim > firstSim);
 }
 
+TEST_CASE("Bad elements") {
+  SynthonSpace space;
+  // This bit of FreedomSpace 2024-09 threw an exception originally
+  // due to the Pd atom not being recognised by the shape builder.
+  std::istringstream iss(R"(SMILES	synton_id	synton#	reaction_id
+Cc1sc2ncnc(NN[U])c2c1C	100000182719	1	20a	2024-09
+ClC(Cl)=C(Cl)c1cccc(N[U])c1	100016989384	1	20a	2024-09
+Cl[Pd]c1cccc(-c2ccccc2)c1N[U]	114813040699	1	20a	2024-09
+C=CCC1(S(=O)(=O)[U])CC1	100000101377	2	20a	2024-09
+C=Cc1ccc(S(=O)(=O)[U])cc1	100000034458	2	20a	2024-09
+)");
+  bool cancelled = false;
+  space.readStream(iss, cancelled);
+  ShapeBuildParams shapeOptions;
+  shapeOptions.randomSeed = 1;
+  CHECK_NOTHROW(space.buildSynthonShapes(cancelled, shapeOptions));
+}
+
 TEST_CASE("Test Test") {
   REQUIRE(rdbase);
   std::string fName(rdbase);

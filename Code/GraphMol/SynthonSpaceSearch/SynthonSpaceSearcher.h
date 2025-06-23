@@ -93,7 +93,7 @@ class SynthonSpaceSearcher {
  private:
   std::unique_ptr<std::mt19937> d_randGen;
 
-  const ROMol &d_query;
+  ROMol d_query;
   const SynthonSpaceSearchParams &d_params;
   SynthonSpace &d_space;
 
@@ -102,7 +102,7 @@ class SynthonSpaceSearcher {
   // for all the fragments.  The SubstructureSearcher needs connector
   // regions and information about them.
   virtual bool extraSearchSetup(
-      std::vector<std::vector<std::unique_ptr<ROMol>>> &) {
+      std::vector<std::vector<std::unique_ptr<ROMol>>> &, const TimePoint *) {
     return true;
   }
 

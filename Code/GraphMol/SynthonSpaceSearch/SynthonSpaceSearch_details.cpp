@@ -503,8 +503,8 @@ void doFinalFragmentation(
   timedOut = details::checkTimeOut(endTime);
 }
 
-// Build all combinations of maxBondSplits sets of bondPairs into splitBonds,
-// removing any duplicate bonds.
+// Recursively build all combinations of maxBondSplits sets of
+// bondPairs into splitBonds, removing any duplicate bonds.
 void buildSplitBonds(
     const std::vector<std::pair<unsigned int, unsigned int>> &bondPairs,
     const unsigned int maxBondSplits,
@@ -563,9 +563,10 @@ std::vector<std::vector<std::unique_ptr<ROMol>>> splitMolecule(
   findBondPairsThatFragment(query, ringBonds, ringBlocks, bondPairs);
   // And all the non-ring bonds, which clearly can all make 2 fragments
   // when broken.  Put them in as pairs of the same value, for ease of
-  // processing below.
+  // processing below.  We also aren't interested in H atoms as a fragment.
   for (const auto b : query.bonds()) {
-    if (!ringBonds[b->getIdx()]) {
+    if (!ringBonds[b->getIdx()] && b->getBeginAtomIdx() != 1 &&
+        b->getEndAtomIdx() != 1) {
       bondPairs.push_back({b->getIdx(), b->getIdx()});
     }
   }
@@ -584,7 +585,7 @@ std::vector<std::vector<std::unique_ptr<ROMol>>> splitMolecule(
     return fragments;
   }
 
-  // Keep unique SMILES onlyu
+  // Keep unique SMILES only
   std::sort(tmpFrags.begin(), tmpFrags.end(),
             [](const auto &lhs, const auto &rhs) -> bool {
               return lhs.first < rhs.first;
@@ -1099,12 +1100,18 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
       shapeOpts.atomSubset = fragAtoms;
       noDummyOpts.atomSubset = fragAtoms;
 
-      auto shapes =
-          PrepareConformers(*isomer, shapeOpts, shapeParams.shapeSimThreshold);
-      // Because stereoisomers should all have the same number of atoms and
-      // bonds, we can just combine the shapes into one set.  We don't need
-      // to keep track of which stereoisomer they came from.
-      allShapes->merge(*shapes);
+      try {
+        auto shapes = PrepareConformers(*isomer, shapeOpts,
+                                        shapeParams.shapeSimThreshold);
+        // Because stereoisomers should all have the same number of atoms and
+        // bonds, we can just combine the shapes into one set.  We don't need
+        // to keep track of which stereoisomer they came from.
+        allShapes->merge(*shapes);
+      } catch (ValueErrorException &e) {
+        // It throws an exception if it doesn't have a radius for an atom
+        // in the molecule.
+        BOOST_LOG(rdWarningLog) << e.what() << std::endl;
+      }
     }
     pruneShapes(*allShapes, shapeParams.shapeSimThreshold);
     sampleMols[molNum]->d_synthon->setShapes(std::move(allShapes));

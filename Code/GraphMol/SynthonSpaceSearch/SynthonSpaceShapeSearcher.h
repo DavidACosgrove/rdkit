@@ -96,10 +96,11 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
   FragSynthonSims d_fragSynthonSims;
 
   bool extraSearchSetup(
-      std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
+      std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
+      const TimePoint *endTime) override;
 
   // Fill in the d_fragSynthonSims map.
-  bool computeFragSynthonSims();
+  bool computeFragSynthonSims(const TimePoint *endTime);
 };
 }  // namespace RDKit::SynthonSpaceSearch
 #endif  // SYNTHONSPACESHAPESEARCHER_H

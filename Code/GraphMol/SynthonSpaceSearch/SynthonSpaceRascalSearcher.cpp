@@ -125,12 +125,21 @@ std::vector<std::vector<size_t>> getHitSynthons(
 }  // namespace
 
 bool SynthonSpaceRascalSearcher::extraSearchSetup(
-    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
+    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
+    const TimePoint *endTime) {
+  int numDone = 100;
   for (const auto &fragSet : fragSets) {
     for (const auto &frag : fragSet) {
       unsigned int otf;
       sanitizeMol(*static_cast<RWMol *>(frag.get()), otf,
                   MolOps::SANITIZE_SYMMRINGS);
+      --numDone;
+      if (!numDone) {
+        numDone = 100;
+        if (details::checkTimeOut(endTime)) {
+          return false;
+        }
+      }
     }
   }
   return true;

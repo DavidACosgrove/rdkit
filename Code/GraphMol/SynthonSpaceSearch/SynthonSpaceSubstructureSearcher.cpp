@@ -266,10 +266,11 @@ std::vector<std::vector<size_t>> getHitSynthons(
 }  // namespace
 
 bool SynthonSpaceSubstructureSearcher::extraSearchSetup(
-    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
+    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
+    const TimePoint *endTime) {
   bool cancelled = false;
   auto fragSmiToFrag = details::mapFragsBySmiles(fragSets, cancelled);
-  if (cancelled) {
+  if (cancelled || details::checkTimeOut(endTime)) {
     return false;
   }
   // Now generate the pattern fingerprints for the fragments.
@@ -280,9 +281,17 @@ bool SynthonSpaceSubstructureSearcher::extraSearchSetup(
   d_connRegFPsPool.resize(fragSmiToFrag.size());
   unsigned int fragNum = 0;
   bool saidSomething = false;
+  int numDone = 100;
   for (auto &[fragSmi, frags] : fragSmiToFrag) {
     if (ControlCHandler::getGotSignal()) {
       return false;
+    }
+    --numDone;
+    if (!numDone) {
+      numDone = 100;
+      if (details::checkTimeOut(endTime)) {
+        return false;
+      }
     }
     // For the fingerprints, ring info is required, and this needs to be
     // done for every copy of the fragment. We also need to fix any

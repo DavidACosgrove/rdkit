@@ -15,6 +15,7 @@
 #include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
 #include <GraphMol/MolTransforms/MolTransforms.h>
+#include <GraphMol/SynthonSpaceSearch/ProgressBar.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearchHelpers.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceShapeSearcher.h>
 #include <RDGeneral/ControlCHandler.h>
@@ -32,7 +33,7 @@ SynthonSpaceShapeSearcher::SynthonSpaceShapeSearcher(
   }
   // For the fragmentation, we need to be able to keep track of the
   // original atoms indices.
-  for (auto atom : query.atoms()) {
+  for (auto atom : getQuery().atoms()) {
     atom->setProp<unsigned int>("ORIG_IDX", atom->getIdx());
   }
 }
@@ -282,6 +283,7 @@ std::unique_ptr<SearchShapeInput> generateShapes(const ROMol &queryConfs,
 void generateSomeShapes(
     const std::vector<ROMol *> &fragsForShape, unsigned int beginFrag,
     unsigned int endFrag, const ROMol &queryMolHs, double pruneThreshold,
+    const TimePoint *endTime,
     std::vector<std::unique_ptr<SearchShapeInput>> &fragShapes) {
   if (beginFrag >= fragsForShape.size()) {
     return;
@@ -295,12 +297,16 @@ void generateSomeShapes(
     if (ControlCHandler::getGotSignal()) {
       return;
     }
+    if (!(fragIdx % 100) && details::checkTimeOut(endTime)) {
+      return;
+    }
   }
 }
 }  // namespace
 
 bool SynthonSpaceShapeSearcher::extraSearchSetup(
-    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) {
+    std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
+    const TimePoint *endTime) {
   // Use the given conformers if there are some unless it looks like a
   // 2D molecule.  We assume that the steroisomer is defined.
   auto queryMol = std::unique_ptr<RWMol>(new RWMol(getQuery()));
@@ -325,7 +331,7 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     auto queryMols = details::generateIsomerConformers(
         *queryMol, getParams().numConformers, false, getParams().stereoEnumOpts,
         dgParams);
-    if (queryMols.empty()) {
+    if (queryMols.empty() || details::checkTimeOut(endTime)) {
       return false;
     }
     dp_queryConfs = std::move(queryMols.front());
@@ -333,7 +339,8 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     dp_queryConfs = std::make_unique<RWMol>(getQuery());
   }
   std::cout << "Generating query shapes for "
-            << dp_queryConfs->getNumConformers() << " conformers" << std::endl;
+            << dp_queryConfs->getNumConformers() << " conformers of "
+            << MolToSmiles(*dp_queryConfs) << std::endl;
   ShapeInputOptions opts;
   dp_queryShapes = PrepareConformers(*dp_queryConfs, opts, 1.9);
   std::cout << "Number of query shapes : " << dp_queryShapes->confCoords.size()
@@ -341,15 +348,6 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   std::cout << "query shift : " << dp_queryShapes->shift[0] << ", "
             << dp_queryShapes->shift[1] << ", " << dp_queryShapes->shift[2]
             << std::endl;
-  // std::cout << "Query mol : " << MolToSmiles(getQuery())
-  //           << " num confs = " << queryMolHs->getNumConformers() << " :: ";
-  // for (auto a : getQuery().atoms()) {
-  //   std::cout << a->getIdx() << ", " << a->getProp<unsigned int>("ORIG_IDX")
-  //             << ", " << a->getAtomicNum() << " : ";
-  // }
-  // std::cout << "  num shapes : " << dp_queryShapes->confCoords.size()
-  //           << std::endl;
-  // std::cout << MolToCXSmiles(*queryMolHs) << std::endl;
 
   // Make a map of the unique SMILES strings for the fragments, keeping
   // track of them in the vector.
@@ -377,7 +375,7 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     for (unsigned int i = 0U; i < numThreads; ++i, start += eachThread) {
       threads.push_back(std::thread(generateSomeShapes, std::ref(fragsForShape),
                                     start, start + eachThread,
-                                    std::ref(*dp_queryConfs), 1.9,
+                                    std::ref(*dp_queryConfs), 1.9, endTime,
                                     std::ref(d_fragShapesPool)));
     }
     for (auto &t : threads) {
@@ -385,7 +383,7 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     }
   } else {
     generateSomeShapes(fragsForShape, 0, fragsForShape.size(), *dp_queryConfs,
-                       1.9, d_fragShapesPool);
+                       1.9, endTime, d_fragShapesPool);
   }
   // Use the pooled ShapeSets to populate the vectors for each fragSet
   fragNum = 0;
@@ -400,7 +398,7 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     return p1.first > p2.first;
   });
 
-  if (!computeFragSynthonSims()) {
+  if (!computeFragSynthonSims(endTime)) {
     return false;
   }
 
@@ -415,13 +413,15 @@ void computeSomeFragSynthonSims(
     const std::vector<std::pair<std::string, std::unique_ptr<Synthon>>>
         &synthonPool,
     std::int64_t numPairs, float threshold, std::mutex &mtx,
-    FragSynthonSims &fragSynthonSims) {
+    const TimePoint *endTime, FragSynthonSims &fragSynthonSims,
+    std::unique_ptr<ProgressBar> &pbar) {
   auto step = fragShapesPool.size();
   bool doSwap = fragShapesPool.size() < synthonPool.size() ? true : false;
   SearchShapeInput *fragShape;
   Synthon *synthon;
   std::vector<float> matrix(12, 0.0);
-
+  int numProgs = 1000;
+  int numTimes = 1;
   while (true) {
     std::int64_t thisPair = ++mostRecentPair;
     if (thisPair >= numPairs) {
@@ -429,6 +429,13 @@ void computeSomeFragSynthonSims(
     }
     if (ControlCHandler::getGotSignal()) {
       return;
+    }
+    --numTimes;
+    if (!numTimes) {
+      numTimes = 100;
+      if (details::checkTimeOut(endTime)) {
+        return;
+      }
     }
     std::int64_t i = thisPair / step;
     std::int64_t j = thisPair % step;
@@ -442,8 +449,6 @@ void computeSomeFragSynthonSims(
     if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
       continue;
     }
-    // std::cout << i << ", " << j << " : " << fragShape << "  " << synthon
-    // << std::endl;
     const auto sim = bestSimilarity(*fragShape, *synthon->getShapes().get(),
                                     matrix, threshold);
 
@@ -452,11 +457,19 @@ void computeSomeFragSynthonSims(
       std::pair<const void *, const void *> p{fragShape, synthon};
       fragSynthonSims.insert(std::make_pair(p, sim.first + sim.second));
     }
+    if (pbar) {
+      --numProgs;
+      if (!numProgs) {
+        numProgs = 1000;
+        pbar->increment(1000);
+      }
+    }
   }
 }
 }  // namespace
 
-bool SynthonSpaceShapeSearcher::computeFragSynthonSims() {
+bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
+    const TimePoint *endTime) {
   float threshold =
       getParams().similarityCutoff - getParams().fragSimilarityAdjuster;
 
@@ -467,16 +480,24 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims() {
   std::cout << "Number of shapes : " << d_fragShapesPool.size() << std::endl;
   std::cout << "Number of synthons : " << getSpace().d_synthonPool.size()
             << std::endl;
+  std::cout << "Computing fragment/synthon shape similarities." << std::endl;
+  std::unique_ptr<ProgressBar> pbar;
+  if (getParams().useProgressBar) {
+    pbar.reset(new ProgressBar(
+        70, d_fragShapesPool.size() * getSpace().d_synthonPool.size()));
+  }
+
   if (const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
       numThreadsToUse > 1) {
     std::vector<std::thread> threads;
     for (unsigned int i = 0u; i < std::min(static_cast<size_t>(numThreadsToUse),
                                            static_cast<size_t>(numPairs));
          ++i) {
-      threads.emplace_back(
-          computeSomeFragSynthonSims, std::ref(pairNum),
-          std::ref(d_fragShapesPool), std::ref(getSpace().d_synthonPool),
-          numPairs, threshold, std::ref(mtx), std::ref(d_fragSynthonSims));
+      threads.emplace_back(computeSomeFragSynthonSims, std::ref(pairNum),
+                           std::ref(d_fragShapesPool),
+                           std::ref(getSpace().d_synthonPool), numPairs,
+                           threshold, std::ref(mtx), endTime,
+                           std::ref(d_fragSynthonSims), std::ref(pbar));
     }
     for (auto &t : threads) {
       t.join();
@@ -484,7 +505,7 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims() {
   } else {
     computeSomeFragSynthonSims(pairNum, d_fragShapesPool,
                                getSpace().d_synthonPool, numPairs, threshold,
-                               mtx, d_fragSynthonSims);
+                               mtx, endTime, d_fragSynthonSims, pbar);
   }
   return !ControlCHandler::getGotSignal();
 }

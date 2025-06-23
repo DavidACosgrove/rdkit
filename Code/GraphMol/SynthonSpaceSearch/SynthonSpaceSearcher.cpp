@@ -35,12 +35,8 @@ SynthonSpaceSearcher::SynthonSpaceSearcher(
     throw std::runtime_error(
         "Random sample is incompatible with maxHits of -1.");
   }
-
   if (d_params.randomSample) {
     if (!d_randGen) {
-      // Use boost random number code because it is the same across
-      // different platforms, which isn't crucial but makes the tests
-      // work on all platforms.
       if (d_params.randomSeed == -1) {
         std::random_device rd;
         d_randGen = std::make_unique<std::mt19937>(rd());
@@ -68,7 +64,8 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
     return SearchResults{std::move(results), 0ULL, timedOut,
                          ControlCHandler::getGotSignal()};
   }
-  if (!extraSearchSetup(fragments) || ControlCHandler::getGotSignal()) {
+  if (!extraSearchSetup(fragments, endTime) ||
+      ControlCHandler::getGotSignal()) {
     return SearchResults{std::move(results), 0ULL, timedOut, true};
   }
   // std::cout << "Done extra search setup" << std::endl;
@@ -130,7 +127,7 @@ void searchReactionPart(
     std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> &allSetHits,
     std::unique_ptr<ProgressBar> &pbar) {
   bool timedOut = false;
-  int numTries = 100;
+  int numTries = 1;
 
   std::int64_t lastFrag = fragments.size();
   while (true) {
@@ -211,10 +208,6 @@ void processReactions(
     auto theseHits =
         searchReaction(searcher, *reaction, endTime, 1, fragments, pbar);
     reactionHits[thisR] = std::move(theseHits);
-    timedOut = details::checkTimeOut(endTime);
-    if (timedOut) {
-      break;
-    }
   }
 }
 }  // namespace
@@ -529,7 +522,7 @@ void processPartHitsFromDetails(
     const SynthonSpaceSearcher *searcher,
     std::atomic<std::int64_t> &mostRecentTry, std::int64_t lastTry,
     std::unique_ptr<ProgressBar> &pbar) {
-  std::uint64_t numTries = 100;
+  std::uint64_t numTries = 1;
   while (true) {
     std::int64_t thisTry = ++mostRecentTry;
     if (thisTry > lastTry) {

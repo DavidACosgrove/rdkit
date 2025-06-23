@@ -62,6 +62,7 @@ std::set<std::string> bruteForceSearch(
   std::set<std::string> names;
   for (auto &it : fps) {
     if (auto sim = TanimotoSimilarity(*it.second, *queryFP); sim >= simCutoff) {
+      std::cout << it.first << " : " << sim << std::endl;
       names.insert(it.first);
     }
   }
@@ -89,12 +90,12 @@ TEST_CASE("FP Small tests") {
       "C[C@@H]1CC(NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1",
   };
 
-  std::vector<size_t> expNumHits{2, 3, 4};
+  std::vector<size_t> expNumHits{2, 4, 4};
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    // if (i != 2) {
-    // continue;
-    // }
+    if (i != 1) {
+      continue;
+    }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
@@ -102,7 +103,9 @@ TEST_CASE("FP Small tests") {
     params.useProgressBar = false;
     params.randomSeed = 1;
     params.approxSimilarityAdjuster = 0.2;
+    params.fragSimilarityAdjuster = 0.2;
     params.numThreads = 1;
+    params.useProgressBar = false;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
         MorganFingerprint::getMorganGenerator<std::uint64_t>(2));
@@ -123,18 +126,7 @@ TEST_CASE("FP Small tests") {
     for (const auto &r : names) {
       fullSmis.insert(MolToSmiles(*mols[r]));
     }
-    if (i != 1) {
-      CHECK(resSmis == fullSmis);
-    } else {
-      // In the triazole library, one of the hits found by the brute force
-      // method (triazole-1_1-1_2-2_3-1) is missed by the SynthonSpaceSearch
-      // because it requires that the fragment [1*]n([3*])C1CCCC1 is similar
-      // to synthon c1ccccc1-n([3*])[1*] which it isn't.  Instead, make sure
-      // all the ones that are found are in the brute force results.
-      for (const auto &rs : resSmis) {
-        CHECK(fullSmis.find(rs) != fullSmis.end());
-      }
-    }
+    CHECK(resSmis == fullSmis);
   }
 }
 

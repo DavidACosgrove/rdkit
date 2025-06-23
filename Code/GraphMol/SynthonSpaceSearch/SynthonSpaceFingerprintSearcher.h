@@ -51,7 +51,8 @@ class SynthonSpaceFingerprintSearcher : public SynthonSpaceSearcher {
   std::vector<std::pair<void *, ExplicitBitVect *>> d_fragFPs;
 
   bool extraSearchSetup(
-      std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets) override;
+      std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
+      const TimePoint *endTime) override;
 };
 }  // namespace RDKit::SynthonSpaceSearch
 
