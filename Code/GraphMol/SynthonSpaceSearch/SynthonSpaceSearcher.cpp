@@ -84,16 +84,17 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
     const SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &synthNums) const {
   std::vector<const ROMol *> synths(synthNums.size());
-  std::vector<std::string> synthNames(synthNums.size());
-  for (size_t i = 0; i < synthNums.size(); i++) {
-    synths[i] =
-        hitset->synthonsToUse[i][synthNums[i]].second->getOrigMol().get();
-    synthNames[i] = hitset->synthonsToUse[i][synthNums[i]].first;
-  }
+  std::vector<const std::string *> synthNames(synthNums.size());
 
   std::unique_ptr<ROMol> prod;
   if (!quickVerify(hitset, synthNums)) {
     return prod;
+  }
+
+  for (size_t i = 0; i < synthNums.size(); i++) {
+    synths[i] =
+        hitset->synthonsToUse[i][synthNums[i]].second->getOrigMol().get();
+    synthNames[i] = &(hitset->synthonsToUse[i][synthNums[i]].first);
   }
   prod = details::buildProduct(synths);
   // Do a final check of the whole thing.  It can happen that the
@@ -113,6 +114,8 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
   if (prod) {
     const auto prodName =
         details::buildProductName(hitset->d_reaction->getId(), synthNames);
+    std::cout << prodName << " : " << prod->getProp<double>("Similarity")
+              << std::endl;
     prod->setProp<std::string>(common_properties::_Name, prodName);
   }
   return prod;
@@ -622,10 +625,6 @@ void SynthonSpaceSearcher::sortToTryByApproxSimilarity(
             [](const auto &lhs, const auto &rhs) -> bool {
               return lhs.second > rhs.second;
             });
-  std::cout << "tmp front " << tmp.front().first << " : " << tmp.front().second
-            << std::endl;
-  std::cout << "tmp back : " << tmp.back().first << " : " << tmp.back().second
-            << std::endl;
   std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
       newToTry;
   newToTry.reserve(tmp.size());
@@ -646,20 +645,12 @@ void SynthonSpaceSearcher::processToTrySet(
   // the same reaction. The duplicates need to be removed.  Although
   // when doing the job in batches this is less likely.
   sortAndUniquifyToTry(toTry);
-  std::cout << "Number of unique hits to try this round : " << toTry.size()
-            << std::endl;
 
   if (d_params.randomSample) {
     std::shuffle(toTry.begin(), toTry.end(), *d_randGen);
   } else {
     sortToTryByApproxSimilarity(toTry);
   }
-  std::cout << "front : "
-            << approxSimilarity(toTry.front().first, toTry.front().second)
-            << std::endl;
-  std::cout << "back  : "
-            << approxSimilarity(toTry.back().first, toTry.back().second)
-            << std::endl;
   makeHitsFromToTry(toTry, endTime, results);
 }
 }  // namespace RDKit::SynthonSpaceSearch

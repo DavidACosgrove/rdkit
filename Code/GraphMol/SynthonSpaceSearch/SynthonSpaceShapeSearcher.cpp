@@ -124,8 +124,9 @@ std::vector<std::vector<size_t>> getHitSynthons(
   }
 
   // Fill in any synthons where they all didn't match because there were
-  // fewer fragments than synthons.
-  details::expandBitSet(synthonsToUse);
+  // fewer fragments than synthons, but only allowing 1 completely
+  // missing set.
+  details::expandBitSet(synthonsToUse, 1);
   details::bitSetsToVectors(synthonsToUse, retSynthons);
 
   // Now order the synthons in descending order of their similarity to
@@ -561,8 +562,8 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   bool foundHit = false;
   double bestSim = getParams().similarityCutoff;
   for (auto &isomer : hitConfs) {
-    std::cout << "isomer " << MolToSmiles(*isomer)
-              << "  num confs : " << isomer->getNumConformers() << std::endl;
+    // std::cout << "isomer " << MolToSmiles(*isomer)
+    //           << "  num confs : " << isomer->getNumConformers() << std::endl;
     std::vector<float> matrix(12, 0.0);
     RDGeom::Transform3D qshift;
     qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],

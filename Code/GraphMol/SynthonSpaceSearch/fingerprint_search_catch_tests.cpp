@@ -241,3 +241,24 @@ TEST_CASE("Hit Filters") {
     }
   }
 }
+
+TEST_CASE("FP Slow test") {
+  std::string libName =
+      "/Users/david/Projects/SynthonSpaceTests/FreedomSpace/2024-09_Freedom_synthons_rdkit.spc";
+  SynthonSpace synthonspace;
+  synthonspace.readDBFile(libName, 5);
+
+  std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
+      RDKitFP::getRDKitFPGenerator<std::uint64_t>());
+  SynthonSpaceSearchParams params;
+  params.useProgressBar = true;
+  params.fragSimilarityAdjuster = 0.05;
+  params.approxSimilarityAdjuster = 0.1;
+  params.similarityCutoff = 0.5;
+  params.timeOut = 0;
+  params.numThreads = -1;
+  auto qmol = "Cn1cc(NC(=O)c2cc(C(=O)c3c(Cl)ccc(Cl)c3F)c[nH]2)cn1"_smiles;
+  auto results = synthonspace.fingerprintSearch(*qmol, *fpGen, params);
+  std::cout << "Number of hits : " << results.getHitMolecules().size()
+            << std::endl;
+}

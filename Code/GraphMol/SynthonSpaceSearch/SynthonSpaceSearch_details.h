@@ -81,15 +81,23 @@ std::vector<std::vector<boost::dynamic_bitset<>>> getConnectorPermutations(
     const std::vector<boost::dynamic_bitset<>> &fragConnPatts,
     const boost::dynamic_bitset<> &reactionConns);
 
-// If all bits in one of the bitsets is unset, it means that nothing matched
+// If all bits in one of the bitsets is unset, it means that no fragemnt matched
 // that synthon.  If at least one of the bitsets has a set bit, all products
 // incorporating the synthon with no bits set must match the query so
 // should be used because the query matches products that don't incorporate
 // anything from 1 of the synthon lists. Therefore those bits will all be
 // set on exit.  For example, if the synthons are
 // [1*]Nc1c([2*])cccc1 and [1*]=CC=C[2*] and the query is c1ccccc1.
+// maxMissingSets controls the number of completely missing sets that
+// allowed.  For substructure searches any number should be allowed because
+// if a fragment of a synthon is a substructure match, all combinations
+// containing that synthon will be a match.  For similarity searching
+// that can result in a very large number of hits needing expanding and
+// checking, most likely with a negative result.  In that case, normally
+// only 1 missing synthon set is usefully expanded.
 RDKIT_SYNTHONSPACESEARCH_EXPORT void expandBitSet(
-    std::vector<boost::dynamic_bitset<>> &bitSets);
+    std::vector<boost::dynamic_bitset<>> &bitSets,
+    unsigned int maxMissingSets = MAX_CONNECTOR_NUM);
 
 RDKIT_SYNTHONSPACESEARCH_EXPORT void bitSetsToVectors(
     const std::vector<boost::dynamic_bitset<>> &bitSets,
@@ -149,6 +157,9 @@ RDKIT_SYNTHONSPACESEARCH_EXPORT bool removeQueryAtoms(RWMol &mol);
 // by the reaction name.
 RDKIT_SYNTHONSPACESEARCH_EXPORT std::string buildProductName(
     const std::string &reactionId, const std::vector<std::string> &fragIds);
+RDKIT_SYNTHONSPACESEARCH_EXPORT std::string buildProductName(
+    const std::string &reactionId,
+    const std::vector<const std::string *> &fragIds);
 RDKIT_SYNTHONSPACESEARCH_EXPORT std::string buildProductName(
     const RDKit::SynthonSpaceSearch::SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &fragNums);

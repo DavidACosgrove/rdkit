@@ -725,11 +725,15 @@ std::vector<std::vector<boost::dynamic_bitset<>>> getConnectorPermutations(
   return retBitsets;
 }
 
-void expandBitSet(std::vector<boost::dynamic_bitset<>> &bitSets) {
+void expandBitSet(std::vector<boost::dynamic_bitset<>> &bitSets,
+                  unsigned int maxMissingSets) {
   const bool someSet = std::any_of(
       bitSets.begin(), bitSets.end(),
       [](const boost::dynamic_bitset<> &bs) -> bool { return bs.any(); });
-  if (someSet) {
+  auto numMissingSets = std::count_if(
+      bitSets.begin(), bitSets.end(),
+      [](const boost::dynamic_bitset<> &bs) -> bool { return bs.none(); });
+  if (someSet && numMissingSets <= maxMissingSets) {
     for (auto &bs : bitSets) {
       if (!bs.count()) {
         bs.set();
@@ -818,6 +822,19 @@ std::string buildProductName(const std::string &reactionId,
       prodName += ";";
     }
     prodName += fragId;
+  }
+  prodName += ";" + reactionId;
+  return prodName;
+}
+
+std::string buildProductName(const std::string &reactionId,
+                             const std::vector<const std::string *> &fragIds) {
+  std::string prodName = "";
+  for (const auto &fragId : fragIds) {
+    if (prodName != "") {
+      prodName += ";";
+    }
+    prodName += *fragId;
   }
   prodName += ";" + reactionId;
   return prodName;
