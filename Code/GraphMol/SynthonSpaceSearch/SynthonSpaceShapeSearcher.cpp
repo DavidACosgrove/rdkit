@@ -98,12 +98,13 @@ std::vector<std::vector<size_t>> getHitSynthons(
           synthons[j].second->getShapes()->hasNoShapes()) {
         continue;
       }
-      if (shapeSearcher.hasPrecomputedSims() &&
-          shapeSearcher.fragMatchedSynthon(fragShapes[fragNum],
-                                           synthons[j].second, sim)) {
-        synthonsToUse[synthonSetOrder[fragNum]][j] = true;
-        fragSims[synthonSetOrder[fragNum]].emplace_back(j, sim);
-        fragMatched = true;
+      if (shapeSearcher.hasPrecomputedSims()) {
+        if (shapeSearcher.fragMatchedSynthon(fragShapes[fragNum],
+                                             synthons[j].second, sim)) {
+          synthonsToUse[synthonSetOrder[fragNum]][j] = true;
+          fragSims[synthonSetOrder[fragNum]].emplace_back(j, sim);
+          fragMatched = true;
+        }
       } else {
         if (const auto sim = bestSimilarity(*fragShapes[fragNum],
                                             *synthons[j].second->getShapes(),
