@@ -565,8 +565,8 @@ std::vector<std::vector<std::unique_ptr<ROMol>>> splitMolecule(
   // when broken.  Put them in as pairs of the same value, for ease of
   // processing below.  We also aren't interested in H atoms as a fragment.
   for (const auto b : query.bonds()) {
-    if (!ringBonds[b->getIdx()] && b->getBeginAtomIdx() != 1 &&
-        b->getEndAtomIdx() != 1) {
+    if (!ringBonds[b->getIdx()] && b->getBeginAtom()->getAtomicNum() != 1 &&
+        b->getEndAtom()->getAtomicNum() != 1) {
       bondPairs.push_back({b->getIdx(), b->getIdx()});
     }
   }
@@ -725,15 +725,11 @@ std::vector<std::vector<boost::dynamic_bitset<>>> getConnectorPermutations(
   return retBitsets;
 }
 
-void expandBitSet(std::vector<boost::dynamic_bitset<>> &bitSets,
-                  unsigned int maxMissingSets) {
+void expandBitSet(std::vector<boost::dynamic_bitset<>> &bitSets) {
   const bool someSet = std::any_of(
       bitSets.begin(), bitSets.end(),
       [](const boost::dynamic_bitset<> &bs) -> bool { return bs.any(); });
-  auto numMissingSets = std::count_if(
-      bitSets.begin(), bitSets.end(),
-      [](const boost::dynamic_bitset<> &bs) -> bool { return bs.none(); });
-  if (someSet && numMissingSets <= maxMissingSets) {
+  if (someSet) {
     for (auto &bs : bitSets) {
       if (!bs.count()) {
         bs.set();
@@ -1058,6 +1054,16 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
       }
       continue;
     }
+
+    sampleMols[molNum]->d_mol = sampleMols[molNum]->d_synthonSet->buildMolecule(
+        sampleMols[molNum]->d_synthonNums);
+    if (!sampleMols[molNum]->d_mol) {
+      if (pbar) {
+        pbar->increment();
+      }
+      continue;
+    }
+
     auto isomerConfs = details::generateIsomerConformers(
         *sampleMols[molNum]->d_mol, shapeParams.numConfs, true,
         shapeParams.stereoEnumOpts, dgParams);

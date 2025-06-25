@@ -114,8 +114,6 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
   if (prod) {
     const auto prodName =
         details::buildProductName(hitset->d_reaction->getId(), synthNames);
-    std::cout << prodName << " : " << prod->getProp<double>("Similarity")
-              << std::endl;
     prod->setProp<std::string>(common_properties::_Name, prodName);
   }
   return prod;
@@ -567,8 +565,6 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
   std::atomic<std::int64_t> mostRecentTry = -1;
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
-    std::cout << "Making and checking hits." << std::endl;
-
     pbar.reset(new ProgressBar(70, toTry.size()));
   }
 #if RDK_BUILD_THREADSAFE_SSS

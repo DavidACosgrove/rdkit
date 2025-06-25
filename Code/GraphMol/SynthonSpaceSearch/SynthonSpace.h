@@ -350,6 +350,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   // do it on the smallest available example to save time, by popping
   // them off the back.  If maxSynthonAtoms > 0 and the synthon has
   // more heavy atoms than that (excluding dummy atoms) it is skipped.
+  // The actual molecules in the SampleMolRecs aren't built until they're
+  // needed, but all the information to do so is captured.
   void buildSynthonSampleMolecules(
       unsigned int maxSynthonAtoms,
       std::vector<std::vector<std::unique_ptr<SampleMolRec>>> &sampleMols)

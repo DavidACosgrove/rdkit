@@ -327,6 +327,10 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
       cancelled = true;
       return;
     }
+    if (lineNum && !(lineNum % 100000)) {
+      std::cout << "Read line " << lineNum << " number of synthons "
+                << d_synthonPool.size() << std::endl;
+    }
     auto nextSynthon = readSynthonLine(is, lineNum, format, d_fileName);
     if (nextSynthon.empty()) {
       continue;
@@ -336,15 +340,10 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
     auto synthonNum = getSynthonNum(format, nextSynthon[2]);
     auto newSynth = addSynthonToPool(nextSynthon[0]);
     currReaction->addSynthon(synthonNum, newSynth, nextSynthon[1]);
-    // if (auto it = d_synthonReactions.find(nextSynthon[0]);
-    //     it != d_synthonReactions.end()) {
-    //   it->second.push_back(currReaction.get());
-    // } else {
-    //   d_synthonReactions.insert(std::make_pair(
-    //       nextSynthon[0], std::vector<SynthonSet *>(1, currReaction.get())));
-    // }
   }
+  std::cout << "On to final processing" << std::endl;
   // Do some final processing.
+  int numDone = 0;
   for (auto &[id, reaction] : d_reactions) {
     reaction->removeEmptySynthonSets();
     reaction->makeSynthonSearchMols();
@@ -355,6 +354,11 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
       d_maxNumSynthons = reaction->getSynthons().size();
     }
     reaction->initializeSearchOrders();
+    ++numDone;
+    if (!(numDone % 100)) {
+      std::cout << "done " << numDone << " : " << reaction->getId()
+                << std::endl;
+    }
   }
 }
 
@@ -672,8 +676,7 @@ void SynthonSpace::buildSynthonFingerprints(
   buildSynthonSampleMolecules(1000, allSampleMols);
   std::ranges::sort(allSampleMols,
                     [](const auto &sm1, const auto &sm2) -> bool {
-                      return sm1.front()->d_mol->getNumAtoms() >
-                             sm2.front()->d_mol->getNumAtoms();
+                      return sm1.front()->d_numAtoms > sm2.front()->d_numAtoms;
                     });
   AdditionalOutput addlOutput;
   addlOutput.allocateAtomToBits();
@@ -687,16 +690,22 @@ void SynthonSpace::buildSynthonFingerprints(
       if (!allSampleMol.empty() && !allSampleMol.back()->d_synthon->getFP()) {
         sampleMols.push_back(std::move(allSampleMol.back()));
         allSampleMol.pop_back();
+        sampleMols.back()->d_mol =
+            sampleMols.back()->d_synthonSet->buildMolecule(
+                sampleMols.back()->d_synthonNums);
       }
     }
     if (sampleMols.empty()) {
       break;
     }
     std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
-      return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
+      return a->d_numAtoms > b->d_numAtoms;
     });
     std::unique_ptr<ExplicitBitVect> fullFP;
     for (const auto &sm : sampleMols) {
+      if (!sm->d_mol) {
+        continue;
+      }
       fullFP.reset(
           fpGen.getFingerprint(*sm->d_mol, nullptr, nullptr, -1, &addlOutput));
       auto atomToBits = *addlOutput.atomToBits;
@@ -772,13 +781,11 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
   buildSynthonSampleMolecules(shapeParams.maxSynthonAtoms, allSampleMols);
   std::ranges::sort(allSampleMols,
                     [](const auto &sm1, const auto &sm2) -> bool {
-                      return sm1.front()->d_mol->getNumAtoms() >
-                             sm2.front()->d_mol->getNumAtoms();
+                      return sm1.front()->d_numAtoms > sm2.front()->d_numAtoms;
                     });
   std::cout << "number of allSampleMols : " << allSampleMols.size()
-            << " size range : "
-            << allSampleMols.front().front()->d_mol->getNumAtoms() << " to "
-            << allSampleMols.back().front()->d_mol->getNumAtoms() << std::endl;
+            << " size range : " << allSampleMols.front().front()->d_numAtoms
+            << " to " << allSampleMols.back().front()->d_numAtoms << std::endl;
 
   bool interimWrite = true;
   if (shapeParams.interimWrites == 0 || shapeParams.interimFile.empty()) {
@@ -807,7 +814,7 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
       break;
     }
     std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
-      return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
+      return a->d_numAtoms > b->d_numAtoms;
     });
     auto dgParams = DGeomHelpers::KDG;
     dgParams.numThreads = 1;
@@ -988,12 +995,12 @@ void SynthonSpace::buildSynthonSampleMolecules(
     for (auto &reaction : reactions) {
       theseSamples.push_back(reaction->makeSampleMolecule(synthon));
       // In the unlikely event that we didn't get anything, drop it.
-      if (!theseSamples.back()->d_mol) {
+      if (!theseSamples.back()->d_numAtoms) {
         theseSamples.pop_back();
       }
     }
     std::ranges::sort(theseSamples, [](const auto &a, const auto &b) -> bool {
-      return a->d_mol->getNumAtoms() > b->d_mol->getNumAtoms();
+      return a->d_numAtoms > b->d_numAtoms;
     });
     sampleMols.push_back(std::move(theseSamples));
   }

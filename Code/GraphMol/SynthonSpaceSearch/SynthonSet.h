@@ -33,11 +33,16 @@ struct ShapeBuildParams;
 
 // For holding a sample molecule from this set, based on the given
 // synthon which is in the d_synthonSetNum vector of d_synthons
-// of the SynthonSet.  Used for building shapes.
+// of the SynthonSet.  Used for building shapes.  The d_mol isn't
+// build immediately to save memory, so the information needed to
+// produce it is all captured.
 struct SampleMolRec {
-  std::unique_ptr<ROMol> d_mol{nullptr};
+  const class SynthonSet *d_synthonSet{nullptr};
   Synthon *d_synthon{nullptr};
+  std::vector<size_t> d_synthonNums;
   size_t d_synthonSetNum;
+  std::unique_ptr<ROMol> d_mol{nullptr};
+  unsigned int d_numAtoms{0};
 };
 
 // This class holds pointers to all the synthons for a particular
@@ -139,10 +144,13 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
       const std::function<bool(const Synthon *synthon1,
                                const Synthon *synthon2)> &cmp);
 
-  // make a sample molecule for this synthon, which is expected
+  // make a SampleMolRec for this synthon, which is expected
   // to be in the SynthonSet.  Returns an empty object if it isn't,
   // but that really shouldn't happen.
-  std::unique_ptr<SampleMolRec> makeSampleMolecule(Synthon *synthon);
+  std::unique_ptr<SampleMolRec> makeSampleMolecule(Synthon *synthon) const;
+  // Make a molecule from the given synthonNums, which index into d_synthons.
+  std::unique_ptr<ROMol> buildMolecule(
+      const std::vector<size_t> &synthonNums) const;
 
  private:
   std::string d_id;
@@ -209,8 +217,6 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
   std::vector<std::unique_ptr<ROMol>> buildSampleMolecules(
       const std::vector<std::vector<std::unique_ptr<RWMol>>> &synthonMols,
       size_t longVecNum) const;
-  std::unique_ptr<ROMol> buildMolecule(
-      const std::vector<size_t> &synthonNums) const;
 };
 
 }  // namespace SynthonSpaceSearch

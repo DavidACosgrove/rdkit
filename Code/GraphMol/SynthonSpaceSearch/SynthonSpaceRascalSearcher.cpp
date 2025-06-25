@@ -107,9 +107,8 @@ std::vector<std::vector<size_t>> getHitSynthons(
     }
   }
   // Fill in any synthons where they all didn't match because there were
-  // fewer fragments than synthons, but only allowing 1 completely
-  // missing set.
-  details::expandBitSet(synthonsToUse, 1);
+  // fewer fragments than synthons.
+  details::expandBitSet(synthonsToUse);
   details::bitSetsToVectors(synthonsToUse, retSynthons);
 
   // Now sort the selected synthons into ascending order of number of

@@ -88,16 +88,8 @@ std::vector<std::vector<boost::dynamic_bitset<>>> getConnectorPermutations(
 // anything from 1 of the synthon lists. Therefore those bits will all be
 // set on exit.  For example, if the synthons are
 // [1*]Nc1c([2*])cccc1 and [1*]=CC=C[2*] and the query is c1ccccc1.
-// maxMissingSets controls the number of completely missing sets that
-// allowed.  For substructure searches any number should be allowed because
-// if a fragment of a synthon is a substructure match, all combinations
-// containing that synthon will be a match.  For similarity searching
-// that can result in a very large number of hits needing expanding and
-// checking, most likely with a negative result.  In that case, normally
-// only 1 missing synthon set is usefully expanded.
 RDKIT_SYNTHONSPACESEARCH_EXPORT void expandBitSet(
-    std::vector<boost::dynamic_bitset<>> &bitSets,
-    unsigned int maxMissingSets = MAX_CONNECTOR_NUM);
+    std::vector<boost::dynamic_bitset<>> &bitSets);
 
 RDKIT_SYNTHONSPACESEARCH_EXPORT void bitSetsToVectors(
     const std::vector<boost::dynamic_bitset<>> &bitSets,

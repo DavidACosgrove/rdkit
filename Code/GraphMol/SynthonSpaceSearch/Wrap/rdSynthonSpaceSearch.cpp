@@ -359,7 +359,7 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def_readwrite(
           "useProgressBar",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::useProgressBar,
-          "If True (default), display progress bars.")
+          "If True, display progress bars.  Default=False.")
       .def("__setattr__", &safeSetattr);
 
   docString = "Parameters for building shape objects for SynthonSpaceSearch.";

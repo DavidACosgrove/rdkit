@@ -114,7 +114,7 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                        // threads plus this number.  So if the number of
                        // hardware threads is 8, and numThreads is -1, it will
                        // use 7 threads.
-  bool useProgressBar{true};  // If true, displays a progress bar
+  bool useProgressBar{false};  // If true, displays a progress bar
 };
 
 // Options to be passed to buildSynthonShapes.

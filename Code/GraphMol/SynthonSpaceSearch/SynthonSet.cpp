@@ -602,7 +602,8 @@ std::vector<std::vector<size_t>> SynthonSet::orderSynthonsForSearch(
   return synthonOrders;
 }
 
-std::unique_ptr<SampleMolRec> SynthonSet::makeSampleMolecule(Synthon *synthon) {
+std::unique_ptr<SampleMolRec> SynthonSet::makeSampleMolecule(
+    Synthon *synthon) const {
   size_t synthonSetNum = 0;
   size_t synthonIdx = 0;
   bool foundIt = false;
@@ -633,9 +634,14 @@ std::unique_ptr<SampleMolRec> SynthonSet::makeSampleMolecule(Synthon *synthon) {
       }
     }
   }
-  sampleMol->d_mol = buildMolecule(exSynthons);
+  sampleMol->d_synthonSet = this;
+  sampleMol->d_synthonNums = exSynthons;
   sampleMol->d_synthon = synthon;
   sampleMol->d_synthonSetNum = synthonSetNum;
+  for (size_t i = 0; i < d_synthons.size(); ++i) {
+    sampleMol->d_numAtoms +=
+        d_synthons[i][exSynthons[i]].second->getNumHeavyAtoms();
+  }
 
   return sampleMol;
 }
