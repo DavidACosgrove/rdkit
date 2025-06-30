@@ -36,12 +36,13 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SearchShapeInput : ShapeInput {
   void merge(SearchShapeInput &other);
 
   bool hasNoShapes() const { return confCoords.empty(); }
+  size_t getNumShapes() const { return confCoords.size(); }
 
-  // Make a single ShapeInput from the given conformer number.
-  // If confNum is out of range, use the first conformer.
-  ShapeInput makeSingleShape(unsigned int confNum) const;
+  // Make a single ShapeInput from the given shape number.
+  // If shapeNum is out of range, use the first shape.
+  ShapeInput makeSingleShape(unsigned int shapeNum) const;
 
-  void setActiveConformer(unsigned int confNum);
+  void setActiveShape(unsigned int shapeNum);
 
   std::string toString() const;
 
@@ -54,9 +55,14 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SearchShapeInput : ShapeInput {
   double dummyVol{0.0};
   unsigned int actConf{0};
   std::vector<std::vector<float>> confCoords;
+  std::vector<unsigned int> molConfs;  // the conformer from the input molecule
+                                       // that this shape refers to.  The shapes
+                                       // are pruned and sorted so they may end
+                                       // up not in the original order.
   std::vector<double> dummyVols;
   std::vector<double> sovs;
   std::vector<double> sofs;
+  std::vector<std::vector<double>> shifts;
 };
 
 // Cut the shapes down so that none of them are more than the simThreshold

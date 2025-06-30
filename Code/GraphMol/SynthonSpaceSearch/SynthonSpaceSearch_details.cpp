@@ -1008,7 +1008,7 @@ std::vector<std::unique_ptr<RWMol>> generateIsomerConformers(
       confMols.clear();
       return confMols;
     }
-    if (cids.empty()) {
+    if (cids.empty() || !cm->getNumConformers()) {
       BOOST_LOG(rdErrorLog)
           << "Couldn't generate conformers for isomer " << MolToCXSmiles(*cm)
           << " of molecule." << std::endl;

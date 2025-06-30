@@ -389,7 +389,7 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
                      "Options for stereoisomer enumeration.")
       .def_readwrite("useProgressBar",
                      &SynthonSpaceSearch::ShapeBuildParams::useProgressBar,
-                     "If True (default), display progress bars.")
+                     "If True, display progress bars.  Default=False.")
       .def_readwrite(
           "maxSynthonAtoms",
           &SynthonSpaceSearch::ShapeBuildParams::maxSynthonAtoms,

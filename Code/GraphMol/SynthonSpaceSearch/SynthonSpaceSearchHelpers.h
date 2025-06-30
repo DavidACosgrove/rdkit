@@ -122,9 +122,9 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
   // The relevant ones are passed directly into EmbedMultipleConfs.
   unsigned int numConfs{10};  // Max number of conformations per synthon
   double rmsThreshold{0.5};   // RMS threshold used when pruning conformations
-  // This is passed to pruneShapes(). For each synthon, no 2 shapes will
-  // be more similar to each other than the threshold.
-  double shapeSimThreshold{1.9};
+  double shapeSimThreshold{1.9};  // This is passed to pruneShapes(). For each
+                                  // synthon, no 2 shapes will be more similar
+                                  // to each other than the threshold.
   int numThreads{1};  // The number of threads to use.  If > 0, will use that
                       // number.  If <= 0, will use the number of hardware
                       // threads plus this number.
@@ -135,7 +135,7 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
       true, true, false, true,
       0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
                   // tryEmbedding of false.
-  bool useProgressBar{true};          // If true, displays a progress bar
+  bool useProgressBar{false};         // If true, displays a progress bar
   unsigned int maxSynthonAtoms{0};    // If > 0, sets a maximum number of heavy
                                       // atoms, excluding dummies, for a synthon
                                       // to have a shape made.

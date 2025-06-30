@@ -81,13 +81,14 @@ TEST_CASE("Shape Small tests") {
   };
 
   // The search of the enumerated libraries give 4, 8, 4 hits
-  // respectively.
+  // respectively.  The first of these queries will have
+  // conformers generated, the second and third will just use
+  // the one given.
   std::vector<std::string> querySmis{
       "c1ccccc1C(=O)N1CCCC1",
-      "C[C@H]1CCN(c2nnc(CO)n2C2CCCC2)C1",
-      "C[C@@H]1C[C@H](NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1",
+      "C[C@H]1CCN(c2nnc(CO)n2C2CCCC2)C1 |(3.88187,-1.9608,1.02401;3.40947,-0.556473,0.685633;3.49763,-0.278493,-0.787477;2.18424,0.313597,-1.21035;1.39217,0.480256,0.0110759;0.36454,1.42337,0.278193;0.656593,2.66561,0.766052;-0.477075,3.33073,0.923413;-1.48168,2.52297,0.540741;-2.93641,2.8664,0.551747;-3.33354,3.43671,-0.657732;-0.965924,1.32594,0.134935;-1.71735,0.224133,-0.333621;-1.11549,-0.643316,-1.37025;-2.26431,-1.65079,-1.54776;-2.58926,-1.96617,-0.0975393;-2.00229,-0.836476,0.740437;1.90383,-0.551243,0.906815),wD:1.0|",
+      "C[C@@H]1C[C@H](NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1 |(1.04478,-0.224363,-2.91518;1.46111,-1.07435,-1.76352;0.306282,-1.55748,-0.916018;-0.365201,-0.475593,-0.123586;-1.76672,-0.342998,-0.464794;-2.78181,-0.454019,0.51802;-2.5057,-0.664137,1.73574;-4.16163,-0.338949,0.199908;-5.17788,-0.4597,1.20931;-6.35254,0.434956,1.04892;-7.08067,-0.58036,0.437714;-6.19369,-1.54598,0.869789;0.333956,0.862517,-0.269047;1.75934,0.639384,-0.124627;2.53261,1.42843,0.743485;1.99398,2.35859,1.42205;3.96629,1.24952,0.929582;4.47592,0.048496,1.32782;5.80644,-0.103658,1.49611;6.61864,0.989857,1.25231;6.12678,2.18712,0.856797;4.80783,2.3177,0.695962;4.34378,3.52947,0.29874;2.46143,-0.410331,-0.868145),wD:1.0,3.3|",
   };
-
   // The synthon search gives 1 hit for the urea space, where the
   // brute-force search gives 4 because the fragment similarities fall
   // below the threshold.  For example, comparing [2*]c1nccnc1F from
@@ -99,14 +100,13 @@ TEST_CASE("Shape Small tests") {
   std::vector<size_t> expNumHits{3, 4, 1};
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
-  shapeBuildOptions.rmsThreshold = 1.0;
+  shapeBuildOptions.rmsThreshold = 0.5;
   shapeBuildOptions.numThreads = 1;
-  shapeBuildOptions.useProgressBar = false;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    if (i != 2) {
-      continue;
-    }
+    // if (i != 0) {
+    // continue;
+    // }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
@@ -119,7 +119,10 @@ TEST_CASE("Shape Small tests") {
     params.confRMSThreshold = shapeBuildOptions.rmsThreshold;
     params.timeOut = 0;
     params.randomSeed = 1;
+    params.bestHit = true;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
+    std::cout << "Number of query confs from " << querySmis[i]
+              << " :: " << queryMol->getNumConformers() << std::endl;
     auto results = synthonspace.shapeSearch(*queryMol, params);
     std::cout << "Num hits : " << results.getHitMolecules().size() << " : "
               << results.getMaxNumResults() << std::endl;
@@ -206,12 +209,9 @@ TEST_CASE("Build conformer DB") {
   std::string fName(rdbase);
   std::string libName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567.csv";
-  libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1.txt";
 
   auto spaceName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-  spaceName = fName + "/cmake-mine/random_real_1_shapes.spc";
 
   bool cancelled = false;
   SynthonSpace synthonspace;
@@ -242,17 +242,17 @@ TEST_CASE("Hits back onto query") {
   // frame of the query.
   SynthonSpace synthonspace;
   std::istringstream iss(R"(SMILES	synton_id	synton#	reaction_id
-O=C(c1coc2cc(Cl)ccc12)[1*:1]	IncOd2mbQnsC2WFE9PMsTA	2	m_22dbk	3
-OC(CC1CCCN1[1*:1])c1ccco1	EOreohGYwWx7O_cjcanAew	1	m_22dbk	3
-Cc1cnc([1*:1])nc1C	vFcPIiVuZ0Al-L1KW7ldug	2	m_27bbd	3
-Cn1cc(N2CCCC(N[1*:1])C2)cn1	N0LeCStfWMnRJMSRZOYwtA	1	m_27bbd	3
-Cc1cc(N[1*:1])cc(C(F)(F)F)c1	rh9OClWoshYUVeH-i89h_Q	1	m_27bcb	3
-Cc1nc(-c2ccccn2)cc([1*:1])n1	nzBmAGnPKQoiQvq1zBbDqA	2	m_27bcb	3
-CC(C)(C)C1(C)CN([1*:1])CCO1	j0k-TeXWtaeUeUx8eT_pow	1	m_282030abb	3
-CCCC1CN([2*:2])CCO1	AB2bmNAkx_loJm9IO9xV4w	3	m_282030abb	3
-COC1C2CCCC2C1N[2*:2]	yrGYN7qlqhFPPC4BUMEUSQ	3	m_282030abb	3
-COCc1nc([1*:1])cc([2*:2])n1	G5GZo2pyGFPFUrga0tLhmQ	2	m_282030abb	3
-FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
+O=C(c1coc2cc(Cl)ccc12)[1*:1]	A	2	r1	3
+OC(CC1CCCN1[1*:1])c1ccco1	B	1	r1	3
+Cc1cnc([1*:1])nc1C	C	2	r2	3
+Cn1cc(N2CCCC(N[1*:1])C2)cn1	D	1	r2	3
+Cc1cc(N[1*:1])cc(C(F)(F)F)c1	E	1	r3	3
+Cc1nc(-c2ccccn2)cc([1*:1])n1	F	2	r3	3
+CC(C)(C)C1(C)CN([1*:1])CCO1	G	1	r4	3
+CCCC1CN([2*:2])CCO1	H	3	r4	3
+COC1C2CCCC2C1N[2*:2]	I	3	r4	3
+COCc1nc([1*:1])cc([2*:2])n1	J	2	r4	3
+FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   bool cancelled = false;
   synthonspace.readStream(iss, cancelled);
   std::cout << "Number of reactions " << synthonspace.getNumReactions()
@@ -337,17 +337,17 @@ TEST_CASE("Unspecified Stereo") {
 
   SynthonSpace space;
   std::istringstream iss(R"(SMILES	synton_id	synton#	reaction_id
-O=C(c1coc2cc(Cl)ccc12)[1*:1]	IncOd2mbQnsC2WFE9PMsTA	2	m_22dbk	3
-OC(CC1CCCN1[1*:1])c1ccco1	EOreohGYwWx7O_cjcanAew	1	m_22dbk	3
-Cc1cnc([1*:1])nc1C	vFcPIiVuZ0Al-L1KW7ldug	2	m_27bbd	3
-Cn1cc(N2CCCC(N[1*:1])C2)cn1	N0LeCStfWMnRJMSRZOYwtA	1	m_27bbd	3
-Cc1cc(N[1*:1])cc(C(F)(F)F)c1	rh9OClWoshYUVeH-i89h_Q	1	m_27bcb	3
-Cc1nc(-c2ccccn2)cc([1*:1])n1	nzBmAGnPKQoiQvq1zBbDqA	2	m_27bcb	3
-CC(C)(C)C1(C)CN([1*:1])CCO1	j0k-TeXWtaeUeUx8eT_pow	1	m_282030abb	3
-CCCC1CN([2*:2])CCO1	AB2bmNAkx_loJm9IO9xV4w	3	m_282030abb	3
-COC1C2CCCC2C1N[2*:2]	yrGYN7qlqhFPPC4BUMEUSQ	3	m_282030abb	3
-COCc1nc([1*:1])cc([2*:2])n1	G5GZo2pyGFPFUrga0tLhmQ	2	m_282030abb	3
-FC1(F)CCC(N[1*:1])CC1	Fq0QBDWKFd1IEAFgT9fo9Q	1	m_282030abb	3)");
+O=C(c1coc2cc(Cl)ccc12)[1*:1]	A	2	r1	3
+OC(CC1CCCN1[1*:1])c1ccco1	B	1	r1	3
+Cc1cnc([1*:1])nc1C	C	2	r2	3
+Cn1cc(N2CCCC(N[1*:1])C2)cn1	D	1	r2	3
+Cc1cc(N[1*:1])cc(C(F)(F)F)c1	E	1	r3	3
+Cc1nc(-c2ccccn2)cc([1*:1])n1	F	2	r3	3
+CC(C)(C)C1(C)CN([1*:1])CCO1	G	1	r4	3
+CCCC1CN([2*:2])CCO1	H	3	r4	3
+COC1C2CCCC2C1N[2*:2]	I	3	r4	3
+COCc1nc([1*:1])cc([2*:2])n1	J	2	r4	3
+FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   bool cancelled = false;
   space.readStream(iss, cancelled);
 
@@ -415,7 +415,8 @@ C=Cc1ccc(S(=O)(=O)[U])cc1	100000034458	2	20a	2024-09
 TEST_CASE("Test Test") {
   REQUIRE(rdbase);
   std::string fName(rdbase);
-  std::string spaceName = fName + "/cmake-mine/random_real_0_shapes.spc";
+  std::string spaceName =
+      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_0_dg.spc";
   std::cout << spaceName << std::endl;
 
   SynthonSpace space;
@@ -433,7 +434,15 @@ TEST_CASE("Test Test") {
   params.timeOut = 0;
   params.randomSeed = -1;
 
-  auto mol = "NCCN[C@@]12CCC[C@@H]1C2"_smiles;
+  params.fragSimilarityAdjuster = 0.1;
+  params.approxSimilarityAdjuster = 0.1;
+  params.similarityCutoff = 1.6;
+  params.numThreads = 1;
+  params.timeOut = 0;
+  params.useProgressBar = true;
+
+  auto mol =
+      "[H]c1nc(C([H])([H])[S@](=O)c2nc3c([H])c([H])c(OC([H])([H])[H])c([H])c3n2[H])c(C([H])([H])[H])c(OC([H])([H])[H])c1C([H])([H])[H] |(4.7214,2.519,1.5115;4.4044,1.6116,1.0067;3.0761,1.369,1.0722;2.6468,0.2481,0.4571;1.1694,-0.0051,0.5395;0.9382,-1.0732,0.5874;0.7773,0.4397,1.4622;0.2801,0.7535,-0.8506;0.4081,2.2558,-0.6932;-1.397,0.2748,-0.4545;-1.7127,-0.8258,0.1906;-3.0854,-0.8042,0.2831;-3.9657,-1.728,0.8715;-3.5942,-2.628,1.3511;-5.3402,-1.4632,0.8268;-6.0299,-2.1719,1.2795;-5.831,-0.3087,0.2126;-7.1755,-0.0818,0.1881;-7.6182,1.1125,-0.4522;-7.2494,2.0067,0.0619;-8.7106,1.1319,-0.3795;-7.3705,1.114,-1.5192;-4.9692,0.6215,-0.3779;-5.2844,1.5331,-0.8681;-3.6044,0.3372,-0.3214;-2.5021,1.0087,-0.7845;-2.508,1.89,-1.2809;3.4646,-0.6395,-0.2162;2.9178,-1.8613,-0.8742;2.0479,-1.6273,-1.4953;3.6374,-2.3358,-1.5489;2.6356,-2.6038,-0.1206;4.825,-0.3558,-0.2617;5.6794,-1.1955,-0.9123;6.2584,-2.2501,-0.147;6.8888,-2.8473,-0.8116;5.4829,-2.8986,0.2725;6.8829,-1.8494,0.657;5.3119,0.7892,0.359;6.7596,1.1374,0.3384;6.917,2.1997,0.5559;7.3017,0.554,1.0889;7.1977,0.9493,-0.6474),wU:7.6|"_smiles;
   REQUIRE(mol);
   auto results = space.shapeSearch(*mol, params);
   std::cout << "Number of hits : " << results.getHitMolecules().size()

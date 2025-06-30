@@ -25,12 +25,15 @@ SearchShapeInput::SearchShapeInput(const std::string &str) {
 
 SearchShapeInput::SearchShapeInput(const ShapeInput &other)
     : ShapeInput(other) {
-  confCoords.push_back(coord);
+  confCoords = std::vector<std::vector<float>>(1, coord);
+  // We don't actually know what conformer it came from
+  molConfs = std::vector<unsigned int>(1, 0);
   // Keep the dummyVols in synch with the other data, but
   // clearly flag it as not calculated.
-  dummyVols.push_back(-1.0);
-  sovs.push_back(sov);
-  sofs.push_back(sof);
+  dummyVols = std::vector<double>(1, -1);
+  sovs = std::vector<double>(1, sov);
+  sofs = std::vector<double>(1, sof);
+  shifts = std::vector<std::vector<double>>(1, shift);
 }
 
 void SearchShapeInput::merge(SearchShapeInput &other) {
@@ -52,50 +55,66 @@ void SearchShapeInput::merge(SearchShapeInput &other) {
     dummyVol = other.dummyVol;
     actConf = other.actConf;
     confCoords = std::move(other.confCoords);
+    molConfs = std::move(other.molConfs);
     dummyVols = std::move(other.dummyVols);
     sovs = std::move(other.sovs);
     sofs = std::move(other.sofs);
+    shifts = std::move(other.shifts);
   } else {
+    confCoords.reserve(confCoords.size() + other.confCoords.size());
     confCoords.insert(confCoords.end(),
                       std::make_move_iterator(other.confCoords.begin()),
                       std::make_move_iterator(other.confCoords.end()));
+    molConfs.reserve(molConfs.size() + other.molConfs.size());
+    molConfs.insert(molConfs.end(),
+                    std::make_move_iterator(other.molConfs.begin()),
+                    std::make_move_iterator(other.molConfs.end()));
+    dummyVols.reserve(dummyVols.size() + other.dummyVols.size());
     dummyVols.insert(dummyVols.end(),
                      std::make_move_iterator(other.dummyVols.begin()),
                      std::make_move_iterator(other.dummyVols.end()));
+    sovs.reserve(sovs.size() + other.sovs.size());
     sovs.insert(sovs.end(), std::make_move_iterator(other.sovs.begin()),
                 std::make_move_iterator(other.sovs.end()));
+    sofs.reserve(sofs.size() + other.sofs.size());
     sofs.insert(sofs.end(), std::make_move_iterator(other.sofs.begin()),
                 std::make_move_iterator(other.sofs.end()));
+    shifts.reserve(shifts.size() + other.shifts.size());
+    shifts.insert(shifts.end(), std::make_move_iterator(other.shifts.begin()),
+                  std::make_move_iterator(other.shifts.end()));
   }
   other.confCoords.clear();
+  other.molConfs.clear();
   other.dummyVols.clear();
   other.sovs.clear();
   other.sofs.clear();
+  other.shifts.clear();
 }
 
-ShapeInput SearchShapeInput::makeSingleShape(unsigned int confNum) const {
-  if (confNum >= confCoords.size()) {
-    confNum = 0;
+ShapeInput SearchShapeInput::makeSingleShape(unsigned int shapeNum) const {
+  if (shapeNum >= confCoords.size()) {
+    shapeNum = 0;
   }
   ShapeInput shape;
-  shape.coord = confCoords[confNum];
+  shape.coord = confCoords[shapeNum];
   shape.alpha_vector = alpha_vector;
   shape.atom_type_vector = atom_type_vector;
   shape.volumeAtomIndexVector = volumeAtomIndexVector;
   shape.colorAtomType2IndexVectorMap = colorAtomType2IndexVectorMap;
-  shape.shift = shift;
+  shape.shift = shifts[shapeNum];
   shape.sov = sov;
   shape.sof = sof;
   return shape;
 }
 
-void SearchShapeInput::setActiveConformer(unsigned int confNum) {
-  PRECONDITION(confNum < confCoords.size(), "confNum is out of bounds");
-  actConf = confNum;
-  coord = confCoords[confNum];
-  dummyVol = dummyVols[confNum];
-  sov = sovs[confNum];
-  sof = sofs[confNum];
+void SearchShapeInput::setActiveShape(unsigned int shapeNum) {
+  PRECONDITION(shapeNum < confCoords.size(), "confNum is out of bounds");
+  actConf = shapeNum;
+  coord = confCoords[shapeNum];
+  dummyVol = dummyVols[shapeNum];
+  sov = sovs[shapeNum];
+  sof = sofs[shapeNum];
+  shift = shifts[shapeNum];
 }
 
 std::string SearchShapeInput::toString() const {
@@ -117,9 +136,11 @@ void SearchShapeInput::serialize(Archive &ar, const unsigned int) {
   ar & dummyVol;
   ar & actConf;
   ar & confCoords;
+  ar & molConfs;
   ar & dummyVols;
   ar & sovs;
   ar & sofs;
+  ar & shifts;
 }
 #endif
 
@@ -159,22 +180,30 @@ void pruneShapes(SearchShapeInput &shapes, double simThreshold) {
   }
   std::vector<std::vector<float>> newCoords;
   newCoords.reserve(picks.size());
+  std::vector<unsigned int> newMolConfs;
+  newMolConfs.reserve(picks.size());
   std::vector<double> newDummyVols;
   newDummyVols.reserve(picks.size());
   std::vector<double> newSovs;
   newSovs.reserve(picks.size());
   std::vector<double> newSofs;
   newSofs.reserve(picks.size());
+  std::vector<std::vector<double>> newShifts;
+  newShifts.reserve(picks.size());
   for (auto p : picks) {
     newCoords.push_back(std::move(shapes.confCoords[p]));
+    newMolConfs.push_back(shapes.molConfs[p]);
     newDummyVols.push_back(shapes.dummyVols[p]);
     newSovs.push_back(shapes.sovs[p]);
     newSofs.push_back(shapes.sofs[p]);
+    newShifts.push_back(shapes.shifts[p]);
   }
   shapes.confCoords = std::move(newCoords);
+  shapes.molConfs = std::move(newMolConfs);
   shapes.dummyVols = std::move(newDummyVols);
   shapes.sovs = std::move(newSovs);
   shapes.sofs = std::move(newSofs);
+  shapes.shifts = std::move(newShifts);
 }
 
 namespace {
@@ -192,22 +221,30 @@ void sortShapes(SearchShapeInput &shapes) {
                     });
   std::vector<std::vector<float>> newCoords;
   newCoords.reserve(vals.size());
+  std::vector<unsigned int> newMolConfs;
+  newMolConfs.reserve(vals.size());
   std::vector<double> newDummyVols;
   newDummyVols.reserve(vals.size());
   std::vector<double> newSovs;
   newSovs.reserve(vals.size());
   std::vector<double> newSofs;
   newSofs.reserve(vals.size());
+  std::vector<std::vector<double>> newShifts;
+  newShifts.reserve(vals.size());
   for (auto v : vals) {
     newCoords.push_back(std::move(shapes.confCoords[v.second]));
+    newMolConfs.push_back(shapes.molConfs[v.second]);
     newDummyVols.push_back(shapes.dummyVols[v.second]);
     newSovs.push_back(shapes.sovs[v.second]);
     newSofs.push_back(shapes.sofs[v.second]);
+    newShifts.push_back(shapes.shifts[v.second]);
   }
   shapes.confCoords = std::move(newCoords);
+  shapes.molConfs = std::move(newMolConfs);
   shapes.dummyVols = std::move(newDummyVols);
   shapes.sovs = std::move(newSovs);
   shapes.sofs = std::move(newSofs);
+  shapes.shifts = std::move(newShifts);
 }
 }  // namespace
 
@@ -218,19 +255,16 @@ std::unique_ptr<SearchShapeInput> PrepareConformers(
       mol.getNumConformers() > 0,
       "SearchShapeInput object needs the molecule to have conformers.  " +
           mol.getProp<std::string>("_Name") + "  " + MolToSmiles(mol));
-  // std::cout << "Prepare shapes for " << MolToSmiles(mol) << " : ";
-  // for (auto a : shapeOpts.atomSubset) {
-  //   std::cout << a << " ";
-  // }
-  // std::cout << std::endl;
   auto first = PrepareConformer(mol, 0, shapeOpts);
   auto result = std::make_unique<SearchShapeInput>(first);
 
   result->numDummies = shapeOpts.atomRadii.size();
   result->confCoords.reserve(mol.getNumConformers());
+  result->molConfs.reserve(mol.getNumConformers());
   result->dummyVols.reserve(mol.getNumConformers());
   result->sovs.reserve(mol.getNumConformers());
   result->sofs.reserve(mol.getNumConformers());
+  result->shifts.reserve(mol.getNumConformers());
 
   ShapeInputOptions noDummyOpts(shapeOpts);
   noDummyOpts.includeDummies = false;
@@ -242,10 +276,12 @@ std::unique_ptr<SearchShapeInput> PrepareConformers(
   for (unsigned int i = 1; i < mol.getNumConformers(); i++) {
     auto shape = PrepareConformer(mol, i, shapeOpts);
     result->confCoords.push_back(shape.coord);
+    result->molConfs.push_back(i);
     result->sovs.push_back(shape.sov);
     result->sofs.push_back(shape.sof);
     auto otherShape = PrepareConformer(mol, i, noDummyOpts);
     result->dummyVols.push_back(shape.sov - otherShape.sov);
+    result->shifts.push_back(shape.shift);
   }
   pruneShapes(*result, pruneThreshold);
   sortShapes(*result);
@@ -279,12 +315,12 @@ std::pair<double, double> bestSimilarity(SearchShapeInput &refShape,
   double best_combo_t = -1.0;
 
   for (size_t i = 0; i < refShape.confCoords.size(); i++) {
-    refShape.setActiveConformer(i);
+    refShape.setActiveShape(i);
     for (size_t j = 0; j < fitShape.confCoords.size(); j++) {
       auto maxSim = maxScore(refShape.sovs[i], fitShape.sovs[j],
                              fitShape.sofs[i], fitShape.sofs[j]);
       if (maxSim > threshold) {
-        fitShape.setActiveConformer(j);
+        fitShape.setActiveShape(j);
         auto [st, ct] = AlignShape(refShape, fitShape, matrix, opt_param,
                                    max_preiters, max_postiters);
         double combo_t = st + ct;

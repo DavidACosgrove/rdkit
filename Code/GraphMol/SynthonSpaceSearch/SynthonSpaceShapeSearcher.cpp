@@ -339,6 +339,11 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   } else {
     dp_queryConfs = std::make_unique<RWMol>(getQuery());
   }
+  for (unsigned int i = 0; i < dp_queryConfs->getNumConformers(); ++i) {
+    ROMol thisConf(*dp_queryConfs, false, i);
+    std::cout << "this query conf : " << i << " : " << MolToCXSmiles(thisConf)
+              << std::endl;
+  }
   std::cout << "Generating query shapes for "
             << dp_queryConfs->getNumConformers() << " conformers of "
             << MolToSmiles(*dp_queryConfs) << std::endl;
@@ -349,6 +354,20 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   std::cout << "query shift : " << dp_queryShapes->shift[0] << ", "
             << dp_queryShapes->shift[1] << ", " << dp_queryShapes->shift[2]
             << std::endl;
+  for (size_t i = 0; i < dp_queryShapes->confCoords.size(); ++i) {
+    std::cout << "Query shape " << i << std::endl;
+    dp_queryShapes->setActiveShape(i);
+    std::cout << "shift = " << dp_queryShapes->shift[0] << ", "
+              << dp_queryShapes->shift[1] << ", " << dp_queryShapes->shift[2]
+              << std::endl;
+    for (unsigned int kk = 0; kk < dp_queryShapes->coord.size(); kk += 3) {
+      std::cout << kk << " :: (" << dp_queryShapes->coord[kk] << ", "
+                << dp_queryShapes->coord[kk + 1] << ", "
+                << dp_queryShapes->coord[kk + 2] << ") ";
+    }
+    std::cout << std::endl;
+  }
+  dp_queryShapes->setActiveShape(0);
 
   // Make a map of the unique SMILES strings for the fragments, keeping
   // track of them in the vector.
@@ -409,60 +428,56 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
 
 namespace {
 void computeSomeFragSynthonSims(
-    std::atomic<std::int64_t> &mostRecentPair,
     const std::vector<std::unique_ptr<SearchShapeInput>> &fragShapesPool,
     const std::vector<std::pair<std::string, std::unique_ptr<Synthon>>>
         &synthonPool,
-    std::int64_t numPairs, float threshold, std::mutex &mtx,
-    const TimePoint *endTime, FragSynthonSims &fragSynthonSims,
+    std::int64_t startPair, std::int64_t finishPair, float threshold,
+    std::mutex &mtx, const TimePoint *endTime, FragSynthonSims &fragSynthonSims,
     std::unique_ptr<ProgressBar> &pbar) {
-  auto step = fragShapesPool.size();
-  bool doSwap = fragShapesPool.size() < synthonPool.size() ? true : false;
   SearchShapeInput *fragShape;
   Synthon *synthon;
   std::vector<float> matrix(12, 0.0);
   int numProgs = 1000;
   int numTimes = 1;
-  while (true) {
-    std::int64_t thisPair = ++mostRecentPair;
-    if (thisPair >= numPairs) {
-      break;
-    }
-    if (ControlCHandler::getGotSignal()) {
-      return;
-    }
-    --numTimes;
-    if (!numTimes) {
-      numTimes = 100;
-      if (details::checkTimeOut(endTime)) {
+  size_t startI = startPair / fragShapesPool.size();
+  std::int64_t pairNum = startI * fragShapesPool.size();
+  for (size_t i = startI; i < fragShapesPool.size(); ++i) {
+    for (size_t j = 0; j < synthonPool.size(); ++j, ++pairNum) {
+      if (pairNum < startPair) {
+        continue;
+      }
+      if (pairNum == finishPair) {
         return;
       }
-    }
-    std::int64_t i = thisPair / step;
-    std::int64_t j = thisPair % step;
-    if (doSwap) {
-      fragShape = fragShapesPool[j].get();
-      synthon = synthonPool[i].second.get();
-    } else {
+      if (ControlCHandler::getGotSignal()) {
+        return;
+      }
+      --numTimes;
+      if (!numTimes) {
+        numTimes = 100;
+        if (details::checkTimeOut(endTime)) {
+          return;
+        }
+      }
       fragShape = fragShapesPool[i].get();
       synthon = synthonPool[j].second.get();
-    }
-    if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
-      continue;
-    }
-    const auto sim = bestSimilarity(*fragShape, *synthon->getShapes().get(),
-                                    matrix, threshold);
+      if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
+        continue;
+      }
+      const auto sim = bestSimilarity(*fragShape, *synthon->getShapes().get(),
+                                      matrix, threshold);
 
-    if (sim.first + sim.second >= threshold) {
-      std::unique_lock lock1{mtx};
-      std::pair<const void *, const void *> p{fragShape, synthon};
-      fragSynthonSims.insert(std::make_pair(p, sim.first + sim.second));
-    }
-    if (pbar) {
-      --numProgs;
-      if (!numProgs) {
-        numProgs = 1000;
-        pbar->increment(1000);
+      if (sim.first + sim.second >= threshold) {
+        std::unique_lock lock1{mtx};
+        std::pair<const void *, const void *> p{fragShape, synthon};
+        fragSynthonSims.insert(std::make_pair(p, sim.first + sim.second));
+      }
+      if (pbar) {
+        --numProgs;
+        if (!numProgs) {
+          numProgs = 1000;
+          pbar->increment(1000);
+        }
       }
     }
   }
@@ -476,7 +491,6 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
 
   std::int64_t numPairs =
       d_fragShapesPool.size() * getSpace().d_synthonPool.size();
-  std::atomic<std::int64_t> pairNum(-1);
   std::mutex mtx;
   std::cout << "Number of shapes : " << d_fragShapesPool.size() << std::endl;
   std::cout << "Number of synthons : " << getSpace().d_synthonPool.size()
@@ -494,19 +508,20 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
     for (unsigned int i = 0u; i < std::min(static_cast<size_t>(numThreadsToUse),
                                            static_cast<size_t>(numPairs));
          ++i) {
-      threads.emplace_back(computeSomeFragSynthonSims, std::ref(pairNum),
-                           std::ref(d_fragShapesPool),
-                           std::ref(getSpace().d_synthonPool), numPairs,
-                           threshold, std::ref(mtx), endTime,
-                           std::ref(d_fragSynthonSims), std::ref(pbar));
+      std::int64_t numPerThread = numPairs / numThreadsToUse + 1;
+      threads.emplace_back(
+          computeSomeFragSynthonSims, std::ref(d_fragShapesPool),
+          std::ref(getSpace().d_synthonPool), numPerThread * i,
+          numPerThread * (i + 1), threshold, std::ref(mtx), endTime,
+          std::ref(d_fragSynthonSims), std::ref(pbar));
     }
     for (auto &t : threads) {
       t.join();
     }
   } else {
-    computeSomeFragSynthonSims(pairNum, d_fragShapesPool,
-                               getSpace().d_synthonPool, numPairs, threshold,
-                               mtx, endTime, d_fragSynthonSims, pbar);
+    computeSomeFragSynthonSims(d_fragShapesPool, getSpace().d_synthonPool, 0,
+                               numPairs, threshold, mtx, endTime,
+                               d_fragSynthonSims, pbar);
   }
   return !ControlCHandler::getGotSignal();
 }
@@ -545,6 +560,7 @@ double SynthonSpaceShapeSearcher::approxSimilarity(
 }
 
 bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
+  std::cout << "VERIFY HIT" << std::endl;
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
@@ -561,35 +577,58 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
                                         getParams().stereoEnumOpts, dgParams);
   bool foundHit = false;
   double bestSim = getParams().similarityCutoff;
+  ShapeInputOptions opts;
+
   for (auto &isomer : hitConfs) {
-    // std::cout << "isomer " << MolToSmiles(*isomer)
-    //           << "  num confs : " << isomer->getNumConformers() << std::endl;
+    std::cout << "isomer " << MolToSmiles(*isomer)
+              << "  num confs : " << isomer->getNumConformers() << std::endl;
     std::vector<float> matrix(12, 0.0);
     RDGeom::Transform3D qshift;
     qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
                                           -dp_queryShapes->shift[1],
                                           -dp_queryShapes->shift[2]});
+    auto hitShapes = PrepareConformers(*isomer, opts, 1.9);
     // std::cout << "Verifying hit for " << MolToSmiles(*isomer) << " of "
     // << MolToSmiles(hit) << std::endl;
-    for (size_t i = 0U; i < dp_queryShapes->confCoords.size(); ++i) {
-      dp_queryShapes->setActiveConformer(i);
-      for (unsigned int j = 0u; j < isomer->getNumConformers(); ++j) {
-        auto [st, ct] = AlignMolecule(*dp_queryShapes, *isomer, matrix, j);
+    for (size_t i = 0U; i < dp_queryShapes->getNumShapes(); ++i) {
+      dp_queryShapes->setActiveShape(i);
+      // ROMol thisConf(*dp_queryConfs, false, dp_queryShapes->molConfs[i]);
+      // std::cout << "this query shape : " << i << " : "
+      //           << MolToCXSmiles(thisConf) << std::endl;
+      // for (unsigned int kk = 0; kk < dp_queryShapes->coord.size(); kk += 3) {
+      //   std::cout << kk << " :: (" << dp_queryShapes->coord[kk] << ", "
+      //             << dp_queryShapes->coord[kk + 1] << ", "
+      //             << dp_queryShapes->coord[kk + 2] << ") ";
+      // }
+      // std::cout << std::endl;
+      for (unsigned int j = 0u; j < hitShapes->getNumShapes(); ++j) {
+        hitShapes->setActiveShape(j);
+        auto [st, ct] = AlignShape(*dp_queryShapes, *hitShapes, matrix);
+
         // if (st + ct > getParams().similarityCutoff) {
         // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
-        // << " for " << MolToSmiles(*isomer) << " query conf " << i
-        // << " poss hit conf " << j << std::endl;
+        //           << " for " << MolToSmiles(*isomer) << " query conf "
+        //           << dp_queryShapes->molConfs[i] << " poss hit conf "
+        //           << hitShapes->molConfs[j] << std::endl;
         // }
-        MolTransforms::transformConformer(isomer->getConformer(j), qshift);
         if (st + ct >= bestSim) {
-          // std::cout << "HIT sims : " << st << ", " << ct << " : " << st + ct
-          // << " for " << MolToSmiles(*isomer) << " query conf " << i
-          // << std::endl;
+          std::cout << "HIT sims : " << st << ", " << ct << " : " << st + ct
+                    << " for " << MolToSmiles(*isomer) << " query conf "
+                    << dp_queryShapes->molConfs[i] << std::endl;
           hit.setProp<double>("Similarity", st + ct);
-          hit.setProp<unsigned int>("Query_Conformer", i);
-          ROMol thisConf(*dp_queryConfs, false, i);
+          hit.setProp<unsigned int>("Query_Conformer",
+                                    dp_queryShapes->molConfs[i]);
+          ROMol thisConf(*dp_queryConfs, false, dp_queryShapes->molConfs[i]);
+          std::cout << "this hit query conf : " << dp_queryShapes->molConfs[i]
+                    << " : " << MolToCXSmiles(thisConf) << std::endl;
           hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
-          hit.addConformer(new Conformer(isomer->getConformer(j)));
+          std::cout << "Hit num confs now : " << hit.getNumConformers()
+                    << std::endl;
+          hit.clearConformers();
+          hit.addConformer(
+              new Conformer(isomer->getConformer(hitShapes->molConfs[j])),
+              true);
+          MolTransforms::transformConformer(hit.getConformer(0), qshift);
           MolOps::assignStereochemistryFrom3D(hit);
           if (!getParams().bestHit) {
             return true;

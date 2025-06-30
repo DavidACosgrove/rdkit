@@ -327,10 +327,6 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
       cancelled = true;
       return;
     }
-    if (lineNum && !(lineNum % 100000)) {
-      std::cout << "Read line " << lineNum << " number of synthons "
-                << d_synthonPool.size() << std::endl;
-    }
     auto nextSynthon = readSynthonLine(is, lineNum, format, d_fileName);
     if (nextSynthon.empty()) {
       continue;
@@ -341,9 +337,7 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
     auto newSynth = addSynthonToPool(nextSynthon[0]);
     currReaction->addSynthon(synthonNum, newSynth, nextSynthon[1]);
   }
-  std::cout << "On to final processing" << std::endl;
   // Do some final processing.
-  int numDone = 0;
   for (auto &[id, reaction] : d_reactions) {
     reaction->removeEmptySynthonSets();
     reaction->makeSynthonSearchMols();
@@ -354,11 +348,6 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
       d_maxNumSynthons = reaction->getSynthons().size();
     }
     reaction->initializeSearchOrders();
-    ++numDone;
-    if (!(numDone % 100)) {
-      std::cout << "done " << numDone << " : " << reaction->getId()
-                << std::endl;
-    }
   }
 }
 
@@ -813,6 +802,7 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     if (sampleMols.empty()) {
       break;
     }
+    std::cout << "Doing next " << sampleMols.size() << " mols" << std::endl;
     std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
       return a->d_numAtoms > b->d_numAtoms;
     });
@@ -824,6 +814,8 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     dgParams.timeout = shapeParams.timeOut;
     details::makeShapesFromMols(sampleMols, dgParams, shapeParams, pbar);
     if (interimWrite) {
+      std::cout << "Writing interim file " << shapeParams.interimFile
+                << std::endl;
       writeInterimFile(*this, shapeParams.interimFile);
     }
     if (ControlCHandler::getGotSignal()) {
