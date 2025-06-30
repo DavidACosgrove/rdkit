@@ -273,6 +273,7 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
   void buildSynthonFPs(const FingerprintGenerator<std::uint64_t> &fpGen);
 
   void reportSynthonUsage(std::ostream &os) const;
+  std::uint64_t getNumSynthonsWithShapes() const;
 
  protected:
   unsigned int getMaxNumSynthons() const { return d_maxNumSynthons; }

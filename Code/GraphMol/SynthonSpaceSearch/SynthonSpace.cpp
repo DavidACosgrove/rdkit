@@ -596,14 +596,8 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
       d_maxNumSynthons = reaction->getSynthons().size();
     }
   }
-  size_t numNoShapes = 0;
-  for (const auto &[smiles, synthon] : d_synthonPool) {
-    if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
-      numNoShapes++;
-    }
-  }
   std::cout << "Number of synthons : " << d_synthonPool.size() << " of which "
-            << numNoShapes << " have no shapes" << std::endl;
+            << getNumSynthonsWithShapes() << " have shapes." << std::endl;
 }
 
 void SynthonSpace::summarise(std::ostream &os) {
@@ -812,16 +806,28 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     dgParams.randomSeed = shapeParams.randomSeed;
     dgParams.maxIterations = shapeParams.maxEmbedAttempts;
     dgParams.timeout = shapeParams.timeOut;
+    auto numWithShapesB4 = getNumSynthonsWithShapes();
     details::makeShapesFromMols(sampleMols, dgParams, shapeParams, pbar);
-    if (interimWrite) {
+    auto numWithShapes = getNumSynthonsWithShapes();
+    if (interimWrite && numWithShapes > numWithShapesB4) {
       std::cout << "Writing interim file " << shapeParams.interimFile
-                << std::endl;
+                << " with " << numWithShapes << " shapes." << std::endl;
       writeInterimFile(*this, shapeParams.interimFile);
     }
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;
     }
   }
+}
+
+std::uint64_t SynthonSpace::getNumSynthonsWithShapes() const {
+  size_t numShapes = 0;
+  for (const auto &[smiles, synthon] : d_synthonPool) {
+    if (!synthon->getShapes() || !synthon->getShapes()->hasNoShapes()) {
+      numShapes++;
+    }
+  }
+  return numShapes;
 }
 
 void SynthonSpace::reportSynthonUsage(std::ostream &os) const {
@@ -952,7 +958,6 @@ SearchResults SynthonSpace::extendedSearch(
 }
 
 void SynthonSpace::fillSynthonReactions() {
-  std::cout << "fillSynthonREactions" << std::endl;
   for (auto &[id, rxn] : d_reactions) {
     auto rxnSynthons = rxn->getSynthons();
     for (auto &synthonSet : rxnSynthons) {
@@ -968,8 +973,6 @@ void SynthonSpace::fillSynthonReactions() {
       }
     }
   }
-  std::cout << "synthon reactions size : " << d_synthonReactions.size()
-            << std::endl;
 }
 
 void SynthonSpace::buildSynthonSampleMolecules(
