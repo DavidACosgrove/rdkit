@@ -1,5 +1,5 @@
 //
-// Copyright (C) David Cosgrove 2025.
+// Copyright (C) 2025 David Cosgrove and other RDKit contributors.
 //
 //   @@ All Rights Reserved @@
 //  This file is part of the RDKit.
@@ -34,7 +34,8 @@ StereoisomerEnumerator::StereoisomerEnumerator(
     atom->clearProp("_CIPCode");
   }
   for (auto bond : d_mol.bonds()) {
-    if (bond->getBondDir() == Bond::BondDir::EITHERDOUBLE) {
+    if (bond->getBondDir() == Bond::BondDir::EITHERDOUBLE ||
+        bond->getBondDir() == Bond::BondDir::UNKNOWN) {
       bond->setBondDir(Bond::BondDir::NONE);
     }
   }
@@ -101,7 +102,7 @@ void StereoisomerEnumerator::buildFlippers() {
 
   if (d_options.onlyUnassigned) {
     // otherwise these will be counted twice
-    for (auto &group : d_mol.getStereoGroups()) {
+    for (const auto &group : d_mol.getStereoGroups()) {
       if (group.getGroupType() != StereoGroupType::STEREO_ABSOLUTE) {
         d_flippers.push_back(std::unique_ptr<details::Flipper>(
             new details::StereoGroupFlipper(group)));
@@ -117,7 +118,7 @@ std::unique_ptr<ROMol> StereoisomerEnumerator::generateRandomIsomer() {
       bool config = d_randDis(*d_randGen);
       nextConfig[i] = config;
     }
-    if (auto it = d_seen.find(nextConfig); it == d_seen.end()) {
+    if (d_seen.find(nextConfig) == d_seen.end()) {
       d_seen.insert(nextConfig);
       for (size_t i = 0; i < d_flippers.size(); i++) {
         d_flippers[i]->flip(nextConfig[i]);
@@ -137,8 +138,7 @@ std::unique_ptr<ROMol> StereoisomerEnumerator::generateRandomIsomer() {
         auto smi =
             MolToCXSmiles(*isomer, SmilesWriteParams(),
                           SmilesWrite::CXSmilesFields::CX_ALL_BUT_COORDS);
-        if (auto it = d_generatedIsomers.find(smi);
-            it != d_generatedIsomers.end()) {
+        if (d_generatedIsomers.find(smi) != d_generatedIsomers.end()) {
           continue;
         }
         d_generatedIsomers.insert(smi);
