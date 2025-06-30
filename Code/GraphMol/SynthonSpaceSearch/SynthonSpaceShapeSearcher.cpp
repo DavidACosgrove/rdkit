@@ -210,8 +210,6 @@ SynthonSpaceShapeSearcher::searchFragSet(
           fragShapes,
           getParams().similarityCutoff - getParams().fragSimilarityAdjuster,
           reaction, synthonOrder, *this);
-      // std::cout << "Num hit synthons : " << theseSynthons.size() <<
-      // std::endl;
       if (!theseSynthons.empty()) {
         std::unique_ptr<SynthonSpaceHitSet> hs(
             new SynthonSpaceHitSet(reaction, theseSynthons, fragSet));
@@ -236,8 +234,6 @@ std::unique_ptr<SearchShapeInput> generateShapes(const ROMol &queryConfs,
   std::vector<unsigned int> fragAtoms;
   fragAtoms.reserve(frag.getNumAtoms());
   boost::dynamic_bitset<> inFrag(queryConfs.getNumAtoms());
-  // std::cout << "\nGenerate shapes for " << MolToSmiles(frag) << " of "
-  //           << queryConfs.getNumConformers() << " conformers" << std::endl;
   for (auto atom : frag.atoms()) {
     unsigned int origIdx;
     if (atom->getPropIfPresent<unsigned int>("ORIG_IDX", origIdx)) {
@@ -312,7 +308,6 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   // 2D molecule.  We assume that the steroisomer is defined.
   auto queryMol = std::unique_ptr<RWMol>(new RWMol(getQuery()));
   if (!queryMol->getNumConformers() || !queryMol->getConformer().is3D()) {
-    std::cout << "Making query conformers" << std::endl;
     if (details::hasUnspecifiedStereo(*queryMol) &&
         !getParams().enumerateUnspecifiedStereo) {
       BOOST_LOG(rdErrorLog)
@@ -339,34 +334,11 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   } else {
     dp_queryConfs = std::make_unique<RWMol>(getQuery());
   }
-  for (unsigned int i = 0; i < dp_queryConfs->getNumConformers(); ++i) {
-    ROMol thisConf(*dp_queryConfs, false, i);
-    std::cout << "this query conf : " << i << " : " << MolToCXSmiles(thisConf)
-              << std::endl;
-  }
-  std::cout << "Generating query shapes for "
-            << dp_queryConfs->getNumConformers() << " conformers of "
-            << MolToSmiles(*dp_queryConfs) << std::endl;
+  BOOST_LOG(rdInfoLog) << "Generating query shapes for "
+                       << dp_queryConfs->getNumConformers() << " conformers of "
+                       << MolToSmiles(*dp_queryConfs) << std::endl;
   ShapeInputOptions opts;
   dp_queryShapes = PrepareConformers(*dp_queryConfs, opts, 1.9);
-  std::cout << "Number of query shapes : " << dp_queryShapes->confCoords.size()
-            << std::endl;
-  std::cout << "query shift : " << dp_queryShapes->shift[0] << ", "
-            << dp_queryShapes->shift[1] << ", " << dp_queryShapes->shift[2]
-            << std::endl;
-  for (size_t i = 0; i < dp_queryShapes->confCoords.size(); ++i) {
-    std::cout << "Query shape " << i << std::endl;
-    dp_queryShapes->setActiveShape(i);
-    std::cout << "shift = " << dp_queryShapes->shift[0] << ", "
-              << dp_queryShapes->shift[1] << ", " << dp_queryShapes->shift[2]
-              << std::endl;
-    for (unsigned int kk = 0; kk < dp_queryShapes->coord.size(); kk += 3) {
-      std::cout << kk << " :: (" << dp_queryShapes->coord[kk] << ", "
-                << dp_queryShapes->coord[kk + 1] << ", "
-                << dp_queryShapes->coord[kk + 2] << ") ";
-    }
-    std::cout << std::endl;
-  }
   dp_queryShapes->setActiveShape(0);
 
   // Make a map of the unique SMILES strings for the fragments, keeping
@@ -378,7 +350,6 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   }
 
   // Compute ShapeSets for the fragments
-  std::cout << "Making shapes for fragments" << std::endl;
   d_fragShapesPool.resize(fragSmiToFrag.size());
   std::vector<ROMol *> fragsForShape;
   fragsForShape.reserve(fragSmiToFrag.size());
@@ -422,7 +393,6 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     return false;
   }
 
-  std::cout << "Done extra setup" << std::endl;
   return true;
 }
 
@@ -492,10 +462,8 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
   std::int64_t numPairs =
       d_fragShapesPool.size() * getSpace().d_synthonPool.size();
   std::mutex mtx;
-  std::cout << "Number of shapes : " << d_fragShapesPool.size() << std::endl;
-  std::cout << "Number of synthons : " << getSpace().d_synthonPool.size()
-            << std::endl;
-  std::cout << "Computing fragment/synthon shape similarities." << std::endl;
+  BOOST_LOG(rdInfoLog) << "Computing fragment/synthon shape similarities."
+                       << std::endl;
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
     pbar.reset(new ProgressBar(
@@ -560,13 +528,9 @@ double SynthonSpaceShapeSearcher::approxSimilarity(
 }
 
 bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
-  std::cout << "VERIFY HIT" << std::endl;
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
-  if (MolToSmiles(hit) == MolToSmiles(getQuery())) {
-    std::cout << "It's itself" << std::endl;
-  }
   auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = 1;
   dgParams.pruneRmsThresh = getParams().confRMSThreshold;
@@ -580,50 +544,24 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   ShapeInputOptions opts;
 
   for (auto &isomer : hitConfs) {
-    std::cout << "isomer " << MolToSmiles(*isomer)
-              << "  num confs : " << isomer->getNumConformers() << std::endl;
     std::vector<float> matrix(12, 0.0);
     RDGeom::Transform3D qshift;
     qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
                                           -dp_queryShapes->shift[1],
                                           -dp_queryShapes->shift[2]});
     auto hitShapes = PrepareConformers(*isomer, opts, 1.9);
-    // std::cout << "Verifying hit for " << MolToSmiles(*isomer) << " of "
-    // << MolToSmiles(hit) << std::endl;
     for (size_t i = 0U; i < dp_queryShapes->getNumShapes(); ++i) {
       dp_queryShapes->setActiveShape(i);
-      // ROMol thisConf(*dp_queryConfs, false, dp_queryShapes->molConfs[i]);
-      // std::cout << "this query shape : " << i << " : "
-      //           << MolToCXSmiles(thisConf) << std::endl;
-      // for (unsigned int kk = 0; kk < dp_queryShapes->coord.size(); kk += 3) {
-      //   std::cout << kk << " :: (" << dp_queryShapes->coord[kk] << ", "
-      //             << dp_queryShapes->coord[kk + 1] << ", "
-      //             << dp_queryShapes->coord[kk + 2] << ") ";
-      // }
-      // std::cout << std::endl;
       for (unsigned int j = 0u; j < hitShapes->getNumShapes(); ++j) {
         hitShapes->setActiveShape(j);
         auto [st, ct] = AlignShape(*dp_queryShapes, *hitShapes, matrix);
 
-        // if (st + ct > getParams().similarityCutoff) {
-        // std::cout << "sims : " << st << ", " << ct << " : " << st + ct
-        //           << " for " << MolToSmiles(*isomer) << " query conf "
-        //           << dp_queryShapes->molConfs[i] << " poss hit conf "
-        //           << hitShapes->molConfs[j] << std::endl;
-        // }
         if (st + ct >= bestSim) {
-          std::cout << "HIT sims : " << st << ", " << ct << " : " << st + ct
-                    << " for " << MolToSmiles(*isomer) << " query conf "
-                    << dp_queryShapes->molConfs[i] << std::endl;
           hit.setProp<double>("Similarity", st + ct);
           hit.setProp<unsigned int>("Query_Conformer",
                                     dp_queryShapes->molConfs[i]);
           ROMol thisConf(*dp_queryConfs, false, dp_queryShapes->molConfs[i]);
-          std::cout << "this hit query conf : " << dp_queryShapes->molConfs[i]
-                    << " : " << MolToCXSmiles(thisConf) << std::endl;
           hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
-          std::cout << "Hit num confs now : " << hit.getNumConformers()
-                    << std::endl;
           hit.clearConformers();
           hit.addConformer(
               new Conformer(isomer->getConformer(hitShapes->molConfs[j])),
@@ -638,9 +576,6 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
         }
       }
     }
-  }
-  if (MolToSmiles(hit) == MolToSmiles(getQuery())) {
-    std::cout << "It's itself a hit : " << foundHit << std::endl;
   }
   return foundHit;
 }

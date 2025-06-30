@@ -68,7 +68,6 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
       ControlCHandler::getGotSignal()) {
     return SearchResults{std::move(results), 0ULL, timedOut, true};
   }
-  // std::cout << "Done extra search setup" << std::endl;
 
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);
@@ -218,8 +217,6 @@ SynthonSpaceSearcher::doTheSearch(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragSets,
     const TimePoint *endTime, bool &timedOut, std::uint64_t &totHits,
     ThreadMode threadMode) {
-  std::cout << "Searching " << fragSets.size() << " fragment sets."
-            << std::endl;
   auto reactionNames = getSpace().getReactionNames();
   std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> reactionHits;
   const unsigned int numThreads = getNumThreadsToUse(d_params.numThreads);
@@ -415,8 +412,6 @@ void SynthonSpaceSearcher::buildHits(
     std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
     const TimePoint *endTime, bool &timedOut,
     std::vector<std::unique_ptr<ROMol>> &results) const {
-  std::cout << "Building and verifying possible hits for " << hitsets.size()
-            << " reactions" << std::endl;
   if (hitsets.empty()) {
     return;
   }
@@ -634,8 +629,6 @@ void SynthonSpaceSearcher::processToTrySet(
         &toTry,
     const TimePoint *endTime,
     std::vector<std::unique_ptr<ROMol>> &results) const {
-  std::cout << "Number of hits to try this round : " << toTry.size()
-            << std::endl;
   // There are possibly duplicate entries in toTry, because 2
   // different fragmentations might produce overlapping synthon lists in
   // the same reaction. The duplicates need to be removed.  Although

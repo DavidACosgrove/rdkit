@@ -375,8 +375,6 @@ void doPartInitialFragmentation(
   bool timedOut = false;
   while (true) {
     std::int64_t thisRB = ++mostRecentRingBond;
-    // std::cout << "ring bond " << thisRB << " of " << lastRingBond << " and "
-    // << tmpFrags.size() << std::endl;
     if (thisRB > lastRingBond) {
       break;
     }
@@ -448,8 +446,6 @@ void doPartFinalFragmentation(
   bool timedOut = false;
   while (true) {
     std::int64_t thisFrag = ++mostRecentFrag;
-    // std::cout << "frag " << thisFrag << " of " << lastFrag << " and "
-    // << tmpFrags.size() << std::endl;
     if (thisFrag > lastFrag) {
       break;
     }
@@ -925,8 +921,6 @@ bool hasUnspecifiedStereo(ROMol &mol) {
         si.type == Chirality::StereoType::Atom_Octahedral) {
       Atom *atom = mol.getAtomWithIdx(si.centeredOn);
       if (atom->getChiralTag() == Atom::CHI_UNSPECIFIED) {
-        std::cout << "Unspecified stereo on atom " << atom->getIdx()
-                  << std::endl;
         return true;
       }
     } else if (si.type == Chirality::StereoType::Bond_Double ||
@@ -935,8 +929,6 @@ bool hasUnspecifiedStereo(ROMol &mol) {
       Bond *bond = mol.getBondWithIdx(si.centeredOn);
       if (bond->getStereo() == Bond::BondStereo::STEREONONE ||
           bond->getStereo() == Bond::BondStereo::STEREOANY) {
-        std::cout << "Unspecified stereo on bond " << bond->getIdx()
-                  << std::endl;
         return true;
       }
     }
@@ -1165,7 +1157,6 @@ void makeShapesFromMols(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
   } else {
     makeShapesFromMol(sampleMols, mostRecentMol, dgParams, shapeParams, pbar);
   }
-  std::cout << std::endl;
 }
 
 }  // namespace RDKit::SynthonSpaceSearch::details

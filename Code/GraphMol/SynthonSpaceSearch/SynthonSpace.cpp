@@ -195,14 +195,8 @@ SearchResults SynthonSpace::shapeSearch(
       params.stereoEnumOpts, dgParams);
   SearchResults allResults;
   for (auto &isomer : isomers) {
-    std::cout << "\nShape search with query "
-              << MolToCXSmiles(*isomer, SmilesWriteParams(),
-                               SmilesWrite::CXSmilesFields::CX_ALL_BUT_COORDS)
-              << std::endl;
     SynthonSpaceShapeSearcher ssss(*isomer, paramsCp, *this);
     auto results = ssss.search();
-    std::cout << "number of hits for this isomer "
-              << results.getHitMolecules().size() << std::endl;
     allResults.mergeResults(results);
     if (params.maxHits > 0) {
       if (allResults.getHitMolecules().size() >
@@ -596,8 +590,9 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
       d_maxNumSynthons = reaction->getSynthons().size();
     }
   }
-  std::cout << "Number of synthons : " << d_synthonPool.size() << " of which "
-            << getNumSynthonsWithShapes() << " have shapes." << std::endl;
+  BOOST_LOG(rdInfoLog) << "Number of synthons : " << d_synthonPool.size()
+                       << " of which " << getNumSynthonsWithShapes()
+                       << " have shapes.\n";
 }
 
 void SynthonSpace::summarise(std::ostream &os) {
@@ -809,6 +804,8 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     auto numWithShapesB4 = getNumSynthonsWithShapes();
     details::makeShapesFromMols(sampleMols, dgParams, shapeParams, pbar);
     auto numWithShapes = getNumSynthonsWithShapes();
+    std::cout << "\nNum shapes : " << numWithShapesB4 << " to " << numWithShapes
+              << std::endl;
     if (interimWrite && numWithShapes > numWithShapesB4) {
       std::cout << "Writing interim file " << shapeParams.interimFile
                 << " with " << numWithShapes << " shapes." << std::endl;
@@ -823,7 +820,7 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
 std::uint64_t SynthonSpace::getNumSynthonsWithShapes() const {
   size_t numShapes = 0;
   for (const auto &[smiles, synthon] : d_synthonPool) {
-    if (!synthon->getShapes() || !synthon->getShapes()->hasNoShapes()) {
+    if (synthon->getShapes() && !synthon->getShapes()->hasNoShapes()) {
       numShapes++;
     }
   }
