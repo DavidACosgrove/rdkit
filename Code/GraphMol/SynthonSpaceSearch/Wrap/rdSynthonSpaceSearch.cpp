@@ -439,6 +439,9 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
            python::arg("self"),
            "Returns number of products in the SynthonSpace, with multiple"
            " counting of any duplicates.")
+      .def("GetNumSynthons", &SynthonSpaceSearch::SynthonSpace::getNumSynthons,
+           python::arg("self"),
+           "Returns number of synthons in the SynthonSpace.")
       .def("Summarise", &summariseHelper, python::arg("self"),
            "Writes a summary of the SynthonSpace to stdout.")
       .def("GetSynthonFingerprintType",
