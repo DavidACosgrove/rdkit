@@ -1033,26 +1033,9 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
     if (molNum >= sampleMols.size()) {
       return;
     }
-    // If we have a shape object in the synthon with some shapes, don't do
-    // anything.  If there's a shape object but no shapes then probably
-    // the embedding failed last time, so try again.  It might be the
-    // fault of this synthon, but it might conceivably have been a problem
-    // with whatever it was attached to, and another reaction might have
-    // bolted on something more amenable.
-    if (sampleMols[molNum]->d_synthon->getShapes() &&
-        !sampleMols[molNum]->d_synthon->getShapes()->hasNoShapes()) {
-      if (pbar) {
-        pbar->increment();
-      }
-      continue;
-    }
-
     sampleMols[molNum]->d_mol = sampleMols[molNum]->d_synthonSet->buildMolecule(
         sampleMols[molNum]->d_synthonNums);
     if (!sampleMols[molNum]->d_mol) {
-      if (pbar) {
-        pbar->increment();
-      }
       continue;
     }
 
@@ -1067,9 +1050,6 @@ void makeShapesFromMol(std::vector<std::unique_ptr<SampleMolRec>> &sampleMols,
           << " : " << MolToSmiles(*sampleMols[molNum]->d_mol)
           << " when generating conformers for synthon "
           << sampleMols[molNum]->d_synthon->getSmiles() << std::endl;
-      if (pbar) {
-        pbar->increment();
-      }
       continue;
     }
     auto allShapes = std::make_unique<SearchShapeInput>();

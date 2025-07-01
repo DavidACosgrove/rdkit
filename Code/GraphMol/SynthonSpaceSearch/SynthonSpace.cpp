@@ -757,13 +757,16 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
   cancelled = false;
   std::vector<std::vector<std::unique_ptr<SampleMolRec>>> allSampleMols;
   buildSynthonSampleMolecules(shapeParams.maxSynthonAtoms, allSampleMols);
+  // Do the big molecules first so there is less chance of sitting at the
+  // end waiting for 1 big embedding to finish.
   std::ranges::sort(allSampleMols,
                     [](const auto &sm1, const auto &sm2) -> bool {
                       return sm1.front()->d_numAtoms > sm2.front()->d_numAtoms;
                     });
-  std::cout << "number of allSampleMols : " << allSampleMols.size()
-            << " size range : " << allSampleMols.front().front()->d_numAtoms
-            << " to " << allSampleMols.back().front()->d_numAtoms << std::endl;
+  std::cout << "Number of synthons within size range : " << allSampleMols.size()
+            << " Sample molecule size range : "
+            << allSampleMols.front().front()->d_numAtoms << " to "
+            << allSampleMols.back().front()->d_numAtoms << std::endl;
 
   bool interimWrite = true;
   if (shapeParams.interimWrites == 0 || shapeParams.interimFile.empty()) {
@@ -781,8 +784,17 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     sampleMols.reserve(d_synthonPool.size());
     for (auto &allSampleMol : allSampleMols) {
       if (!allSampleMol.empty()) {
-        sampleMols.push_back(std::move(allSampleMol.back()));
-        allSampleMol.pop_back();
+        // If we have a shape object in the synthon with some shapes, don't do
+        // anything.  If there's a shape object but no shapes then probably
+        // the embedding failed last time, so try again.  It might be the
+        // fault of this synthon, but it might conceivably have been a problem
+        // with whatever it was attached to, and another reaction might have
+        // bolted on something more amenable.
+        if (!allSampleMol.back()->d_synthon->getShapes() ||
+            allSampleMol.back()->d_synthon->getShapes()->hasNoShapes()) {
+          sampleMols.push_back(std::move(allSampleMol.back()));
+          allSampleMol.pop_back();
+        }
       }
       if (interimWrite && shapeParams.interimWrites == sampleMols.size()) {
         break;
