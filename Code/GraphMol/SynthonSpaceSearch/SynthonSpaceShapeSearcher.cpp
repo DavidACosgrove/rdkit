@@ -389,6 +389,11 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     return p1.first > p2.first;
   });
 
+  // The search will require that all fragments are compared against all
+  // synthons at least once.  It's likely that a fragment occurs more than once
+  // in the fragment sets, so compute them all up front.  This makes maximum use
+  // of the parallel environment, doesn't do anything that wouldn't be done at
+  // some point and may prevent duplicated comparisons..
   if (!computeFragSynthonSims(endTime)) {
     return false;
   }
@@ -397,49 +402,41 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
 }
 
 namespace {
+// Process a chunk of the shape->synthon similarity calculations.
 void computeSomeFragSynthonSims(
-    const std::vector<std::unique_ptr<SearchShapeInput>> &fragShapesPool,
-    const std::vector<std::pair<std::string, std::unique_ptr<Synthon>>>
-        &synthonPool,
-    std::int64_t startPair, std::int64_t finishPair, float threshold,
-    std::mutex &mtx, const TimePoint *endTime, FragSynthonSims &fragSynthonSims,
+    const std::vector<std::pair<SearchShapeInput *, Synthon *>> &toDo,
+    std::atomic<std::int64_t> &nextToDo, float threshold, std::mutex &mtx,
+    const TimePoint *endTime, FragSynthonSims fragSynthonSims,
     std::unique_ptr<ProgressBar> &pbar) {
   SearchShapeInput *fragShape;
   Synthon *synthon;
   std::vector<float> matrix(12, 0.0);
   int numProgs = 1000;
   int numTimes = 1;
-  size_t startI = startPair / fragShapesPool.size();
-  std::int64_t pairNum = startI * fragShapesPool.size();
-  for (size_t i = startI; i < fragShapesPool.size(); ++i) {
-    for (size_t j = 0; j < synthonPool.size(); ++j, ++pairNum) {
-      if (pairNum < startPair) {
-        continue;
-      }
-      if (pairNum == finishPair) {
+  while (true) {
+    std::int64_t thisPair = ++nextToDo;
+    if (thisPair >= static_cast<std::int64_t>(toDo.size())) {
+      return;
+    }
+    if (ControlCHandler::getGotSignal()) {
+      return;
+    }
+    --numTimes;
+    if (!numTimes) {
+      numTimes = 100;
+      if (details::checkTimeOut(endTime)) {
         return;
       }
-      if (ControlCHandler::getGotSignal()) {
-        return;
-      }
-      --numTimes;
-      if (!numTimes) {
-        numTimes = 100;
-        if (details::checkTimeOut(endTime)) {
-          return;
-        }
-      }
-      fragShape = fragShapesPool[i].get();
-      synthon = synthonPool[j].second.get();
-      if (!synthon->getShapes() || synthon->getShapes()->hasNoShapes()) {
-        continue;
-      }
+    }
+    fragShape = toDo[thisPair].first;
+    synthon = toDo[thisPair].second;
+    if (synthon->getShapes() && !synthon->getShapes()->hasNoShapes()) {
       const auto sim = bestSimilarity(*fragShape, *synthon->getShapes().get(),
                                       matrix, threshold);
 
       if (sim.first + sim.second >= threshold) {
-        std::unique_lock lock1{mtx};
         std::pair<const void *, const void *> p{fragShape, synthon};
+        std::unique_lock lock1{mtx};
         fragSynthonSims.insert(std::make_pair(p, sim.first + sim.second));
       }
       if (pbar) {
@@ -452,6 +449,30 @@ void computeSomeFragSynthonSims(
     }
   }
 }
+
+// Calculate shape->synthon similarities for this block of the full search
+// space, in parallel if required.
+void processShapeSynthonList(
+    const std::vector<std::pair<SearchShapeInput *, Synthon *>> &toDo,
+    float threshold, const TimePoint *endTime, FragSynthonSims fragSynthonSims,
+    std::unique_ptr<ProgressBar> &pbar, unsigned int numThreadsToUse) {
+  std::atomic<std::int64_t> nextToDo = -1;
+  std::vector<std::thread> threads;
+  std::mutex mtx;
+  if (numThreadsToUse > 1) {
+    for (unsigned int i = 0u; i < numThreadsToUse; ++i) {
+      threads.emplace_back(computeSomeFragSynthonSims, std::ref(toDo),
+                           std::ref(nextToDo), threshold, std::ref(mtx),
+                           endTime, std::ref(fragSynthonSims), std::ref(pbar));
+    }
+    for (auto &t : threads) {
+      t.join();
+    }
+  } else {
+    computeSomeFragSynthonSims(toDo, nextToDo, threshold, std::ref(mtx),
+                               endTime, fragSynthonSims, pbar);
+  }
+}
 }  // namespace
 
 bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
@@ -459,40 +480,38 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
   float threshold =
       getParams().similarityCutoff - getParams().fragSimilarityAdjuster;
 
-  std::int64_t numPairs =
-      d_fragShapesPool.size() * getSpace().d_synthonPool.size();
-  std::mutex mtx;
-  BOOST_LOG(rdInfoLog) << "Computing fragment/synthon shape similarities."
-                       << std::endl;
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
     pbar.reset(new ProgressBar(
         70, d_fragShapesPool.size() * getSpace().d_synthonPool.size()));
+    std::cout << "Computing fragment/synthon shape similarities for "
+              << d_fragShapesPool.size() << " fragments against "
+              << getSpace().d_synthonPool.size() << " synthons with "
+              << getNumThreadsToUse(getParams().numThreads) << " threads."
+              << std::endl;
   }
 
   if (const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
       numThreadsToUse > 1) {
-    std::vector<std::thread> threads;
-    for (unsigned int i = 0u; i < std::min(static_cast<size_t>(numThreadsToUse),
-                                           static_cast<size_t>(numPairs));
-         ++i) {
-      std::int64_t numPerThread = numPairs / numThreadsToUse + 1;
-      threads.emplace_back(
-          computeSomeFragSynthonSims, std::ref(d_fragShapesPool),
-          std::ref(getSpace().d_synthonPool), numPerThread * i,
-          numPerThread * (i + 1), threshold, std::ref(mtx), endTime,
-          std::ref(d_fragSynthonSims), std::ref(pbar));
+    std::vector<std::pair<SearchShapeInput *, Synthon *>> toDo;
+    toDo.reserve(2500000);
+    for (size_t i = 0U; i < d_fragShapesPool.size(); ++i) {
+      for (size_t j = 0U; j < getSpace().d_synthonPool.size(); ++j) {
+        toDo.push_back(
+            std::make_pair(d_fragShapesPool[i].get(),
+                           getSpace().d_synthonPool[j].second.get()));
+        if (toDo.size() == 2500000) {
+          processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims,
+                                  pbar, numThreadsToUse);
+          toDo.clear();
+        }
+      }
     }
-    for (auto &t : threads) {
-      t.join();
-    }
-  } else {
-    computeSomeFragSynthonSims(d_fragShapesPool, getSpace().d_synthonPool, 0,
-                               numPairs, threshold, mtx, endTime,
-                               d_fragSynthonSims, pbar);
+    processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims, pbar,
+                            numThreadsToUse);
   }
   return !ControlCHandler::getGotSignal();
-}
+}  // namespace
 
 bool SynthonSpaceShapeSearcher::quickVerify(
     const SynthonSpaceHitSet *hitset,
@@ -543,12 +562,12 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   double bestSim = getParams().similarityCutoff;
   ShapeInputOptions opts;
 
+  std::vector<float> matrix(12, 0.0);
+  RDGeom::Transform3D qshift;
+  qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
+                                        -dp_queryShapes->shift[1],
+                                        -dp_queryShapes->shift[2]});
   for (auto &isomer : hitConfs) {
-    std::vector<float> matrix(12, 0.0);
-    RDGeom::Transform3D qshift;
-    qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
-                                          -dp_queryShapes->shift[1],
-                                          -dp_queryShapes->shift[2]});
     auto hitShapes = PrepareConformers(*isomer, opts, 1.9);
     for (size_t i = 0U; i < dp_queryShapes->getNumShapes(); ++i) {
       dp_queryShapes->setActiveShape(i);
@@ -560,14 +579,18 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
           hit.setProp<double>("Similarity", st + ct);
           hit.setProp<unsigned int>("Query_Conformer",
                                     dp_queryShapes->molConfs[i]);
+          // Make a molecule of this query conformer, and add it to the hit.
           ROMol thisConf(*dp_queryConfs, false, dp_queryShapes->molConfs[i]);
           hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
+          // Copy the conformer into the hit.
           hit.clearConformers();
           hit.addConformer(
               new Conformer(isomer->getConformer(hitShapes->molConfs[j])),
               true);
           MolTransforms::transformConformer(hit.getConformer(0), qshift);
           MolOps::assignStereochemistryFrom3D(hit);
+          // If we're only interested in whether there's a shape match, and
+          // not in finding the best shape, we're done.
           if (!getParams().bestHit) {
             return true;
           }
