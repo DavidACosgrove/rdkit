@@ -561,6 +561,7 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
     pbar.reset(new ProgressBar(70, toTry.size()));
+    std::cout << "Building and checking hits." << std::endl;
   }
 #if RDK_BUILD_THREADSAFE_SSS
   // This assumes that each chunk of the toTry list will take roughly the
@@ -616,6 +617,8 @@ void SynthonSpaceSearcher::sortToTryByApproxSimilarity(
             [](const auto &lhs, const auto &rhs) -> bool {
               return lhs.second > rhs.second;
             });
+  std::cout << "Best approx similarity : " << tmp.front().second
+            << " and worst : " << tmp.back().second << std::endl;
   std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
       newToTry;
   newToTry.reserve(tmp.size());

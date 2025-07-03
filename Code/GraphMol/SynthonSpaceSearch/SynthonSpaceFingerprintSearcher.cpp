@@ -283,8 +283,7 @@ double SynthonSpaceFingerprintSearcher::approxSimilarity(
   // which have the synthon fps as well.
   const auto hs = dynamic_cast<const SynthonSpaceFPHitSet *>(hitset);
   // Make an approximate fingerprint by combining the FPs for
-  // these synthons, adding in the addFP and taking out the
-  // subtractFP.
+  // these synthons.
   ExplicitBitVect fullFP(*hs->synthonFPs[0][synthNums[0]]);
   for (unsigned int i = 1; i < synthNums.size(); ++i) {
     fullFP |= *hs->synthonFPs[i][synthNums[i]];
