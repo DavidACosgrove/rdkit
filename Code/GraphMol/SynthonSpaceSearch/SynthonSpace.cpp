@@ -639,7 +639,8 @@ bool SynthonSpace::hasFingerprints() const { return !d_fpType.empty(); }
 unsigned int SynthonSpace::getNumConformers() const { return d_numConformers; }
 
 void SynthonSpace::buildSynthonFingerprints(
-    const FingerprintGenerator<std::uint64_t> &fpGen) {
+    const FingerprintGenerator<std::uint64_t> &fpGen,
+    unsigned int progressBarWidth) {
   BOOST_LOG(rdWarningLog) << "Building the fingerprints of "
                           << d_synthonPool.size()
                           << " synthons may take some time." << std::endl;
@@ -658,8 +659,12 @@ void SynthonSpace::buildSynthonFingerprints(
                     });
   AdditionalOutput addlOutput;
   addlOutput.allocateAtomToBits();
+  std::unique_ptr<ProgressBar> pbar;
+  if (progressBarWidth) {
+    pbar.reset(new ProgressBar(progressBarWidth, allSampleMols.size()));
+  }
 
-  while (true && !cancelled) {
+  while (!cancelled) {
     // Loop around until all synthons have a fingerprint or we've run out
     // of synthon/reaction combinations.
     std::vector<std::unique_ptr<SampleMolRec>> sampleMols;
@@ -702,6 +707,9 @@ void SynthonSpace::buildSynthonFingerprints(
         }
       }
       sm->d_synthon->setFP(std::move(sampleFP));
+      if (pbar) {
+        pbar->increment();
+      }
     }
     if (ControlCHandler::getGotSignal()) {
       cancelled = true;
@@ -778,7 +786,7 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
         new ProgressBar(shapeParams.useProgressBar, allSampleMols.size()));
   }
 
-  while (true && !cancelled) {
+  while (!cancelled) {
     // Loop around until all synthons have some shapes or we've run out
     // of synthon/reaction combinations.
     std::vector<std::unique_ptr<SampleMolRec>> sampleMols;

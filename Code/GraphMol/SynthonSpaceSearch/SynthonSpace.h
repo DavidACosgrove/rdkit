@@ -259,7 +259,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    * @param fpGen: a fingerprint generator of the appropriate type
    */
   void buildSynthonFingerprints(
-      const FingerprintGenerator<std::uint64_t> &fpGen);
+      const FingerprintGenerator<std::uint64_t> &fpGen,
+      unsigned int progressBarWidth = 0);
 
   /*!
    * Create conformers for the synthons ready for shape searching.  If a synthon
@@ -270,7 +271,6 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
    */
   void buildSynthonShapes(bool &cancelled, const ShapeBuildParams &shapeParams =
                                                ShapeBuildParams());
-  void buildSynthonFPs(const FingerprintGenerator<std::uint64_t> &fpGen);
 
   void reportSynthonUsage(std::ostream &os) const;
   std::uint64_t getNumSynthonsWithShapes() const;

@@ -487,11 +487,13 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def(
           "BuildSynthonFingerprints",
           &SynthonSpaceSearch::SynthonSpace::buildSynthonFingerprints,
-          (python::arg("self"), python::arg("fingerprintGenerator")),
+          (python::arg("self"), python::arg("fingerprintGenerator"),
+           python::arg("progressBarWidth") = 0),
           "Build the synthon fingerprints ready for similarity searching.  This"
           " is done automatically when the first similarity search is done, but if"
           " converting a text file to binary format it might need to be done"
-          " explicitly.")
+          " explicitly.  If progressBarWidth is > 0, a progress bar of that width"
+          " plus about 35 characters is displayed.")
       .def(
           "BuildSynthonShapes", &buildShapes_helper,
           (python::arg("self"), python::arg("py_params") = python::object()),
