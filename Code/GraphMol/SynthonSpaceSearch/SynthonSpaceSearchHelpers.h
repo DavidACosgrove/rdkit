@@ -105,8 +105,9 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                // test all possibilities.
   EnumerateStereoisomers::StereoEnumerationOptions stereoEnumOpts{
       true, true, false, true,
-      0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
-                  // tryEmbedding of false.
+      0,    0xdac};  // Options for stereoisomer enumeration.  Over-ride default
+                     // tryEmbedding of false and use fixed randomSeed for
+                     // consistency of results from run to run.
   std::uint64_t timeOut{600};  // Maximum number of seconds to spend on a single
                                // search.  0 means no maximum.
   int numThreads = 1;  // The number of threads to use.  If > 0, will use that

@@ -348,7 +348,6 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   if (cancelled) {
     return false;
   }
-
   // Compute ShapeSets for the fragments
   d_fragShapesPool.resize(fragSmiToFrag.size());
   std::vector<ROMol *> fragsForShape;
@@ -565,10 +564,6 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   ShapeInputOptions opts;
 
   std::vector<float> matrix(12, 0.0);
-  // RDGeom::Transform3D qshift;
-  // qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
-  //                                       -dp_queryShapes->shift[1],
-  //                                       -dp_queryShapes->shift[2]});
   for (auto &isomer : hitConfs) {
     auto hitShapes = PrepareConformers(*isomer, opts, 1.9);
     for (size_t i = 0U; i < dp_queryShapes->getNumShapes(); ++i) {
@@ -577,8 +572,6 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
         hitShapes->setActiveShape(j);
         auto [st, ct] = AlignShape(*dp_queryShapes, *hitShapes, matrix);
         if (st + ct >= bestSim) {
-          // std::cout << i << " to " << j << " :: " << st + ct << " vs "
-          //           << bestSim << std::endl;
           hit.setProp<double>("Similarity", st + ct);
           hit.setProp<unsigned int>("Query_Conformer",
                                     dp_queryShapes->molConfs[i]);
@@ -592,7 +585,6 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
           auto hitShape = hitShapes->makeSingleShape(j);
           TransformConformer(dp_queryShapes->shift, matrix, hitShape, *hitConf);
           hit.addConformer(hitConf, true);
-          // MolTransforms::transformConformer(hit.getConformer(0), qshift);
           MolOps::assignStereochemistryFrom3D(hit);
           // If we're only interested in whether there's a shape match, and
           // not in finding the best shape, we're done.

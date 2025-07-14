@@ -426,10 +426,10 @@ TEST_CASE("Test Test") {
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
   params.numThreads = 1;
-  params.numConformers = 100;
-  params.confRMSThreshold = -1.0;
+  params.numConformers = 200;
+  params.confRMSThreshold = 0.25;
   params.timeOut = 0;
-  params.randomSeed = -1;
+  params.randomSeed = 0xdac;
 
   params.fragSimilarityAdjuster = 0.1;
   params.approxSimilarityAdjuster = 0.1;
