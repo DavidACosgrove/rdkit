@@ -393,7 +393,7 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   // synthons at least once.  It's likely that a fragment occurs more than once
   // in the fragment sets, so compute them all up front.  This makes maximum use
   // of the parallel environment, doesn't do anything that wouldn't be done at
-  // some point and may prevent duplicated comparisons..
+  // some point and may prevent duplicated comparisons.
   if (!computeFragSynthonSims(endTime)) {
     return false;
   }
@@ -551,6 +551,7 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
+  std::cout << "verifyHit : " << MolToSmiles(hit) << std::endl;
   auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = 1;
   dgParams.pruneRmsThresh = getParams().confRMSThreshold;
@@ -564,10 +565,10 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
   ShapeInputOptions opts;
 
   std::vector<float> matrix(12, 0.0);
-  RDGeom::Transform3D qshift;
-  qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
-                                        -dp_queryShapes->shift[1],
-                                        -dp_queryShapes->shift[2]});
+  // RDGeom::Transform3D qshift;
+  // qshift.SetTranslation(RDGeom::Point3D{-dp_queryShapes->shift[0],
+  //                                       -dp_queryShapes->shift[1],
+  //                                       -dp_queryShapes->shift[2]});
   for (auto &isomer : hitConfs) {
     auto hitShapes = PrepareConformers(*isomer, opts, 1.9);
     for (size_t i = 0U; i < dp_queryShapes->getNumShapes(); ++i) {
@@ -575,8 +576,9 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
       for (unsigned int j = 0u; j < hitShapes->getNumShapes(); ++j) {
         hitShapes->setActiveShape(j);
         auto [st, ct] = AlignShape(*dp_queryShapes, *hitShapes, matrix);
-
         if (st + ct >= bestSim) {
+          // std::cout << i << " to " << j << " :: " << st + ct << " vs "
+          //           << bestSim << std::endl;
           hit.setProp<double>("Similarity", st + ct);
           hit.setProp<unsigned int>("Query_Conformer",
                                     dp_queryShapes->molConfs[i]);
@@ -585,10 +587,12 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
           hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
           // Copy the conformer into the hit.
           hit.clearConformers();
-          hit.addConformer(
-              new Conformer(isomer->getConformer(hitShapes->molConfs[j])),
-              true);
-          MolTransforms::transformConformer(hit.getConformer(0), qshift);
+          auto hitConf =
+              new Conformer(isomer->getConformer(hitShapes->molConfs[j]));
+          auto hitShape = hitShapes->makeSingleShape(j);
+          TransformConformer(dp_queryShapes->shift, matrix, hitShape, *hitConf);
+          hit.addConformer(hitConf, true);
+          // MolTransforms::transformConformer(hit.getConformer(0), qshift);
           MolOps::assignStereochemistryFrom3D(hit);
           // If we're only interested in whether there's a shape match, and
           // not in finding the best shape, we're done.

@@ -66,6 +66,7 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
   }
   if (!extraSearchSetup(fragments, endTime) ||
       ControlCHandler::getGotSignal()) {
+    std::cout << "extraSearchSetup failed" << std::endl;
     return SearchResults{std::move(results), 0ULL, timedOut, true};
   }
 

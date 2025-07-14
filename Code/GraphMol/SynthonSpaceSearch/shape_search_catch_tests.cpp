@@ -413,10 +413,8 @@ C=Cc1ccc(S(=O)(=O)[U])cc1	100000034458	2	20a	2024-09
 }
 
 TEST_CASE("Test Test") {
-  REQUIRE(rdbase);
-  std::string fName(rdbase);
   std::string spaceName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_0_dg.spc";
+      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/small_tester.spc";
   std::cout << spaceName << std::endl;
 
   SynthonSpace space;
@@ -428,23 +426,35 @@ TEST_CASE("Test Test") {
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
   params.numThreads = 1;
-  params.similarityCutoff = 1.6;
   params.numConformers = 100;
-  params.confRMSThreshold = 1.0;
+  params.confRMSThreshold = -1.0;
   params.timeOut = 0;
   params.randomSeed = -1;
 
   params.fragSimilarityAdjuster = 0.1;
   params.approxSimilarityAdjuster = 0.1;
-  params.similarityCutoff = 1.6;
+  params.similarityCutoff = 1.0;
   params.numThreads = 1;
   params.timeOut = 0;
   params.useProgressBar = 30;
+  params.bestHit = true;
 
   auto mol =
-      "[H]c1nc(C([H])([H])[S@](=O)c2nc3c([H])c([H])c(OC([H])([H])[H])c([H])c3n2[H])c(C([H])([H])[H])c(OC([H])([H])[H])c1C([H])([H])[H] |(4.7214,2.519,1.5115;4.4044,1.6116,1.0067;3.0761,1.369,1.0722;2.6468,0.2481,0.4571;1.1694,-0.0051,0.5395;0.9382,-1.0732,0.5874;0.7773,0.4397,1.4622;0.2801,0.7535,-0.8506;0.4081,2.2558,-0.6932;-1.397,0.2748,-0.4545;-1.7127,-0.8258,0.1906;-3.0854,-0.8042,0.2831;-3.9657,-1.728,0.8715;-3.5942,-2.628,1.3511;-5.3402,-1.4632,0.8268;-6.0299,-2.1719,1.2795;-5.831,-0.3087,0.2126;-7.1755,-0.0818,0.1881;-7.6182,1.1125,-0.4522;-7.2494,2.0067,0.0619;-8.7106,1.1319,-0.3795;-7.3705,1.114,-1.5192;-4.9692,0.6215,-0.3779;-5.2844,1.5331,-0.8681;-3.6044,0.3372,-0.3214;-2.5021,1.0087,-0.7845;-2.508,1.89,-1.2809;3.4646,-0.6395,-0.2162;2.9178,-1.8613,-0.8742;2.0479,-1.6273,-1.4953;3.6374,-2.3358,-1.5489;2.6356,-2.6038,-0.1206;4.825,-0.3558,-0.2617;5.6794,-1.1955,-0.9123;6.2584,-2.2501,-0.147;6.8888,-2.8473,-0.8116;5.4829,-2.8986,0.2725;6.8829,-1.8494,0.657;5.3119,0.7892,0.359;6.7596,1.1374,0.3384;6.917,2.1997,0.5559;7.3017,0.554,1.0889;7.1977,0.9493,-0.6474),wU:7.6|"_smiles;
+      "CCC(F)(F)COC(=O)C(Cc1c[nH]c2cc(F)ccc12)NC(C)=O |(5.45863,-2.29008,-0.0988483;4.31251,-1.45883,0.447319;4.68134,0.00419526,0.362942;4.90882,0.309359,-0.968681;5.82209,0.265296,1.0573;3.59843,0.903763,0.877059;2.37341,0.767205,0.162903;1.33193,1.58275,0.586751;1.43751,2.39961,1.53934;0.0273544,1.44642,-0.166373;-0.493418,0.0573742,0.0830631;-1.75761,-0.267172,-0.577129;-2.47391,0.350352,-1.57152;-3.5951,-0.32546,-1.86922;-3.62766,-1.40183,-1.06773;-4.5852,-2.41839,-0.982735;-4.36953,-3.41733,-0.0580598;-5.3056,-4.41732,0.0313015;-3.26899,-3.45386,0.770428;-2.33955,-2.43079,0.660126;-2.51204,-1.40117,-0.256691;-0.941426,2.39438,0.389167;-1.46966,3.48597,-0.360923;-2.46533,4.41728,0.279301;-1.14964,3.72776,-1.55268)|"_smiles;
   REQUIRE(mol);
   auto results = space.shapeSearch(*mol, params);
   std::cout << "Number of hits : " << results.getHitMolecules().size()
             << std::endl;
+  for (const auto &hit : results.getHitMolecules()) {
+    std::cout << hit->getProp<std::string>(common_properties::_Name) << " : "
+              << hit->getProp<double>("Similarity") << " : "
+              << MolToCXSmiles(*hit) << std::endl;
+  }
+  std::string hitsFile =
+      spaceName.substr(0, spaceName.length() - 4) + "_hits.sdf";
+  SDWriter writer(hitsFile);
+  for (const auto &hit : results.getHitMolecules()) {
+    writer.write(*hit);
+  }
+  writer.close();
 }
