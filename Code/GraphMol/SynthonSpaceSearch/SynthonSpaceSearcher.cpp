@@ -228,7 +228,8 @@ SynthonSpaceSearcher::doTheSearch(
     // doing all the work if all the hits come from 1 reaction.
     std::unique_ptr<ProgressBar> pbar;
     if (getParams().useProgressBar) {
-      pbar.reset(new ProgressBar(70, reactionNames.size() * fragSets.size()));
+      pbar.reset(new ProgressBar(getParams().useProgressBar,
+                                 reactionNames.size() * fragSets.size()));
     }
     for (const auto &reactionName : reactionNames) {
       const auto &reaction = getSpace().getReaction(reactionName);
@@ -442,6 +443,11 @@ void SynthonSpaceSearcher::buildAllHits(
   std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>> toTry;
   bool enoughHits = false;
 
+  if (hitsets.empty()) {
+    BOOST_LOG(rdWarningLog) << "No possible synthon matches." << std::endl;
+    return;
+  }
+
   // Each hitset contains possible hits from a single SynthonSet.
   for (const auto &hitset : hitsets) {
     // Set up the stepper to move through the synthons.
@@ -560,7 +566,7 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
   std::atomic<std::int64_t> mostRecentTry = -1;
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
-    pbar.reset(new ProgressBar(70, toTry.size()));
+    pbar.reset(new ProgressBar(getParams().useProgressBar, toTry.size()));
     std::cout << "Building and checking hits." << std::endl;
   }
 #if RDK_BUILD_THREADSAFE_SSS

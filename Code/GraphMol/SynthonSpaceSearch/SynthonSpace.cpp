@@ -774,7 +774,8 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
   }
   std::unique_ptr<ProgressBar> pbar;
   if (shapeParams.useProgressBar) {
-    pbar.reset(new ProgressBar(70, allSampleMols.size()));
+    pbar.reset(
+        new ProgressBar(shapeParams.useProgressBar, allSampleMols.size()));
   }
 
   while (true && !cancelled) {

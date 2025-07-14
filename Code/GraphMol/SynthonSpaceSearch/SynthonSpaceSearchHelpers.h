@@ -114,7 +114,12 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
                        // threads plus this number.  So if the number of
                        // hardware threads is 8, and numThreads is -1, it will
                        // use 7 threads.
-  bool useProgressBar{false};  // If true, displays a progress bar
+  unsigned int useProgressBar{0};  // Makes a progress bar of given width.  The
+                                   // number given is the number of '*'
+                                   // characters in a full bar.  There will be
+                                   // about another 35 characters or so
+                                   // depending on the size of the job.  0
+                                   // means no bar.
 };
 
 // Options to be passed to buildSynthonShapes.
@@ -135,10 +140,15 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT ShapeBuildParams {
       true, true, false, true,
       0,    -1};  // Options for stereoisomer enumeration.  Over-ride default
                   // tryEmbedding of false.
-  bool useProgressBar{false};         // If true, displays a progress bar
-  unsigned int maxSynthonAtoms{0};    // If > 0, sets a maximum number of heavy
-                                      // atoms, excluding dummies, for a synthon
-                                      // to have a shape made.
+  unsigned int useProgressBar{0};   // Makes a progress bar of given width.  The
+                                    // number given is the number of '*'
+                                    // characters in a full bar.  There will be
+                                    // about another 35 characters or so
+                                    // depending on the size of the job.  0
+                                    // means no bar.
+  unsigned int maxSynthonAtoms{0};  // If > 0, sets a maximum number of heavy
+                                    // atoms, excluding dummies, for a synthon
+                                    // to have a shape made.
   unsigned int maxEmbedAttempts{10};  // Maximum attempts for an embedding.
   unsigned int timeOut{60};  // Maximum time in seconds to spend on each synthon
                              // when generating conformers.

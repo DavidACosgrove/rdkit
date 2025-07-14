@@ -483,7 +483,8 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
     pbar.reset(new ProgressBar(
-        70, d_fragShapesPool.size() * getSpace().d_synthonPool.size()));
+        getParams().useProgressBar,
+        d_fragShapesPool.size() * getSpace().d_synthonPool.size()));
     std::cout << "Computing fragment/synthon shape similarities for "
               << d_fragShapesPool.size() << " fragments against "
               << getSpace().d_synthonPool.size() << " synthons with "

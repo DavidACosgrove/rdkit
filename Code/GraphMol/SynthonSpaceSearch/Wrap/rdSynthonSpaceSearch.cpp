@@ -359,7 +359,10 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def_readwrite(
           "useProgressBar",
           &SynthonSpaceSearch::SynthonSpaceSearchParams::useProgressBar,
-          "If True, display progress bars.  Default=False.")
+          "Makes a progress bar of given width.  The number given is the"
+          " number of '*' characters in a full bar.  There will"
+          " be about another 35 characters or so depending on the size of the"
+          " job.  Default=0 means no bar.")
       .def("__setattr__", &safeSetattr);
 
   docString = "Parameters for building shape objects for SynthonSpaceSearch.";
@@ -387,9 +390,13 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def_readwrite("stereoEnumOpts",
                      &SynthonSpaceSearch::ShapeBuildParams::stereoEnumOpts,
                      "Options for stereoisomer enumeration.")
-      .def_readwrite("useProgressBar",
-                     &SynthonSpaceSearch::ShapeBuildParams::useProgressBar,
-                     "If True, display progress bars.  Default=False.")
+      .def_readwrite(
+          "useProgressBar",
+          &SynthonSpaceSearch::ShapeBuildParams::useProgressBar,
+          "Makes a progress bar of given width.  The number given is the"
+          " number of '*' characters in a full bar.  There will"
+          " be about another 35 characters or so depending on the size of the"
+          " job.  Default=0 means no bar.")
       .def_readwrite(
           "maxSynthonAtoms",
           &SynthonSpaceSearch::ShapeBuildParams::maxSynthonAtoms,
