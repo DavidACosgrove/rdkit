@@ -610,6 +610,7 @@ void SynthonSpaceSearcher::sortToTryByApproxSimilarity(
     std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
         &toTry) const {
   std::vector<std::pair<size_t, double>> tmp;
+  // toTry will always have something in it at this point.
   tmp.reserve(toTry.size());
   for (size_t i = 0; i < toTry.size(); i++) {
     tmp.emplace_back(i, approxSimilarity(toTry[i].first, toTry[i].second));
@@ -618,8 +619,8 @@ void SynthonSpaceSearcher::sortToTryByApproxSimilarity(
             [](const auto &lhs, const auto &rhs) -> bool {
               return lhs.second > rhs.second;
             });
-  std::cout << "Best approx similarity : " << tmp.front().second
-            << " and worst : " << tmp.back().second << std::endl;
+  BOOST_LOG(rdInfoLog) << "Best approx similarity : " << tmp.front().second
+                       << " and worst : " << tmp.back().second << std::endl;
   std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
       newToTry;
   newToTry.reserve(tmp.size());

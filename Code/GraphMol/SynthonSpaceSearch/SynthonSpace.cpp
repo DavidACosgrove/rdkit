@@ -637,7 +637,6 @@ void SynthonSpace::buildSynthonFingerprints(
   if (d_synthonReactions.empty()) {
     fillSynthonReactions();
   }
-  reportSynthonUsage(std::cout);
 
   std::vector<unsigned int> doneRxns(d_synthonPool.size(), 0u);
   bool cancelled = false;
@@ -748,7 +747,6 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
   if (d_synthonReactions.empty()) {
     fillSynthonReactions();
   }
-  reportSynthonUsage(std::cout);
 
   d_numConformers = shapeParams.numConfs;
   std::vector<unsigned int> doneRxns(d_synthonPool.size(), 0u);
@@ -761,10 +759,6 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
                     [](const auto &sm1, const auto &sm2) -> bool {
                       return sm1.front()->d_numAtoms > sm2.front()->d_numAtoms;
                     });
-  std::cout << "Number of synthons within size range : " << allSampleMols.size()
-            << " Sample molecule size range : "
-            << allSampleMols.front().front()->d_numAtoms << " to "
-            << allSampleMols.back().front()->d_numAtoms << std::endl;
 
   bool interimWrite = true;
   if (shapeParams.interimWrites == 0 || shapeParams.interimFile.empty()) {
@@ -802,7 +796,6 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     if (sampleMols.empty()) {
       break;
     }
-    std::cout << "Doing next " << sampleMols.size() << " mols" << std::endl;
     std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
       return a->d_numAtoms > b->d_numAtoms;
     });
@@ -815,11 +808,10 @@ void SynthonSpace::buildSynthonShapes(bool &cancelled,
     auto numWithShapesB4 = getNumSynthonsWithShapes();
     details::makeShapesFromMols(sampleMols, dgParams, shapeParams, pbar);
     auto numWithShapes = getNumSynthonsWithShapes();
-    std::cout << "\nNum shapes : " << numWithShapesB4 << " to " << numWithShapes
-              << std::endl;
     if (interimWrite && numWithShapes > numWithShapesB4) {
-      std::cout << "Writing interim file " << shapeParams.interimFile
-                << " with " << numWithShapes << " shapes." << std::endl;
+      BOOST_LOG(rdInfoLog) << "Writing interim file " << shapeParams.interimFile
+                           << " with " << numWithShapes << " shapes."
+                           << std::endl;
       writeInterimFile(*this, shapeParams.interimFile);
     }
     if (ControlCHandler::getGotSignal()) {

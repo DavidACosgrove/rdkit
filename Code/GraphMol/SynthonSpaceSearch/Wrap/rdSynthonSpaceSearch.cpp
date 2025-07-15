@@ -180,8 +180,12 @@ SynthonSpaceSearch::SearchResults shapeSearch_helper(
   return results;
 }
 
-void summariseHelper(SynthonSpaceSearch::SynthonSpace &self) {
+void summarise_helper(SynthonSpaceSearch::SynthonSpace &self) {
   self.summarise(std::cout);
+}
+
+void reportSynthonUsage_helper(SynthonSpaceSearch::SynthonSpace &self) {
+  self.reportSynthonUsage(std::cout);
 }
 
 void convertTextToDBFile_helper(const std::string &inFilename,
@@ -462,8 +466,11 @@ BOOST_PYTHON_MODULE(rdSynthonSpaceSearch) {
       .def("GetNumSynthons", &SynthonSpaceSearch::SynthonSpace::getNumSynthons,
            python::arg("self"),
            "Returns number of synthons in the SynthonSpace.")
-      .def("Summarise", &summariseHelper, python::arg("self"),
+      .def("Summarise", &summarise_helper, python::arg("self"),
            "Writes a summary of the SynthonSpace to stdout.")
+      .def(
+          "ReportSynthonUsage", &reportSynthonUsage_helper, python::arg("self"),
+          "Writes a summary of the synthon usage in the SynthonSpace to stdout.")
       .def("GetSynthonFingerprintType",
            &SynthonSpaceSearch::SynthonSpace::getSynthonFingerprintType,
            python::arg("self"),

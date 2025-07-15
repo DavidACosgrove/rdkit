@@ -103,9 +103,6 @@ TEST_CASE("Shape Small tests") {
   shapeBuildOptions.numThreads = 1;
 
   for (size_t i = 0; i < libNames.size(); i++) {
-    // if (i != 0) {
-    // continue;
-    // }
     SynthonSpace synthonspace;
     bool cancelled = false;
     synthonspace.readTextFile(libNames[i], cancelled);
@@ -120,21 +117,15 @@ TEST_CASE("Shape Small tests") {
     params.randomSeed = 1;
     params.bestHit = true;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
-    std::cout << "Number of query confs from " << querySmis[i]
-              << " :: " << queryMol->getNumConformers() << std::endl;
     auto results = synthonspace.shapeSearch(*queryMol, params);
-    std::cout << "Num hits : " << results.getHitMolecules().size() << " : "
-              << results.getMaxNumResults() << std::endl;
-    for (const auto &hit : results.getHitMolecules()) {
-      std::cout << hit->getProp<std::string>(common_properties::_Name) << " : "
-                << hit->getProp<double>("Similarity") << std::endl;
-    }
     CHECK(expNumHits[i] == results.getHitMolecules().size());
     RDKit::SDWriter sdw(searchOutputNames[i]);
     for (const auto &hit : results.getHitMolecules()) {
       sdw.write(*hit);
     }
 #if 0
+    // Leave this in for now, in case we need to check brute force search
+    // in future.
     auto mols = loadLibrary(enumLibNames[i]);
     prepareMolecule(queryMol.get());
     RDKit::SDWriter sdw2(enumOutputNames[i]);
@@ -247,10 +238,6 @@ COCc1nc([1*:1])cc([2*:2])n1	J	2	r4	3
 FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   bool cancelled = false;
   synthonspace.readStream(iss, cancelled);
-  std::cout << "Number of reactions " << synthonspace.getNumReactions()
-            << std::endl;
-  std::cout << "Number of products : " << synthonspace.getNumProducts()
-            << std::endl;
   synthonspace.writeEnumeratedFile("tagrisso_hits_space_enum.smi");
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
@@ -282,8 +269,6 @@ FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
     auto results = synthonspace.shapeSearch(*tagrisso_pdb_core, params);
     std::string outFileName = "tagrisso_core_hits.sdf";
     if (!results.getHitMolecules().empty()) {
-      std::cout << "Writing " << results.getHitMolecules().size() << " to "
-                << outFileName << std::endl;
       SDWriter writer(outFileName);
       for (const auto &m : results.getHitMolecules()) {
         writer.write(*m);
@@ -292,23 +277,16 @@ FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
           hit_centre += m->getConformer().getAtomPos(atom->getIdx());
         }
         hit_centre /= m->getNumAtoms();
-        std::cout << "hit_centre : " << hit_centre << " : "
-                  << m->getProp<std::string>("Similarity") << " : "
-                  << m->getProp<std::string>("_Name") << std::endl;
         CHECK((hit_centre - tag_centre).length() < 2.0);
         foundHit = true;
       }
       break;
-    } else {
-      std::cout << "No hits in run " << i << std::endl;
     }
   }
   CHECK(foundHit);
 }
 
 TEST_CASE("Unspecified Stereo") {
-  std::cout << sizeof(void *) << std::endl;
-
   auto m1 = "C[C@H](Cl)CCOOC(Cl)F"_smiles;
   REQUIRE(m1);
   CHECK(details::hasUnspecifiedStereo(*m1) == true);
@@ -343,9 +321,6 @@ FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   bool cancelled = false;
   space.readStream(iss, cancelled);
 
-  std::ostringstream oss;
-  space.enumerateToStream(oss);
-  std::cout << oss.str() << std::endl;
   ShapeBuildParams shapeOptions;
   shapeOptions.randomSeed = 1;
   space.buildSynthonShapes(cancelled, shapeOptions);
@@ -370,18 +345,12 @@ FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   results = space.shapeSearch(*m5, params);
   REQUIRE(results.getHitMolecules().size() == 1);
   auto &hitMol1 = results.getHitMolecules().front();
-  std::cout << hitMol1->getProp<std::string>(common_properties::_Name) << " : "
-            << hitMol1->getProp<double>("Similarity") << " : "
-            << hitMol1->getProp<std::string>("Query_CXSmiles") << std::endl;
   double firstSim = hitMol1->getProp<double>("Similarity");
 
   params.bestHit = true;
   results = space.shapeSearch(*m5, params);
   REQUIRE(results.getHitMolecules().size() == 1);
   auto &hitMol2 = results.getHitMolecules().front();
-  std::cout << hitMol2->getProp<std::string>(common_properties::_Name) << " : "
-            << hitMol2->getProp<double>("Similarity") << " : "
-            << hitMol2->getProp<std::string>("Query_CXSmiles") << std::endl;
   double bestSim = hitMol2->getProp<double>("Similarity");
   CHECK(bestSim > firstSim);
 }
@@ -428,12 +397,8 @@ TEST_CASE("Shape Best Hit Found") {
       "CCC(C(=O)NCc1ccco1)N(Cc1sccc1C)C(C)C |(1.19967,-2.26511,-1.8853;-0.0674677,-1.53728,-1.54329;-0.0395195,-0.735921,-0.2957;0.978688,0.316536,-0.356493;0.610079,1.54481,-0.391485;2.37979,0.114038,-0.377756;3.31574,1.24811,-0.443092;4.723,0.774447,-0.458657;5.58509,0.534718,0.592748;6.76773,0.108395,-0.00740365;6.56938,0.109237,-1.38929;5.34763,0.509833,-1.60401;-1.33892,-0.260032,0.0922388;-2.08764,0.476264,-0.832263;-3.39845,0.92709,-0.383151;-4.99177,0.223473,-0.828611;-5.94415,1.34626,0.133161;-5.00918,2.1798,0.729651;-3.7235,1.96002,0.462253;-2.60368,2.81164,1.05297;-1.99138,-1.01276,1.09008;-1.10607,-0.965532,2.34165;-2.26411,-2.45544,0.780694)|"_smiles;
   REQUIRE(mol);
   auto results = space.shapeSearch(*mol, params);
-  std::cout << "Number of hits : " << results.getHitMolecules().size()
-            << std::endl;
   CHECK(results.getHitMolecules().empty());
   auto &bestHit = results.getBestHit();
-  std::cout << "Best hit found : " << bestHit->getProp<double>("Similarity")
-            << std::endl;
   CHECK(bestHit);
   CHECK(bestHit->getProp<double>("Similarity") < 1.0);
 }

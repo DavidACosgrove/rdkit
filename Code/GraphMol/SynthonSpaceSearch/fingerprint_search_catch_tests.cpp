@@ -62,7 +62,6 @@ std::set<std::string> bruteForceSearch(
   std::set<std::string> names;
   for (auto &it : fps) {
     if (auto sim = TanimotoSimilarity(*it.second, *queryFP); sim >= simCutoff) {
-      std::cout << it.first << " BF : " << sim << std::endl;
       names.insert(it.first);
     }
   }
