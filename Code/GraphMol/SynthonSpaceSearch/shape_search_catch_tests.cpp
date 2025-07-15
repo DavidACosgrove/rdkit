@@ -216,12 +216,6 @@ TEST_CASE("Build conformer DB") {
   bool cancelled = false;
   SynthonSpace synthonspace;
   synthonspace.readTextFile(libName, cancelled);
-  std::cout << "Number of reactions " << synthonspace.getNumReactions()
-            << std::endl;
-  std::cout << "Number of products : " << synthonspace.getNumProducts()
-            << std::endl;
-  std::cout << "Number of unique synthons : " << synthonspace.getNumSynthons()
-            << std::endl;
 
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
@@ -233,7 +227,6 @@ TEST_CASE("Build conformer DB") {
   shapeBuildOptions.interimWrites = 100;
 
   synthonspace.buildSynthonShapes(cancelled, shapeBuildOptions);
-  std::cout << "writing to " << spaceName << std::endl;
   synthonspace.writeDBFile(spaceName);
 }
 
@@ -412,17 +405,14 @@ C=Cc1ccc(S(=O)(=O)[U])cc1	100000034458	2	20a	2024-09
   CHECK_NOTHROW(space.buildSynthonShapes(cancelled, shapeOptions));
 }
 
-TEST_CASE("Test Test") {
+TEST_CASE("Best hit found") {
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
   std::string spaceName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/small_tester.spc";
-  std::cout << spaceName << std::endl;
+      fName + "/Code/GraphMol/SynthonSpaceSearch/data/small_freedom_shapes.spc";
 
   SynthonSpace space;
   space.readDBFile(spaceName);
-  std::cout << "Number of reactions " << space.getNumReactions() << std::endl;
-  std::cout << "Number of products : " << space.getNumProducts() << std::endl;
-  std::cout << "Number of unique synthons : " << space.getNumSynthons()
-            << std::endl;
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
   params.numThreads = 1;
@@ -434,21 +424,63 @@ TEST_CASE("Test Test") {
   params.fragSimilarityAdjuster = 0.1;
   params.approxSimilarityAdjuster = 0.1;
   params.similarityCutoff = 1.0;
-  params.numThreads = 1;
   params.timeOut = 0;
-  params.useProgressBar = 30;
-  params.bestHit = true;
 
   auto mol =
-      "CCC(F)(F)COC(=O)C(Cc1c[nH]c2cc(F)ccc12)NC(C)=O |(5.45863,-2.29008,-0.0988483;4.31251,-1.45883,0.447319;4.68134,0.00419526,0.362942;4.90882,0.309359,-0.968681;5.82209,0.265296,1.0573;3.59843,0.903763,0.877059;2.37341,0.767205,0.162903;1.33193,1.58275,0.586751;1.43751,2.39961,1.53934;0.0273544,1.44642,-0.166373;-0.493418,0.0573742,0.0830631;-1.75761,-0.267172,-0.577129;-2.47391,0.350352,-1.57152;-3.5951,-0.32546,-1.86922;-3.62766,-1.40183,-1.06773;-4.5852,-2.41839,-0.982735;-4.36953,-3.41733,-0.0580598;-5.3056,-4.41732,0.0313015;-3.26899,-3.45386,0.770428;-2.33955,-2.43079,0.660126;-2.51204,-1.40117,-0.256691;-0.941426,2.39438,0.389167;-1.46966,3.48597,-0.360923;-2.46533,4.41728,0.279301;-1.14964,3.72776,-1.55268)|"_smiles;
+      "CCC(C(=O)NCc1ccco1)N(Cc1sccc1C)C(C)C |(1.19967,-2.26511,-1.8853;-0.0674677,-1.53728,-1.54329;-0.0395195,-0.735921,-0.2957;0.978688,0.316536,-0.356493;0.610079,1.54481,-0.391485;2.37979,0.114038,-0.377756;3.31574,1.24811,-0.443092;4.723,0.774447,-0.458657;5.58509,0.534718,0.592748;6.76773,0.108395,-0.00740365;6.56938,0.109237,-1.38929;5.34763,0.509833,-1.60401;-1.33892,-0.260032,0.0922388;-2.08764,0.476264,-0.832263;-3.39845,0.92709,-0.383151;-4.99177,0.223473,-0.828611;-5.94415,1.34626,0.133161;-5.00918,2.1798,0.729651;-3.7235,1.96002,0.462253;-2.60368,2.81164,1.05297;-1.99138,-1.01276,1.09008;-1.10607,-0.965532,2.34165;-2.26411,-2.45544,0.780694)|"_smiles;
   REQUIRE(mol);
   auto results = space.shapeSearch(*mol, params);
   std::cout << "Number of hits : " << results.getHitMolecules().size()
             << std::endl;
+  CHECK(results.getHitMolecules().empty());
+  auto &bestHit = results.getBestHit();
+  CHECK(bestHit);
+  std::cout << "Best hit found at similarity "
+            << bestHit->getProp<double>("Similarity") << std::endl;
+  CHECK(bestHit->getProp<double>("Similarity") < 1.0);
+}
+
+TEST_CASE("Test Test") {
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
+  std::string spaceName =
+      fName + "/Code/GraphMol/SynthonSpaceSearch/data/small_freedom_shapes.spc";
+
+  SynthonSpace space;
+  space.readDBFile(spaceName);
+  std::cout << "Number of reactions " << space.getNumReactions() << std::endl;
+  std::cout << "Number of products : " << space.getNumProducts() << std::endl;
+  std::cout << "Number of unique synthons : " << space.getNumSynthons()
+            << std::endl;
+  SynthonSpaceSearchParams params;
+  params.maxHits = -1;
+  params.numThreads = 1;
+  params.numConformers = 200;
+  params.confRMSThreshold = -1;
+  params.timeOut = 0;
+  params.randomSeed = 0xdac;
+
+  params.fragSimilarityAdjuster = 0.1;
+  params.approxSimilarityAdjuster = 0.1;
+  params.similarityCutoff = 1.8;
+  params.timeOut = 0;
+  params.useProgressBar = 0;
+  params.bestHit = true;
+
+  auto mol =
+      "O=Cc1cnccc1Sc1cc(OCc2ccccc2)c(F)cc1F |(6.59594,-1.3949,0.709968;5.53423,-1.20415,0.0650461;4.95595,0.129889,0.0146237;5.58013,1.18286,0.635053;5.09371,2.44915,0.595991;3.94027,2.68328,-0.0862861;3.28611,1.63805,-0.723556;3.7949,0.338271,-0.676828;2.88523,-0.932373,-1.52824;1.61867,-1.55174,-0.445055;0.379187,-0.92153,-0.443719;-0.662597,-1.33792,0.360902;-1.89623,-0.737936,0.385353;-2.24237,0.385903,-0.419257;-3.65792,0.741188,-0.108324;-3.99291,1.63407,0.889951;-5.32401,1.8887,1.09144;-6.33177,1.29716,0.347264;-5.99658,0.407297,-0.647548;-4.65531,0.14908,-0.852445;-0.480409,-2.43184,1.21109;-1.45754,-2.8861,2.02002;0.747071,-3.07451,1.22541;1.76593,-2.62087,0.398952;2.93371,-3.2905,0.454572)|"_smiles;
+  REQUIRE(mol);
+  auto results = space.shapeSearch(*mol, params);
+  std::cout << "Number of hits : " << results.getHitMolecules().size()
+            << std::endl;
+  CHECK(results.getHitMolecules().size() == 2);
+  // We get the same molecule made 2 different ways.  The conformers generated
+  // are slightly different.  This checks that they are properly aligned in
+  // the final answer, which wasn't always the case.
   for (const auto &hit : results.getHitMolecules()) {
-    std::cout << hit->getProp<std::string>(common_properties::_Name) << " : "
-              << hit->getProp<double>("Similarity") << " : "
-              << MolToCXSmiles(*hit) << std::endl;
+    CHECK(hit->getProp<double>("Similarity") > 1.9);
+    auto rms = MolAlign::CalcRMS(*hit, *mol);
+    CHECK(rms < 0.15);
   }
   std::string hitsFile =
       spaceName.substr(0, spaceName.length() - 4) + "_hits.sdf";
@@ -457,4 +489,39 @@ TEST_CASE("Test Test") {
     writer.write(*hit);
   }
   writer.close();
+}
+
+TEST_CASE("Crash") {
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
+  std::string spaceName =
+      fName + "/Code/GraphMol/SynthonSpaceSearch/data/small_freedom_shapes.spc";
+
+  SynthonSpace space;
+  space.readDBFile(spaceName);
+  SynthonSpaceSearchParams params;
+  params.maxHits = -1;
+  params.numThreads = -1;
+  params.numConformers = 200;
+  params.confRMSThreshold = 0.25;
+  params.timeOut = 0;
+  params.randomSeed = 0xdac;
+
+  params.fragSimilarityAdjuster = 0.1;
+  params.approxSimilarityAdjuster = 0.1;
+  params.similarityCutoff = 1.6;
+  params.timeOut = 0;
+
+  auto mol =
+      "CCC(F)(F)COC(=O)C(Cc1c[nH]c2cc(F)ccc12)NC(C)=O |(5.45863,-2.29008,-0.0988483;4.31251,-1.45883,0.447319;4.68134,0.00419526,0.362942;4.90882,0.309359,-0.968681;5.82209,0.265296,1.0573;3.59843,0.903763,0.877059;2.37341,0.767205,0.162903;1.33193,1.58275,0.586751;1.43751,2.39961,1.53934;0.0273544,1.44642,-0.166373;-0.493418,0.0573742,0.0830631;-1.75761,-0.267172,-0.577129;-2.47391,0.350352,-1.57152;-3.5951,-0.32546,-1.86922;-3.62766,-1.40183,-1.06773;-4.5852,-2.41839,-0.982735;-4.36953,-3.41733,-0.0580598;-5.3056,-4.41732,0.0313015;-3.26899,-3.45386,0.770428;-2.33955,-2.43079,0.660126;-2.51204,-1.40117,-0.256691;-0.941426,2.39438,0.389167;-1.46966,3.48597,-0.360923;-2.46533,4.41728,0.279301;-1.14964,3.72776,-1.55268)|"_smiles;
+  REQUIRE(mol);
+  auto results = space.shapeSearch(*mol, params);
+  std::cout << "Number of hits : " << results.getHitMolecules().size()
+            << std::endl;
+  CHECK(results.getHitMolecules().empty());
+  auto &bestHit = results.getBestHit();
+  REQUIRE(bestHit);
+  std::cout << "Best hit found at similarity "
+            << bestHit->getProp<double>("Similarity") << std::endl;
+  CHECK(bestHit->getProp<double>("Similarity") < 1.0);
 }
