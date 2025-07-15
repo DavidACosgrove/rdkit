@@ -25,7 +25,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SearchResults {
  public:
   explicit SearchResults() : d_maxNumResults(0) {}
   SearchResults(std::vector<std::unique_ptr<ROMol>> &&mols,
-                std::uint64_t maxNumRes, bool timedOut, bool cancelled);
+                std::unique_ptr<ROMol> &&bestHit, std::uint64_t maxNumRes,
+                bool timedOut, bool cancelled);
   SearchResults(const SearchResults &other);
   SearchResults(SearchResults &&other) = default;
   ~SearchResults() = default;
@@ -46,11 +47,20 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SearchResults {
    * Returns the hit molecules from the search. Not necessarily all
    * those possible, just the maximum number requested.
    *
-   * @return std::vector<std::unique_ptr<ROMol>>
+   * @return const std::vector<std::unique_ptr<ROMol>> &
    */
   const std::vector<std::unique_ptr<ROMol>> &getHitMolecules() const {
     return d_hitMolecules;
   }
+
+  /*!
+   * Returns the best hit found in a similarity search, even when none
+   * were under the search threshold.  May be empty, for example if it
+   * was a substructure search.
+   *
+   * @return const std::unique_ptr<ROMol> &
+   */
+  const std::unique_ptr<ROMol> &getBestHit() const { return d_bestHitFound; }
 
   /*!
    * Returns whether the search timed out or not,
@@ -79,6 +89,12 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SearchResults {
   std::uint64_t d_maxNumResults;
   bool d_timedOut{false};
   bool d_cancelled{false};
+
+  // Even if there were no hits within the cutoff, the similarity
+  // searches will but the best hit it found in this molecule, with
+  // the similarity value in the "Similarity" property as for the
+  // genuine hits.
+  std::unique_ptr<ROMol> d_bestHitFound;
 };
 
 }  // namespace RDKit::SynthonSpaceSearch

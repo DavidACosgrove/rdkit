@@ -546,11 +546,10 @@ double SynthonSpaceShapeSearcher::approxSimilarity(
   return maxSt + maxCt;
 }
 
-bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
+bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) {
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
-  std::cout << "verifyHit : " << MolToSmiles(hit) << std::endl;
   auto dgParams = DGeomHelpers::ETKDGv3;
   dgParams.numThreads = 1;
   dgParams.pruneRmsThresh = getParams().confRMSThreshold;
@@ -571,6 +570,7 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) const {
       for (unsigned int j = 0u; j < hitShapes->getNumShapes(); ++j) {
         hitShapes->setActiveShape(j);
         auto [st, ct] = AlignShape(*dp_queryShapes, *hitShapes, matrix);
+        updateBestHitSoFar(hit, st + ct);
         if (st + ct >= bestSim) {
           hit.setProp<double>("Similarity", st + ct);
           hit.setProp<unsigned int>("Query_Conformer",

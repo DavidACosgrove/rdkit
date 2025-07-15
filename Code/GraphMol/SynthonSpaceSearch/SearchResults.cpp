@@ -12,11 +12,14 @@
 
 namespace RDKit::SynthonSpaceSearch {
 SearchResults::SearchResults(std::vector<std::unique_ptr<ROMol>> &&mols,
+                             std::unique_ptr<ROMol> &&bestHitFound,
                              const std::uint64_t maxNumRes, bool timedOut,
                              bool cancelled)
     : d_maxNumResults(maxNumRes), d_timedOut(timedOut), d_cancelled(cancelled) {
   d_hitMolecules = std::move(mols);
   mols.clear();
+  d_bestHitFound = std::move(bestHitFound);
+  bestHitFound.reset();
 }
 
 SearchResults::SearchResults(const SearchResults &other)
@@ -26,6 +29,7 @@ SearchResults::SearchResults(const SearchResults &other)
   for (const auto &hm : other.d_hitMolecules) {
     d_hitMolecules.emplace_back(new ROMol(*hm));
   }
+  d_bestHitFound.reset(new ROMol(*other.d_bestHitFound));
 }
 
 void SearchResults::mergeResults(SearchResults &other) {
@@ -58,6 +62,14 @@ void SearchResults::mergeResults(SearchResults &other) {
         }
       }
     }
+  }
+  if (d_bestHitFound && other.d_bestHitFound) {
+    if (d_bestHitFound->getProp<double>("Similarity") <
+        other.d_bestHitFound->getProp<double>("Similarity")) {
+      d_bestHitFound.reset(new ROMol(*other.d_bestHitFound));
+    }
+  } else if (!d_bestHitFound && other.d_bestHitFound) {
+    d_bestHitFound.reset(new ROMol(*other.d_bestHitFound));
   }
   other.d_hitMolecules.clear();
   other.d_maxNumResults = 0;

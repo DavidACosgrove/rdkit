@@ -473,7 +473,7 @@ double SynthonSpaceSubstructureSearcher::approxSimilarity(
   return static_cast<double>(qbit) / static_cast<double>(numAtoms);
 }
 
-bool SynthonSpaceSubstructureSearcher::verifyHit(ROMol &hit) const {
+bool SynthonSpaceSubstructureSearcher::verifyHit(ROMol &hit) {
   if (!SynthonSpaceSearcher::verifyHit(hit)) {
     return false;
   }

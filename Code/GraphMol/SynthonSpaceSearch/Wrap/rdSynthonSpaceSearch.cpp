@@ -159,11 +159,13 @@ SynthonSpaceSearch::SearchResults shapeSearch_helper(
   {
     NOGIL gil;
     results = self.shapeSearch(query, params);
+    std::cout << "back : " << &results << std::endl;
   }
   if (results.getCancelled()) {
     PyErr_SetString(PyExc_KeyboardInterrupt, "ShapeSearch cancelled");
     python::throw_error_already_set();
   }
+  std::cout << "returning results" << std::endl;
   return results;
 }
 

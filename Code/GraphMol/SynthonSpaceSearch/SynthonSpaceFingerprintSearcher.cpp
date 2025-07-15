@@ -292,13 +292,14 @@ double SynthonSpaceFingerprintSearcher::approxSimilarity(
   return TanimotoSimilarity(fullFP, *d_queryFP);
 }
 
-bool SynthonSpaceFingerprintSearcher::verifyHit(ROMol &hit) const {
+bool SynthonSpaceFingerprintSearcher::verifyHit(ROMol &hit) {
   if (!SynthonSpaceSearcher::verifyHit(hit)) {
     return false;
   }
   const std::unique_ptr<ExplicitBitVect> fp(d_fpGen.getFingerprint(hit));
-  if (const auto sim = TanimotoSimilarity(*fp, *d_queryFP);
-      sim >= getParams().similarityCutoff) {
+  const auto sim = TanimotoSimilarity(*fp, *d_queryFP);
+  updateBestHitSoFar(hit, sim);
+  if (sim >= getParams().similarityCutoff) {
     hit.setProp<double>("Similarity", sim);
     return true;
   }

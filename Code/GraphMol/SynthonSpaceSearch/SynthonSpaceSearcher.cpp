@@ -61,27 +61,28 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
       d_query, getSpace().getMaxNumSynthons(), d_params.maxNumFragSets, endTime,
       d_params.numThreads, timedOut);
   if (timedOut || ControlCHandler::getGotSignal()) {
-    return SearchResults{std::move(results), 0ULL, timedOut,
-                         ControlCHandler::getGotSignal()};
+    return SearchResults{std::move(results), std::move(d_bestHitFound), 0ULL,
+                         timedOut, ControlCHandler::getGotSignal()};
   }
   if (!extraSearchSetup(fragments, endTime) ||
       ControlCHandler::getGotSignal()) {
-    return SearchResults{std::move(results), 0ULL, timedOut, true};
+    return SearchResults{std::move(results), std::move(d_bestHitFound), 0ULL,
+                         timedOut, true};
   }
-
+  std::cout << "zero" << std::endl;
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
-
-  return SearchResults{std::move(results), totHits, timedOut,
-                       ControlCHandler::getGotSignal()};
+  std::cout << "one : " << results.size() << " 2and " << d_bestHitFound.get()
+            << std::endl;
+  return SearchResults{std::move(results), std::move(d_bestHitFound), totHits,
+                       timedOut, ControlCHandler::getGotSignal()};
 }
 
 std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
-    const SynthonSpaceHitSet *hitset,
-    const std::vector<size_t> &synthNums) const {
+    const SynthonSpaceHitSet *hitset, const std::vector<size_t> &synthNums) {
   std::vector<const ROMol *> synths(synthNums.size());
   std::vector<const std::string *> synthNames(synthNums.size());
 
@@ -331,9 +332,18 @@ bool SynthonSpaceSearcher::quickVerify(
   return true;
 }
 
+void SynthonSpaceSearcher::updateBestHitSoFar(const ROMol &possBest,
+                                              double sim) {
+  if (sim > d_bestSimilarity) {
+    d_bestSimilarity = sim;
+    d_bestHitFound.reset(new ROMol(possBest));
+    d_bestHitFound->setProp<double>("Similarity", sim);
+  }
+}
+
 // It's conceivable that building the full molecule has changed the
 // chiral atom count.
-bool SynthonSpaceSearcher::verifyHit(ROMol &mol) const {
+bool SynthonSpaceSearcher::verifyHit(ROMol &mol) {
   if (getParams().minHitChiralAtoms || getParams().maxHitChiralAtoms) {
     auto numChiralAtoms = details::countChiralAtoms(mol);
     if (numChiralAtoms < getParams().minHitChiralAtoms ||
@@ -412,7 +422,7 @@ bool haveEnoughHits(const std::vector<std::unique_ptr<ROMol>> &results,
 void SynthonSpaceSearcher::buildHits(
     std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
     const TimePoint *endTime, bool &timedOut,
-    std::vector<std::unique_ptr<ROMol>> &results) const {
+    std::vector<std::unique_ptr<ROMol>> &results) {
   if (hitsets.empty()) {
     return;
   }
@@ -433,7 +443,7 @@ void SynthonSpaceSearcher::buildHits(
 void SynthonSpaceSearcher::buildAllHits(
     const std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
     const TimePoint *endTime, bool &timedOut,
-    std::vector<std::unique_ptr<ROMol>> &results) const {
+    std::vector<std::unique_ptr<ROMol>> &results) {
   // toTry is the synthon numbers for a particular set of synthons
   // in the SynthonSet that will be zipped together to form a possible
   // hit molecule.  It will possibly hold possibilities from multiple
@@ -521,9 +531,8 @@ void processPartHitsFromDetails(
     const std::vector<
         std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>> &toTry,
     const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results,
-    const SynthonSpaceSearcher *searcher,
-    std::atomic<std::int64_t> &mostRecentTry, std::int64_t lastTry,
-    std::unique_ptr<ProgressBar> &pbar) {
+    SynthonSpaceSearcher *searcher, std::atomic<std::int64_t> &mostRecentTry,
+    std::int64_t lastTry, std::unique_ptr<ProgressBar> &pbar) {
   std::uint64_t numTries = 1;
   while (true) {
     std::int64_t thisTry = ++mostRecentTry;
@@ -559,8 +568,7 @@ void processPartHitsFromDetails(
 void SynthonSpaceSearcher::makeHitsFromToTry(
     const std::vector<
         std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>> &toTry,
-    const TimePoint *endTime,
-    std::vector<std::unique_ptr<ROMol>> &results) const {
+    const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results) {
   results.resize(toTry.size());
   std::int64_t lastTry = toTry.size() - 1;
   std::atomic<std::int64_t> mostRecentTry = -1;
@@ -636,8 +644,7 @@ void SynthonSpaceSearcher::sortToTryByApproxSimilarity(
 void SynthonSpaceSearcher::processToTrySet(
     std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
         &toTry,
-    const TimePoint *endTime,
-    std::vector<std::unique_ptr<ROMol>> &results) const {
+    const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results) {
   // There are possibly duplicate entries in toTry, because 2
   // different fragmentations might produce overlapping synthon lists in
   // the same reaction. The duplicates need to be removed.  Although

@@ -252,7 +252,7 @@ double SynthonSpaceRascalSearcher::approxSimilarity(
   return bestSim;
 }
 
-bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) const {
+bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) {
   if (!SynthonSpaceSearcher::verifyHit(hit)) {
     return false;
   }
@@ -260,10 +260,12 @@ bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) const {
   // Rascal reports all matches that proceed to full MCES elucidation,
   // even if the final similarity value ends up below the threshold.
   // We only want those over the threshold.
-  if (!res.empty() &&
-      res.front().getSimilarity() >= d_rascalOptions.similarityThreshold) {
-    hit.setProp<double>("Similarity", res.front().getSimilarity());
-    return true;
+  if (!res.empty()) {
+    updateBestHitSoFar(hit, res.front().getSimilarity());
+    if (res.front().getSimilarity() >= d_rascalOptions.similarityThreshold) {
+      hit.setProp<double>("Similarity", res.front().getSimilarity());
+      return true;
+    }
   }
   return false;
 }
