@@ -407,7 +407,6 @@ void doInitialFragmentation(
   // avoid duplicates.
   std::int64_t lastRingBond = splitBonds.size() - 1;
   std::atomic<std::int64_t> mostRecentRingBond = -1;
-#if RDK_BUILD_THREADSAFE_SSS
   if (const auto numThreadsToUse = getNumThreadsToUse(numThreads);
       numThreads > 1) {
     std::vector<std::thread> threads;
@@ -429,11 +428,6 @@ void doInitialFragmentation(
                                std::ref(mostRecentRingBond), lastRingBond,
                                dummyLabels, tmpFrags);
   }
-#else
-  doPartInitialFragmentation(mol, splitBonds, maxNumFrags, ringBonds, endTime,
-                             std::ref(mostRecentRingBond), lastRingBond,
-                             dummyLabels, tmpFrags);
-#endif
   timedOut = details::checkTimeOut(endTime);
 }
 
@@ -474,7 +468,6 @@ void doFinalFragmentation(
     std::vector<std::vector<std::unique_ptr<ROMol>>> &fragments) {
   std::int64_t lastFrag = tmpFrags.size() - 1;
   std::atomic<std::int64_t> mostRecentFrag = -1;
-#if RDK_BUILD_THREADSAFE_SSS
   if (const auto numThreadsToUse = getNumThreadsToUse(numThreads);
       numThreads > 1) {
     std::vector<std::thread> threads;
@@ -492,10 +485,6 @@ void doFinalFragmentation(
     doPartFinalFragmentation(tmpFrags, maxNumFrags, endTime, mostRecentFrag,
                              lastFrag, fragments);
   }
-#else
-  doPartFinalFragmentation(tmpFrags, maxNumFrags, endTime, mostRecentFrag,
-                           lastFrag, fragments);
-#endif
   timedOut = details::checkTimeOut(endTime);
 }
 

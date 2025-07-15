@@ -244,7 +244,6 @@ SynthonSpaceSearcher::doTheSearch(
     std::atomic<std::int64_t> mostRecentReaction = -1;
     reactionHits.resize(reactionNames.size());
     std::unique_ptr<ProgressBar> pbar;
-#if RDK_BUILD_THREADSAFE_SSS
     if (const auto numThreads = getNumThreadsToUse(d_params.numThreads);
         numThreads > 1) {
       std::vector<std::thread> threads;
@@ -263,10 +262,6 @@ SynthonSpaceSearcher::doTheSearch(
       processReactions(this, reactionNames, fragSets, endTime,
                        mostRecentReaction, lastReaction, reactionHits, pbar);
     }
-#else
-    processReactions(this, reactionNames, fragSets, endTime, mostRecentReaction,
-                     lastReaction, reactionHits);
-#endif
   }
 
   std::vector<std::unique_ptr<SynthonSpaceHitSet>> allHits;
@@ -574,7 +569,6 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
     pbar.reset(new ProgressBar(getParams().useProgressBar, toTry.size()));
     std::cout << "Building and checking hits." << std::endl;
   }
-#if RDK_BUILD_THREADSAFE_SSS
   // This assumes that each chunk of the toTry list will take roughly the
   // same amount of time to process.  To a first approximation, that's
   // probably reasonable.  Some entries in toTry will fail quickVerify
@@ -603,10 +597,6 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
   if (pbar) {
     std::cout << std::endl;
   }
-#else
-  processPartHitsFromDetails(toTry, endTime, results, this, mostRecentTry,
-                             lastTry, pbar);
-#endif
 
   // Take out any gaps in the results set, where products didn't make the grade.
   results.erase(std::remove_if(results.begin(), results.end(),

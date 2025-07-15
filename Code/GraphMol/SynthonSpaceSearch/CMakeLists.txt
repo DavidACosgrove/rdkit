@@ -1,4 +1,4 @@
-
+if(RDK_BUILD_THREADSAFE_SSS)
 rdkit_library(SynthonSpaceSearch
         SynthonSpaceSearch_details.cpp SynthonSpace.cpp SynthonSet.cpp Synthon.cpp
         SynthonSpaceSearcher.cpp SynthonSpaceSubstructureSearcher.cpp SynthonSpaceFingerprintSearcher.cpp
@@ -30,3 +30,6 @@ endif ()
 if (RDK_BUILD_PYTHON_WRAPPERS)
     add_subdirectory(Wrap)
 endif ()
+else()
+message("The SynthonSpaceSearch module requires threads, so not building.")
+endif()

@@ -537,7 +537,6 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
   synthonPos.push_back(reactionPos[0]);
   reactionPos.push_back(fileMap.d_size);
   d_synthonPool.resize(numSynthons);
-#if RDK_BUILD_THREADSAFE_SSS
   unsigned int numThreadsToUse = getNumThreadsToUse(numThreads);
   if (numThreadsToUse > 1) {
     threadedReadSynthons(fileMap.d_mappedMemory, synthonPos, numThreadsToUse,
@@ -546,10 +545,6 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
     readSynthons(0, numSynthons, fileMap.d_mappedMemory, synthonPos,
                  d_fileMajorVersion, d_synthonPool);
   }
-#else
-  readSynthons(0, numSynthons, fileMap.d_mappedMemory, synthonPos,
-               d_fileMajorVersion, d_synthonPool);
-#endif
   if (!std::is_sorted(
           d_synthonPool.begin(), d_synthonPool.end(),
           [](const std::pair<std::string, std::unique_ptr<Synthon>> &p1,
@@ -563,7 +558,6 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
         });
   }
   d_reactions.resize(numReactions);
-#if RDK_BUILD_THREADSAFE_SSS
   if (numThreadsToUse > 1) {
     threadedReadReactions(fileMap.d_mappedMemory, reactionPos, numThreadsToUse,
                           *this, d_fileMajorVersion, d_reactions);
@@ -571,10 +565,6 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
     readReactions(0, numReactions, fileMap.d_mappedMemory, reactionPos, *this,
                   d_fileMajorVersion, d_reactions);
   }
-#else
-  readReactions(0, numReactions, fileMap.d_mappedMemory, reactionPos, *this,
-                d_fileMajorVersion, d_reactions);
-#endif
   if (!std::is_sorted(
           d_reactions.begin(), d_reactions.end(),
           [](const std::pair<std::string, std::shared_ptr<SynthonSet>> &p1,
