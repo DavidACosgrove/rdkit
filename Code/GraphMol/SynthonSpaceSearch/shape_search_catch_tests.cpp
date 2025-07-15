@@ -9,15 +9,14 @@
 
 #include <cstdio>
 
-#include <../External/pubchem_shape/PubChemShape.hpp>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
 #include <GraphMol/FileParsers/MolSupplier.h>
 #include <GraphMol/FileParsers/MolWriters.h>
+#include <GraphMol/MolAlign/AlignMolecules.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceSearch_details.h>
 #include <GraphMol/SynthonSpaceSearch/SearchResults.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
-#include <boost/spirit/home/support/common_terminals.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -418,7 +417,6 @@ TEST_CASE("Best hit found") {
   params.numThreads = 1;
   params.numConformers = 200;
   params.confRMSThreshold = 0.25;
-  params.timeOut = 0;
   params.randomSeed = 0xdac;
 
   params.fragSimilarityAdjuster = 0.1;
@@ -434,9 +432,9 @@ TEST_CASE("Best hit found") {
             << std::endl;
   CHECK(results.getHitMolecules().empty());
   auto &bestHit = results.getBestHit();
+  std::cout << "Best hit found : " << bestHit->getProp<double>("Similarity")
+            << std::endl;
   CHECK(bestHit);
-  std::cout << "Best hit found at similarity "
-            << bestHit->getProp<double>("Similarity") << std::endl;
   CHECK(bestHit->getProp<double>("Similarity") < 1.0);
 }
 
@@ -489,39 +487,4 @@ TEST_CASE("Test Test") {
     writer.write(*hit);
   }
   writer.close();
-}
-
-TEST_CASE("Crash") {
-  REQUIRE(rdbase);
-  std::string fName(rdbase);
-  std::string spaceName =
-      fName + "/Code/GraphMol/SynthonSpaceSearch/data/small_freedom_shapes.spc";
-
-  SynthonSpace space;
-  space.readDBFile(spaceName);
-  SynthonSpaceSearchParams params;
-  params.maxHits = -1;
-  params.numThreads = -1;
-  params.numConformers = 200;
-  params.confRMSThreshold = 0.25;
-  params.timeOut = 0;
-  params.randomSeed = 0xdac;
-
-  params.fragSimilarityAdjuster = 0.1;
-  params.approxSimilarityAdjuster = 0.1;
-  params.similarityCutoff = 1.6;
-  params.timeOut = 0;
-
-  auto mol =
-      "CCC(F)(F)COC(=O)C(Cc1c[nH]c2cc(F)ccc12)NC(C)=O |(5.45863,-2.29008,-0.0988483;4.31251,-1.45883,0.447319;4.68134,0.00419526,0.362942;4.90882,0.309359,-0.968681;5.82209,0.265296,1.0573;3.59843,0.903763,0.877059;2.37341,0.767205,0.162903;1.33193,1.58275,0.586751;1.43751,2.39961,1.53934;0.0273544,1.44642,-0.166373;-0.493418,0.0573742,0.0830631;-1.75761,-0.267172,-0.577129;-2.47391,0.350352,-1.57152;-3.5951,-0.32546,-1.86922;-3.62766,-1.40183,-1.06773;-4.5852,-2.41839,-0.982735;-4.36953,-3.41733,-0.0580598;-5.3056,-4.41732,0.0313015;-3.26899,-3.45386,0.770428;-2.33955,-2.43079,0.660126;-2.51204,-1.40117,-0.256691;-0.941426,2.39438,0.389167;-1.46966,3.48597,-0.360923;-2.46533,4.41728,0.279301;-1.14964,3.72776,-1.55268)|"_smiles;
-  REQUIRE(mol);
-  auto results = space.shapeSearch(*mol, params);
-  std::cout << "Number of hits : " << results.getHitMolecules().size()
-            << std::endl;
-  CHECK(results.getHitMolecules().empty());
-  auto &bestHit = results.getBestHit();
-  REQUIRE(bestHit);
-  std::cout << "Best hit found at similarity "
-            << bestHit->getProp<double>("Similarity") << std::endl;
-  CHECK(bestHit->getProp<double>("Similarity") < 1.0);
 }

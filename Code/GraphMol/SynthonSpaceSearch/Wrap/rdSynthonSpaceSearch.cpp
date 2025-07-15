@@ -29,6 +29,15 @@ python::list hitMolecules_helper(const SynthonSpaceSearch::SearchResults &res) {
   return pyres;
 }
 
+boost::shared_ptr<ROMol> bestHitMolecule_helper(
+    const SynthonSpaceSearch::SearchResults &res) {
+  const auto &bh = res.getBestHit();
+  if (bh) {
+    return boost::make_shared<ROMol>(*bh);
+  }
+  return boost::shared_ptr<ROMol>();
+}
+
 struct SearchResults_wrapper {
   static void wrap() {
     const std::string docString =
@@ -47,7 +56,11 @@ struct SearchResults_wrapper {
         .def("GetTimedOut", &SynthonSpaceSearch::SearchResults::getTimedOut,
              "Returns whether the search timed out or not.")
         .def("GetCancelled", &SynthonSpaceSearch::SearchResults::getCancelled,
-             "Returns whether the search was cancelled or not.");
+             "Returns whether the search was cancelled or not.")
+        .def("GetBestHit", &bestHitMolecule_helper,
+             "Returns the best hit found in the similarity search, even"
+             " when none were under the search threshold.  May be empty if not"
+             " a similarity search or nothing came close to a match.");
   }
 };
 
@@ -159,13 +172,11 @@ SynthonSpaceSearch::SearchResults shapeSearch_helper(
   {
     NOGIL gil;
     results = self.shapeSearch(query, params);
-    std::cout << "back : " << &results << std::endl;
   }
   if (results.getCancelled()) {
     PyErr_SetString(PyExc_KeyboardInterrupt, "ShapeSearch cancelled");
     python::throw_error_already_set();
   }
-  std::cout << "returning results" << std::endl;
   return results;
 }
 

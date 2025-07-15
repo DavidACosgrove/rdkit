@@ -69,14 +69,11 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
     return SearchResults{std::move(results), std::move(d_bestHitFound), 0ULL,
                          timedOut, true};
   }
-  std::cout << "zero" << std::endl;
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
-  std::cout << "one : " << results.size() << " 2and " << d_bestHitFound.get()
-            << std::endl;
   return SearchResults{std::move(results), std::move(d_bestHitFound), totHits,
                        timedOut, ControlCHandler::getGotSignal()};
 }

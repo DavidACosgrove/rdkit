@@ -168,7 +168,33 @@ class TestCase(unittest.TestCase):
     self.assertEqual(20, len(results.GetHitMolecules()))
     results = synthonspace.SubstructureSearch(q, params=params)
     self.assertEqual(10, len(results.GetHitMolecules()))
+
+  def testBestHit(self):
+    fName = self.sssDir / "small_freedom_shapes.spc"
+    synthonspace = rdSynthonSpaceSearch.SynthonSpace()
+    synthonspace.ReadDBFile(fName)
     
+    query = Chem.MolFromSmiles("CCC(C(=O)NCc1ccco1)N(Cc1sccc1C)C(C)C |(1.19967,-2.26511,-1.8853;-0.0674677,-1.53728,-1.54329;-0.0395195,-0.735921,-0.2957;0.978688,0.316536,-0.356493;0.610079,1.54481,-0.391485;2.37979,0.114038,-0.377756;3.31574,1.24811,-0.443092;4.723,0.774447,-0.458657;5.58509,0.534718,0.592748;6.76773,0.108395,-0.00740365;6.56938,0.109237,-1.38929;5.34763,0.509833,-1.60401;-1.33892,-0.260032,0.0922388;-2.08764,0.476264,-0.832263;-3.39845,0.92709,-0.383151;-4.99177,0.223473,-0.828611;-5.94415,1.34626,0.133161;-5.00918,2.1798,0.729651;-3.7235,1.96002,0.462253;-2.60368,2.81164,1.05297;-1.99138,-1.01276,1.09008;-1.10607,-0.965532,2.34165;-2.26411,-2.45544,0.780694)|")
+    ssparams = rdSynthonSpaceSearch.SynthonSpaceSearchParams()
+    ssparams.maxHits = -1
+    ssparams.numThreads = 1
+    ssparams.numConformers = 200
+    ssparams.confRMSThreshold = 0.25
+    ssparams.randomSeed = 0xdac
+    
+    ssparams.fragSimilarityAdjuster = 0.1
+    ssparams.approxSimilarityAdjuster = 0.1
+    ssparams.similarityCutoff = 1.0
+    ssparams.timeOut = 0
+    
+    results = synthonspace.ShapeSearch(query, ssparams)
+    print(f"Number of hits : {len(results.GetHitMolecules())}")
+    self.assertEqual(len(results.GetHitMolecules()), 0)
+
+    bestHit = results.GetBestHit()
+    self.assertIsNotNone(bestHit)
+    self.assertLess(float(bestHit.GetProp('Similarity')), 1.0)
+
     
 if __name__ == "__main__":
   unittest.main()

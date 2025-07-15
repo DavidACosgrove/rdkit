@@ -56,7 +56,9 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SearchResults {
   /*!
    * Returns the best hit found in a similarity search, even when none
    * were under the search threshold.  May be empty, for example if it
-   * was a substructure search.
+   * was a substructure search.  Also, may be empty if none of the synthons
+   * matched within the fragment similarity threshold i.e. nothing came close
+   * to a match.
    *
    * @return const std::unique_ptr<ROMol> &
    */

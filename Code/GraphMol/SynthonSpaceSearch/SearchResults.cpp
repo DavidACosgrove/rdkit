@@ -29,7 +29,9 @@ SearchResults::SearchResults(const SearchResults &other)
   for (const auto &hm : other.d_hitMolecules) {
     d_hitMolecules.emplace_back(new ROMol(*hm));
   }
-  d_bestHitFound.reset(new ROMol(*other.d_bestHitFound));
+  if (other.d_bestHitFound) {
+    d_bestHitFound.reset(new ROMol(*other.d_bestHitFound));
+  }
 }
 
 void SearchResults::mergeResults(SearchResults &other) {
