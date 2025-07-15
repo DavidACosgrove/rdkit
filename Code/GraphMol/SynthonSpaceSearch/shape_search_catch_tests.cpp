@@ -404,7 +404,7 @@ C=Cc1ccc(S(=O)(=O)[U])cc1	100000034458	2	20a	2024-09
   CHECK_NOTHROW(space.buildSynthonShapes(cancelled, shapeOptions));
 }
 
-TEST_CASE("Best hit found") {
+TEST_CASE("Shape Best Hit Found") {
   REQUIRE(rdbase);
   std::string fName(rdbase);
   std::string spaceName =
@@ -436,55 +436,4 @@ TEST_CASE("Best hit found") {
             << std::endl;
   CHECK(bestHit);
   CHECK(bestHit->getProp<double>("Similarity") < 1.0);
-}
-
-TEST_CASE("Test Test") {
-  REQUIRE(rdbase);
-  std::string fName(rdbase);
-  std::string spaceName =
-      fName + "/Code/GraphMol/SynthonSpaceSearch/data/small_freedom_shapes.spc";
-
-  SynthonSpace space;
-  space.readDBFile(spaceName);
-  std::cout << "Number of reactions " << space.getNumReactions() << std::endl;
-  std::cout << "Number of products : " << space.getNumProducts() << std::endl;
-  std::cout << "Number of unique synthons : " << space.getNumSynthons()
-            << std::endl;
-  SynthonSpaceSearchParams params;
-  params.maxHits = -1;
-  params.numThreads = 1;
-  params.numConformers = 200;
-  params.confRMSThreshold = -1;
-  params.timeOut = 0;
-  params.randomSeed = 0xdac;
-
-  params.fragSimilarityAdjuster = 0.1;
-  params.approxSimilarityAdjuster = 0.1;
-  params.similarityCutoff = 1.8;
-  params.timeOut = 0;
-  params.useProgressBar = 0;
-  params.bestHit = true;
-
-  auto mol =
-      "O=Cc1cnccc1Sc1cc(OCc2ccccc2)c(F)cc1F |(6.59594,-1.3949,0.709968;5.53423,-1.20415,0.0650461;4.95595,0.129889,0.0146237;5.58013,1.18286,0.635053;5.09371,2.44915,0.595991;3.94027,2.68328,-0.0862861;3.28611,1.63805,-0.723556;3.7949,0.338271,-0.676828;2.88523,-0.932373,-1.52824;1.61867,-1.55174,-0.445055;0.379187,-0.92153,-0.443719;-0.662597,-1.33792,0.360902;-1.89623,-0.737936,0.385353;-2.24237,0.385903,-0.419257;-3.65792,0.741188,-0.108324;-3.99291,1.63407,0.889951;-5.32401,1.8887,1.09144;-6.33177,1.29716,0.347264;-5.99658,0.407297,-0.647548;-4.65531,0.14908,-0.852445;-0.480409,-2.43184,1.21109;-1.45754,-2.8861,2.02002;0.747071,-3.07451,1.22541;1.76593,-2.62087,0.398952;2.93371,-3.2905,0.454572)|"_smiles;
-  REQUIRE(mol);
-  auto results = space.shapeSearch(*mol, params);
-  std::cout << "Number of hits : " << results.getHitMolecules().size()
-            << std::endl;
-  CHECK(results.getHitMolecules().size() == 2);
-  // We get the same molecule made 2 different ways.  The conformers generated
-  // are slightly different.  This checks that they are properly aligned in
-  // the final answer, which wasn't always the case.
-  for (const auto &hit : results.getHitMolecules()) {
-    CHECK(hit->getProp<double>("Similarity") > 1.9);
-    auto rms = MolAlign::CalcRMS(*hit, *mol);
-    CHECK(rms < 0.15);
-  }
-  std::string hitsFile =
-      spaceName.substr(0, spaceName.length() - 4) + "_hits.sdf";
-  SDWriter writer(hitsFile);
-  for (const auto &hit : results.getHitMolecules()) {
-    writer.write(*hit);
-  }
-  writer.close();
 }

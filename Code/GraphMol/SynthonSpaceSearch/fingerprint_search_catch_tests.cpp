@@ -236,3 +236,26 @@ TEST_CASE("Hit Filters") {
     }
   }
 }
+
+TEST_CASE("FP Best Hit Found") {
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
+  SynthonSpace synthonspace;
+  std::string libName =
+      fName + "/Code/GraphMol/SynthonSpaceSearch/data/idorsia_toy_space_a.spc";
+  std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
+      RDKitFP::getRDKitFPGenerator<std::uint64_t>());
+  SearchResults results;
+  auto queryMol = "O=C(Nc1c(CNC=O)cc[s]1)c1nccnc1"_smiles;
+  SynthonSpaceSearchParams params;
+  params.similarityCutoff = 0.8;
+  params.approxSimilarityAdjuster = 0.2;
+  params.fragSimilarityAdjuster = 0.1;
+  synthonspace.readDBFile(libName);
+  CHECK_NOTHROW(results =
+                    synthonspace.fingerprintSearch(*queryMol, *fpGen, params));
+  CHECK(results.getHitMolecules().empty());
+  auto &bestHit = results.getBestHit();
+  REQUIRE(bestHit);
+  CHECK(bestHit->getProp<double>("Similarity") < 0.8);
+}
