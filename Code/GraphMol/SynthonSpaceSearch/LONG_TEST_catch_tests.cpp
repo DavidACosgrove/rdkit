@@ -436,9 +436,6 @@ TEST_CASE("Shape Biggy") {
   params.timeOut = 0;
 
   for (size_t i = 0; i < smis.size(); ++i) {
-    // if (i != 0) {
-    // continue;
-    // }
     auto queryMol = v2::SmilesParse::MolFromSmiles(smis[i]);
     auto results = synthonspace.shapeSearch(*queryMol, params);
     std::string outFileName = "shape_hits_" + std::to_string(i) + ".sdf";
@@ -456,8 +453,6 @@ TEST_CASE("Shape single conf") {
   std::string fName(rdbase);
   std::string libName =
       fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-  libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_shapes.spc";
   SynthonSpace synthonspace;
   synthonspace.readDBFile(libName);
   std::cout << "Number of reactions " << synthonspace.getNumReactions()
@@ -466,7 +461,6 @@ TEST_CASE("Shape single conf") {
             << std::endl;
   auto suppl = SDMolSupplier(fName + "/cmake-mine/tagrisso.sdf");
   std::unique_ptr<ROMol> tagrisso(suppl.next());
-  std::cout << MolToSmiles(*tagrisso) << std::endl;
 
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
@@ -485,171 +479,3 @@ TEST_CASE("Shape single conf") {
     writer.write(*m);
   }
 }
-
-TEST_CASE("Tagrisso PDB conf") {
-  REQUIRE(rdbase);
-  std::string fName(rdbase);
-  std::string libName =
-      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-  libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_shapes.spc";
-  SynthonSpace synthonspace;
-  synthonspace.readDBFile(libName);
-  std::cout << "Number of reactions " << synthonspace.getNumReactions()
-            << std::endl;
-  std::cout << "Number of products : " << synthonspace.getNumProducts()
-            << std::endl;
-  auto tagrisso_pdb =
-      "CCC(O)Nc1cc(Nc2nccc(c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C |(-28.871,18.993,-5.523;-30.126,19.427,-6.265;-29.922,19.305,-7.773;-28.933,19.728,-8.264;-30.965,18.669,-8.563;-30.966,18.467,-10.003;-29.741,18.8,-10.881;-29.776,18.58,-12.402;-28.626,18.878,-13.264;-27.858,20.11,-13.139;-26.809,20.446,-14.135;-26.039,21.676,-14.006;-26.301,22.606,-12.864;-27.356,22.266,-11.866;-27.643,23.19,-10.674;-26.776,24.159,-10.172;-27.396,24.761,-9.099;-26.842,25.83,-8.286;-28.633,24.178,-8.929;-29.782,24.445,-7.884;-31.052,23.635,-7.939;-31.218,22.587,-8.984;-30.11,22.344,-9.979;-28.784,23.198,-9.912;-28.114,21.037,-12.005;-31.044,18.019,-13.045;-31.086,17.813,-14.424;-32.18,17.062,-14.862;-32.253,17.694,-12.176;-32.227,17.912,-10.676;-33.436,17.571,-9.917;-34.062,18.538,-9.026;-34.031,16.25,-10.091;-34.878,15.875,-8.863;-34.377,14.683,-8.187;-32.966,14.454,-8.472;-34.56,14.832,-6.752)|"_smiles;
-  SynthonSpaceSearchParams params;
-  params.maxHits = -1;
-  params.numThreads = -1;
-  params.similarityCutoff = 1.5;
-  params.numConformers = 100;
-  params.confRMSThreshold = 1.0;
-  params.timeOut = 0;
-
-  auto results = synthonspace.shapeSearch(*tagrisso_pdb, params);
-  std::string outFileName = "tagrisso_hits.sdf";
-  std::cout << "Writing " << results.getHitMolecules().size() << " to "
-            << outFileName;
-  SDWriter writer(outFileName);
-  for (const auto &m : results.getHitMolecules()) {
-    writer.write(*m);
-  }
-}
-
-TEST_CASE("Tagrisso core") {
-  REQUIRE(rdbase);
-  std::string fName(rdbase);
-  std::string libName =
-      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-  libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_shapes.spc";
-  SynthonSpace synthonspace;
-  synthonspace.readDBFile(libName);
-  std::cout << "Number of reactions " << synthonspace.getNumReactions()
-            << std::endl;
-  std::cout << "Number of products : " << synthonspace.getNumProducts()
-            << std::endl;
-  auto tagrisso_pdb_core =
-      "c1cc(Nc2nccc(c3cn(C)c4ccccc34)n2)ccc1 |(-30.966,18.467,-10.003;-29.741,18.8,-10.881;-29.776,18.58,-12.402;-28.626,18.878,-13.264;-27.858,20.11,-13.139;-26.809,20.446,-14.135;-26.039,21.676,-14.006;-26.301,22.606,-12.864;-27.356,22.266,-11.866;-27.643,23.19,-10.674;-26.776,24.159,-10.172;-27.396,24.761,-9.099;-26.842,25.83,-8.286;-28.633,24.178,-8.929;-29.782,24.445,-7.884;-31.052,23.635,-7.939;-31.218,22.587,-8.984;-30.11,22.344,-9.979;-28.784,23.198,-9.912;-28.114,21.037,-12.005;-31.044,18.019,-13.045;-32.253,17.694,-12.176;-32.227,17.912,-10.676)|"_smiles;
-  SynthonSpaceSearchParams params;
-  params.maxHits = -1;
-  params.numThreads = -1;
-  params.similarityCutoff = 1.2;
-  params.numConformers = 100;
-  params.confRMSThreshold = 1.0;
-  params.timeOut = 0;
-
-  auto results = synthonspace.shapeSearch(*tagrisso_pdb_core, params);
-  std::string outFileName = "tagrisso_core_full_hits.sdf";
-  std::cout << "Writing " << results.getHitMolecules().size() << " to "
-            << outFileName;
-  SDWriter writer(outFileName);
-  for (const auto &m : results.getHitMolecules()) {
-    writer.write(*m);
-  }
-}
-
-#if 1
-// Whilst the code is still under active development, it's convenient to have
-// this in here.  It can come out later.
-TEST_CASE("FP Binary File2") {
-  REQUIRE(rdbase);
-  std::string fName(rdbase);
-  SynthonSpace synthonspace;
-  std::string libName =
-      "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/2024-09_REAL_synthons_rdkit_3000.spc";
-  // libName =
-  //     "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_rdkit.spc";
-  std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
-      RDKitFP::getRDKitFPGenerator<std::uint64_t>());
-  synthonspace.readDBFile(libName, -1);
-  CHECK(synthonspace.getNumReactions() == 1008);
-  CHECK(synthonspace.getNumProducts() == 70575407790);
-  std::cout << synthonspace.getNumReactions() << std::endl;
-  std::cout << synthonspace.getNumProducts() << std::endl;
-  SearchResults results;
-  auto queryMol = "O=C(Nc1c(CNC=O)cc[s]1)c1nccnc1"_smiles;
-  SynthonSpaceSearchParams params;
-  params.numThreads = -1;
-  std::cout << "fingerprint" << std::endl;
-  auto start = std::chrono::high_resolution_clock::now();
-  CHECK_NOTHROW(results =
-                    synthonspace.fingerprintSearch(*queryMol, *fpGen, params));
-  auto finish = std::chrono::high_resolution_clock::now();
-  double elapsed =
-      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
-          .count();
-  std::cout << elapsed << " ms" << std::endl;
-  CHECK(results.getHitMolecules().size() == 211);
-  CHECK(results.getMaxNumResults() == 1397664);
-
-  std::cout << "substruct" << std::endl;
-  auto qMol = "c12ccc(C)cc1[nH]nc2C(=O)NCc1cncs1"_smarts;
-  SubstructMatchParameters substructMatchParams;
-  start = std::chrono::high_resolution_clock::now();
-  auto sres =
-      synthonspace.substructureSearch(*qMol, substructMatchParams, params);
-  finish = std::chrono::high_resolution_clock::now();
-  elapsed =
-      std::chrono::duration_cast<std::chrono::milliseconds>(finish - start)
-          .count();
-  std::cout << elapsed << " ms" << std::endl;
-  std::cout << sres.getHitMolecules().size() << std::endl;
-
-#if 1
-  std::cout << "rascal" << std::endl;
-  auto rMol = "c12ccc(C)cc1[nH]nc2C(=O)NCc1cncs1"_smiles;
-  auto startr = std::chrono::high_resolution_clock::now();
-  params.timeOut = 0;
-  RascalOptions rascalOptions;
-  auto rres = synthonspace.rascalSearch(*rMol, rascalOptions, params);
-  auto finishr = std::chrono::high_resolution_clock::now();
-  auto elapsedr =
-      std::chrono::duration_cast<std::chrono::milliseconds>(finishr - startr)
-          .count();
-  std::cout << elapsedr << " ms" << std::endl;
-  std::cout << rres.getHitMolecules().size() << std::endl;
-#endif
-}
-#endif
-
-#if 0
-// Whilst the code is still under active development, it's convenient to have this
-// in here.  It can come out later.
-TEST_CASE("FP Freedom Space") {
-  std::string libName =
-      "/Users/david/Projects/SynthonSpaceTests/FreedomSpace/2024-09_Freedom_synthons_rdkit.spc";
-  // std::string libName =
-  // "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/2024-09_REAL_synthons_rdkit_3000.spc";
-  // libName =
-  // "/Users/david/Projects/SynthonSpaceTests/REAL/2024-09_RID-4-Cozchemix/random_real_1_rdkit.spc";
-  SynthonSpace synthonspace;
-  synthonspace.readDBFile(libName);
-  auto m =
-      "C=CC(=O)Nc1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C"_smiles;
-  std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
-      RDKitFP::getRDKitFPGenerator<std::uint64_t>());
-  SynthonSpaceSearchParams params;
-  params.similarityCutoff = 0.4;
-  params.maxHits = 1000;
-  params.fragSimilarityAdjuster = 0.01;
-  params.approxSimilarityAdjuster = 0.05;
-  params.numThreads = -1;
-  SearchResults results;
-  results = synthonspace.fingerprintSearch(*m, *fpGen, params);
-  std::cout << "Number of results : " << results.getHitMolecules().size()
-            << std::endl;
-  int i = 0;
-  for (const auto &mol : results.getHitMolecules()) {
-    if (i < 10 || i > params.maxHits - 10) {
-      std::cout << i << " : " << MolToSmiles(*mol) << " : "
-                << mol->getProp<std::string>(common_properties::_Name) << "  "
-                << mol->getProp<double>("Similarity") << std::endl;
-    }
-    ++i;
-  }
-}
-#endif

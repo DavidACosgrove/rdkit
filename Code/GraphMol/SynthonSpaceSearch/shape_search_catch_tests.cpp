@@ -293,6 +293,7 @@ FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   REQUIRE(results.getHitMolecules().size() == 1);
   auto &hitMol1 = results.getHitMolecules().front();
   double firstSim = hitMol1->getProp<double>("Similarity");
+  std::cout << MolToCXSmiles(*hitMol1) << std::endl;
 
   params.bestHit = true;
   results = space.shapeSearch(*m5, params);
@@ -332,7 +333,7 @@ TEST_CASE("Shape Best Hit Found") {
   space.readDBFile(spaceName);
   SynthonSpaceSearchParams params;
   params.maxHits = -1;
-  params.numThreads = 1;
+  params.numThreads = -1;
   params.numConformers = 200;
   params.confRMSThreshold = 0.25;
   params.randomSeed = 0xdac;

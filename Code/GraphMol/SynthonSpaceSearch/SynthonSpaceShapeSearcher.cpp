@@ -546,6 +546,31 @@ double SynthonSpaceShapeSearcher::approxSimilarity(
   return maxSt + maxCt;
 }
 
+namespace {
+// Update the hit molecule to the overlay and score represented by
+// matrix and sim.
+void finaliseHit(const std::unique_ptr<RWMol> &queryConfs,
+                 const std::unique_ptr<SearchShapeInput> &queryShapes,
+                 unsigned int queryConfNum,
+                 const std::unique_ptr<RWMol> &allHitConfs,
+                 const std::unique_ptr<SearchShapeInput> &allHitShapes,
+                 unsigned int hitConfNum, const std::vector<float> &matrix,
+                 double sim, ROMol &hit) {
+  hit.setProp<double>("Similarity", sim);
+  hit.setProp<unsigned int>("Query_Conformer", queryConfNum);
+  // Make a molecule of this query conformer, and add it to the hit.
+  ROMol thisConf(*queryConfs, false, queryConfNum);
+  hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
+  // Copy the conformer into the hit.
+  hit.clearConformers();
+  auto hitConf = new Conformer(allHitConfs->getConformer(hitConfNum));
+  auto hitShape = allHitShapes->makeSingleShape(hitConfNum);
+  TransformConformer(queryShapes->shift, matrix, hitShape, *hitConf);
+  hit.addConformer(hitConf, true);
+  MolOps::assignStereochemistryFrom3D(hit);
+}
+}  // namespace
+
 bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) {
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
@@ -570,22 +595,20 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) {
       for (unsigned int j = 0u; j < hitShapes->getNumShapes(); ++j) {
         hitShapes->setActiveShape(j);
         auto [st, ct] = AlignShape(*dp_queryShapes, *hitShapes, matrix);
-        updateBestHitSoFar(hit, st + ct);
-        if (st + ct >= bestSim) {
-          hit.setProp<double>("Similarity", st + ct);
-          hit.setProp<unsigned int>("Query_Conformer",
-                                    dp_queryShapes->molConfs[i]);
-          // Make a molecule of this query conformer, and add it to the hit.
-          ROMol thisConf(*dp_queryConfs, false, dp_queryShapes->molConfs[i]);
-          hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
-          // Copy the conformer into the hit.
-          hit.clearConformers();
-          auto hitConf =
-              new Conformer(isomer->getConformer(hitShapes->molConfs[j]));
-          auto hitShape = hitShapes->makeSingleShape(j);
-          TransformConformer(dp_queryShapes->shift, matrix, hitShape, *hitConf);
-          hit.addConformer(hitConf, true);
-          MolOps::assignStereochemistryFrom3D(hit);
+        double sim = st + ct;
+        bool finalisedHit = false;
+        if (sim > getBestSimilaritySoFar()) {
+          finaliseHit(dp_queryConfs, dp_queryShapes, i, isomer, hitShapes, j,
+                      matrix, sim, hit);
+
+          finalisedHit = true;
+          updateBestHitSoFar(hit, sim);
+        }
+        if (sim >= bestSim) {
+          if (!finalisedHit) {
+            finaliseHit(dp_queryConfs, dp_queryShapes, i, isomer, hitShapes, j,
+                        matrix, sim, hit);
+          }
           // If we're only interested in whether there's a shape match, and
           // not in finding the best shape, we're done.
           if (!getParams().bestHit) {

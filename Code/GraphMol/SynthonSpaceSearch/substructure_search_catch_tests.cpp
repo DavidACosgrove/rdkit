@@ -65,11 +65,12 @@ std::map<std::string, std::string> loadLibrary(const std::string inFilename) {
 };
 
 TEST_CASE("Test splits 1") {
-  const std::vector<std::string> smiles{"c1ccccc1CN1CCN(CC1)C(-O)c1ncc(F)cc1",
-                                        "CC(C)OCc1nnc(N2CC(C)CC2)n1C1CCCC1",
-                                        "c1ccccc1Oc1cccc2[nH]ccc12"};
+  const std::vector<std::string> smiles{
+      "c1ccccc1CN1CCN(CC1)C(-O)c1ncc(F)cc1",
+      "CC(C)OCc1nnc(N2CC(C)CC2)n1C1CCCC1", "c1ccccc1Oc1cccc2[nH]ccc12",
+      "COc1ccc2nc([nH]c2c1)[S@](=O)Cc1ncc(C)c(OC)c1C"};
   std::vector<std::vector<size_t>> expCounts{
-      {1, 47, 1020, 0}, {1, 37, 562, 0}, {1, 29, 397, 0}};
+      {1, 47, 1020, 0}, {1, 37, 562, 0}, {1, 29, 397, 0}, {1, 41, 689, 0}};
   for (size_t i = 0; i < smiles.size(); ++i) {
     auto mol = v2::SmilesParse::MolFromSmiles(smiles[i]);
     REQUIRE(mol);
@@ -764,11 +765,11 @@ F[2*]	277310376-742385dd	2	fake-chiral
 
 TEST_CASE("Bad Chiral Atom Count") {
   SynthonSpace space;
-  std::istringstream iss(R"(SMILES	synton_id	synton#	reaction_id	release
+  std::istringstream iss(
+      R"(SMILES	synton_id	synton#	reaction_id	release
 C[U]	200011483129	1	4a	2024-09
 c1c/c2n3/c1=C\C1=N/C(=C\c4c(C)c5c(n4[Mg]3)/C(=C3\N=C(\C=2)[C@@H](C)[C@@H]3C)[C@@H](C)C5=[U])C=C1	bad	2	4a	2024-09
 )");
   bool cancelled = false;
   CHECK_NOTHROW(space.readStream(iss, cancelled));
 }
-

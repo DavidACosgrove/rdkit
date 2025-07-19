@@ -93,6 +93,7 @@ class SynthonSpaceSearcher {
   // If the similarity found is greater than d_bestSimilarity, replace
   // d_bestHitFound with a copy of possBest and update d_bestSimilarity.
   void updateBestHitSoFar(const ROMol &possBest, double sim);
+  double getBestSimilaritySoFar() const { return d_bestSimilarity; }
 
  private:
   std::unique_ptr<std::mt19937> d_randGen;
