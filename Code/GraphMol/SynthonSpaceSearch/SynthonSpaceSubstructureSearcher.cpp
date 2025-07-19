@@ -313,7 +313,7 @@ bool SynthonSpaceSubstructureSearcher::extraSearchSetup(
       if (details::removeQueryAtoms(*static_cast<RWMol *>(frag)) &&
           !saidSomething) {
         saidSomething = true;
-        BOOST_LOG(rdWarningLog) << "Complex queries can be slow." << std::endl;
+        BOOST_LOG(rdInfoLog) << "Complex queries can be slow." << std::endl;
       }
     }
     d_pattFPsPool[fragNum] = std::unique_ptr<ExplicitBitVect>(

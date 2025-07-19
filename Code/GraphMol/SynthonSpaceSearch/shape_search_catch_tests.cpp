@@ -194,58 +194,16 @@ TEST_CASE("Shape DB Writer") {
   }
 }
 
-TEST_CASE("Build conformer DB") {
-  REQUIRE(rdbase);
-  std::string fName(rdbase);
-  std::string libName =
-      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567.csv";
-
-  auto spaceName =
-      fName + "/Code/GraphMol/SynthonSpaceSearch/data/Syntons_5567_confs.spc";
-
-  bool cancelled = false;
-  SynthonSpace synthonspace;
-  synthonspace.readTextFile(libName, cancelled);
-
-  ShapeBuildParams shapeBuildOptions;
-  shapeBuildOptions.numConfs = 100;
-  shapeBuildOptions.rmsThreshold = 1.0;
-  shapeBuildOptions.numThreads = -1;
-  shapeBuildOptions.maxSynthonAtoms = 0;
-  shapeBuildOptions.maxEmbedAttempts = 10;
-  shapeBuildOptions.interimFile = spaceName;
-  shapeBuildOptions.interimWrites = 100;
-
-  synthonspace.buildSynthonShapes(cancelled, shapeBuildOptions);
-  synthonspace.writeDBFile(spaceName);
-}
-
 TEST_CASE("Hits back onto query") {
   // Make sure the hits are properly translated to the reference
   // frame of the query.
   SynthonSpace synthonspace;
-  std::istringstream iss(R"(SMILES	synton_id	synton#	reaction_id
-O=C(c1coc2cc(Cl)ccc12)[1*:1]	A	2	r1	3
-OC(CC1CCCN1[1*:1])c1ccco1	B	1	r1	3
-Cc1cnc([1*:1])nc1C	C	2	r2	3
-Cn1cc(N2CCCC(N[1*:1])C2)cn1	D	1	r2	3
-Cc1cc(N[1*:1])cc(C(F)(F)F)c1	E	1	r3	3
-Cc1nc(-c2ccccn2)cc([1*:1])n1	F	2	r3	3
-CC(C)(C)C1(C)CN([1*:1])CCO1	G	1	r4	3
-CCCC1CN([2*:2])CCO1	H	3	r4	3
-COC1C2CCCC2C1N[2*:2]	I	3	r4	3
-COCc1nc([1*:1])cc([2*:2])n1	J	2	r4	3
-FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
-  bool cancelled = false;
-  synthonspace.readStream(iss, cancelled);
-  synthonspace.writeEnumeratedFile("tagrisso_hits_space_enum.smi");
-  ShapeBuildParams shapeBuildOptions;
-  shapeBuildOptions.numConfs = 100;
-  shapeBuildOptions.rmsThreshold = 1.0;
-  shapeBuildOptions.numThreads = -1;
-  shapeBuildOptions.randomSeed = -1;
-  synthonspace.buildSynthonShapes(cancelled, shapeBuildOptions);
-
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
+  std::string libName =
+      fName +
+      "/Code/GraphMol/SynthonSpaceSearch/data/hits_back_onto_query_test_shapes.spc";
+  synthonspace.readDBFile(libName);
   auto tagrisso_pdb_core =
       "c1cc(Nc2nccc(c3cn(C)c4ccccc34)n2)ccc1 |(-30.966,18.467,-10.003;-29.741,18.8,-10.881;-29.776,18.58,-12.402;-28.626,18.878,-13.264;-27.858,20.11,-13.139;-26.809,20.446,-14.135;-26.039,21.676,-14.006;-26.301,22.606,-12.864;-27.356,22.266,-11.866;-27.643,23.19,-10.674;-26.776,24.159,-10.172;-27.396,24.761,-9.099;-26.842,25.83,-8.286;-28.633,24.178,-8.929;-29.782,24.445,-7.884;-31.052,23.635,-7.939;-31.218,22.587,-8.984;-30.11,22.344,-9.979;-28.784,23.198,-9.912;-28.114,21.037,-12.005;-31.044,18.019,-13.045;-32.253,17.694,-12.176;-32.227,17.912,-10.676)|"_smiles;
   SynthonSpaceSearchParams params;
@@ -255,35 +213,24 @@ FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   params.numConformers = 100;
   params.confRMSThreshold = 1.0;
   params.timeOut = 0;
-  params.randomSeed = -1;
+  params.randomSeed = 0xdac;
 
   RDGeom::Point3D tag_centre;
   for (const auto atom : tagrisso_pdb_core->atoms()) {
     tag_centre += tagrisso_pdb_core->getConformer().getAtomPos(atom->getIdx());
   }
   tag_centre /= tagrisso_pdb_core->getNumAtoms();
-  // The random nature of the conformation generation etc means that we don't
-  // always get a hit.
-  bool foundHit = false;
-  for (int i = 0; i < 1; ++i) {
-    auto results = synthonspace.shapeSearch(*tagrisso_pdb_core, params);
-    std::string outFileName = "tagrisso_core_hits.sdf";
-    if (!results.getHitMolecules().empty()) {
-      SDWriter writer(outFileName);
-      for (const auto &m : results.getHitMolecules()) {
-        writer.write(*m);
-        RDGeom::Point3D hit_centre;
-        for (const auto atom : m->atoms()) {
-          hit_centre += m->getConformer().getAtomPos(atom->getIdx());
-        }
-        hit_centre /= m->getNumAtoms();
-        CHECK((hit_centre - tag_centre).length() < 2.0);
-        foundHit = true;
+  auto results = synthonspace.shapeSearch(*tagrisso_pdb_core, params);
+  if (!results.getHitMolecules().empty()) {
+    for (const auto &m : results.getHitMolecules()) {
+      RDGeom::Point3D hit_centre;
+      for (const auto atom : m->atoms()) {
+        hit_centre += m->getConformer().getAtomPos(atom->getIdx());
       }
-      break;
+      hit_centre /= m->getNumAtoms();
+      CHECK((hit_centre - tag_centre).length() < 2.0);
     }
   }
-  CHECK(foundHit);
 }
 
 TEST_CASE("Unspecified Stereo") {
@@ -374,6 +321,8 @@ C=Cc1ccc(S(=O)(=O)[U])cc1	100000034458	2	20a	2024-09
 }
 
 TEST_CASE("Shape Best Hit Found") {
+  // Make sure that even if the threshold isn't met, there's a 3D hit returned
+  // of the best that was possible.
   REQUIRE(rdbase);
   std::string fName(rdbase);
   std::string spaceName =
@@ -401,4 +350,5 @@ TEST_CASE("Shape Best Hit Found") {
   auto &bestHit = results.getBestHit();
   CHECK(bestHit);
   CHECK(bestHit->getProp<double>("Similarity") < 1.0);
+  CHECK(bestHit->getConformer().is3D());
 }
