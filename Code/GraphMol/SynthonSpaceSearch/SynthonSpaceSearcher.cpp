@@ -226,6 +226,7 @@ SynthonSpaceSearcher::doTheSearch(
     // doing all the work if all the hits come from 1 reaction.
     std::unique_ptr<ProgressBar> pbar;
     if (getParams().useProgressBar) {
+      std::cout << "\nSearching fragment sets" << std::endl;
       pbar.reset(new ProgressBar(getParams().useProgressBar,
                                  reactionNames.size() * fragSets.size()));
     }
@@ -566,8 +567,8 @@ void SynthonSpaceSearcher::makeHitsFromToTry(
   std::atomic<std::int64_t> mostRecentTry = -1;
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
+    std::cout << "\nBuilding and checking hits." << std::endl;
     pbar.reset(new ProgressBar(getParams().useProgressBar, toTry.size()));
-    std::cout << "Building and checking hits." << std::endl;
   }
   // This assumes that each chunk of the toTry list will take roughly the
   // same amount of time to process.  To a first approximation, that's

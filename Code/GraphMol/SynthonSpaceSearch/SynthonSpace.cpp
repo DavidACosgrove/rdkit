@@ -1004,7 +1004,7 @@ void SynthonSpace::buildSynthonSampleMolecules(
 void convertTextToDBFile(const std::string &inFilename,
                          const std::string &outFilename, bool &cancelled,
                          const FingerprintGenerator<std::uint64_t> *fpGen,
-                         const ShapeBuildParams &options) {
+                         const ShapeBuildParams *options) {
   SynthonSpace synthSpace;
   cancelled = false;
   synthSpace.readTextFile(inFilename, cancelled);
@@ -1019,8 +1019,8 @@ void convertTextToDBFile(const std::string &inFilename,
       return;
     }
   }
-  if (options.numConfs) {
-    synthSpace.buildSynthonShapes(cancelled, options);
+  if (options) {
+    synthSpace.buildSynthonShapes(cancelled, *options);
     if (cancelled) {
       return;
     }

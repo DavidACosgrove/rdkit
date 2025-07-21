@@ -368,11 +368,12 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpace {
  * @param outFilename name of the binary file to write
  * @param cancelled whether it received a SIGINT
  * @param fpGen optional fingerprint generator
+ * @param shapeParams optional parameters for conformer generation
  */
 RDKIT_SYNTHONSPACESEARCH_EXPORT void convertTextToDBFile(
     const std::string &inFilename, const std::string &outFilename,
     bool &cancelled, const FingerprintGenerator<std::uint64_t> *fpGen = nullptr,
-    const ShapeBuildParams &shapeParams = ShapeBuildParams());
+    const ShapeBuildParams *shapeParams = nullptr);
 
 /*!
  * Format an integer with spaces every 3 digits for ease

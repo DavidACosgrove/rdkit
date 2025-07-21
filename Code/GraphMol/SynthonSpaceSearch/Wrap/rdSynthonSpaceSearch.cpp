@@ -196,9 +196,9 @@ void convertTextToDBFile_helper(const std::string &inFilename,
   if (fpGen) {
     fpGenCpp = python::extract<FingerprintGenerator<std::uint64_t> *>(fpGen);
   }
-  SynthonSpaceSearch::ShapeBuildParams shapeParams;
+  SynthonSpaceSearch::ShapeBuildParams *shapeParams = nullptr;
   if (!py_params.is_none()) {
-    shapeParams =
+    *shapeParams =
         python::extract<SynthonSpaceSearch::ShapeBuildParams>(py_params);
   }
   bool cancelled = false;
