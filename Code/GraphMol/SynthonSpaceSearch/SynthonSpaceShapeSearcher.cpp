@@ -396,7 +396,6 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   if (!computeFragSynthonSims(endTime)) {
     return false;
   }
-
   return true;
 }
 
@@ -405,7 +404,7 @@ namespace {
 void computeSomeFragSynthonSims(
     const std::vector<std::pair<SearchShapeInput *, Synthon *>> &toDo,
     std::atomic<std::int64_t> &nextToDo, float threshold, std::mutex &mtx,
-    const TimePoint *endTime, FragSynthonSims fragSynthonSims,
+    const TimePoint *endTime, FragSynthonSims &fragSynthonSims,
     std::unique_ptr<ProgressBar> &pbar) {
   SearchShapeInput *fragShape;
   Synthon *synthon;
@@ -453,7 +452,7 @@ void computeSomeFragSynthonSims(
 // space, in parallel if required.
 void processShapeSynthonList(
     const std::vector<std::pair<SearchShapeInput *, Synthon *>> &toDo,
-    float threshold, const TimePoint *endTime, FragSynthonSims fragSynthonSims,
+    float threshold, const TimePoint *endTime, FragSynthonSims &fragSynthonSims,
     std::unique_ptr<ProgressBar> &pbar, unsigned int numThreadsToUse) {
   std::atomic<std::int64_t> nextToDo = -1;
   std::vector<std::thread> threads;

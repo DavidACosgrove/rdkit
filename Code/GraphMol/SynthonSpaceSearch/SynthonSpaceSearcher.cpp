@@ -217,9 +217,8 @@ SynthonSpaceSearcher::doTheSearch(
     ThreadMode threadMode) {
   auto reactionNames = getSpace().getReactionNames();
   std::vector<std::vector<std::unique_ptr<SynthonSpaceHitSet>>> reactionHits;
-  const unsigned int numThreads = getNumThreadsToUse(d_params.numThreads);
-
   if (threadMode == ThreadMode::ThreadFragments) {
+    const unsigned int numThreads = getNumThreadsToUse(d_params.numThreads);
     // Do the reactions one at a time, parallelising the fragSet searches.
     // For the slower searches, this minimises the amount of time that
     // threads are left idle.  ThreadReactions runs the risk of 1 thread
