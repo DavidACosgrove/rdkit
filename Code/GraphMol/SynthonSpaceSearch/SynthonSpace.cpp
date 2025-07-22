@@ -343,6 +343,7 @@ void SynthonSpace::readStream(std::istream &is, bool &cancelled) {
     }
     reaction->initializeSearchOrders();
   }
+  fillSynthonReactions();
 }
 
 void SynthonSpace::writeDBFile(const std::string &outFilename) const {
@@ -580,6 +581,7 @@ void SynthonSpace::readDBFile(const std::string &inFilename,
       d_maxNumSynthons = reaction->getSynthons().size();
     }
   }
+  fillSynthonReactions();
   BOOST_LOG(rdInfoLog) << "Number of synthons : " << d_synthonPool.size()
                        << " of which " << getNumSynthonsWithShapes()
                        << " have shapes.\n";
@@ -965,10 +967,12 @@ void SynthonSpace::fillSynthonReactions() {
         auto smiles = synthon->getSmiles();
         if (auto it = d_synthonReactions.find(smiles);
             it != d_synthonReactions.end()) {
+          synthon->updateMaxSynthonSetSize(rxn->getSynthons().size());
           it->second.push_back(rxn.get());
         } else {
           d_synthonReactions.insert(
               std::make_pair(smiles, std::vector<SynthonSet *>(1, rxn.get())));
+          synthon->updateMaxSynthonSetSize(rxn->getSynthons().size());
         }
       }
     }

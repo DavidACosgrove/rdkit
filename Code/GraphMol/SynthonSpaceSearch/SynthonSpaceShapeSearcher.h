@@ -100,7 +100,9 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
       const TimePoint *endTime) override;
 
   // Fill in the d_fragSynthonSims map.
-  bool computeFragSynthonSims(const TimePoint *endTime);
+  bool computeFragSynthonSims(
+      const TimePoint *endTime,
+      std::unordered_map<void *, unsigned int> &minFragSetSize);
 };
 }  // namespace RDKit::SynthonSpaceSearch
 #endif  // SYNTHONSPACESHAPESEARCHER_H

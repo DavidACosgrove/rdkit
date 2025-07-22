@@ -53,6 +53,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
     return d_numChiralAtomsExcDummies;
   }
   double getMolWt() const { return d_molWt; }
+  void updateMaxSynthonSetSize(unsigned int newVal);
+  unsigned int getMaxSynthonSetSize() const { return d_maxSynthonSetSize; }
   void clearShapes();
   void setShapes(std::unique_ptr<SearchShapeInput> shapes);
   const std::unique_ptr<SearchShapeInput> &getShapes() const;
@@ -90,6 +92,9 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT Synthon {
   // more dummies attached.
   unsigned int d_numChiralAtomsExcDummies{0};
   double d_molWt{0.0};
+  // The smallest SynthonSet size this synthon is in, where the SynthonSet
+  // size is the number of Synthons in 1 reaction, so 2-4 probably.
+  unsigned int d_maxSynthonSetSize{0};
 
   // Once the search molecule has been added, get the connector regions,
   // connector fingerprint etc.

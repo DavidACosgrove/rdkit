@@ -131,6 +131,12 @@ void Synthon::setShapes(std::unique_ptr<SearchShapeInput> shape) {
   dp_shapes = std::move(shape);
 }
 
+void Synthon::updateMaxSynthonSetSize(unsigned int newVal) {
+  if (newVal > d_maxSynthonSetSize) {
+    d_maxSynthonSetSize = newVal;
+  }
+}
+
 void Synthon::clearShapes() { dp_shapes.reset(); }
 
 const std::unique_ptr<SearchShapeInput> &Synthon::getShapes() const {

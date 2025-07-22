@@ -375,11 +375,34 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     generateSomeShapes(fragsForShape, 0, fragsForShape.size(), *dp_queryConfs,
                        1.9, endTime, d_fragShapesPool);
   }
-  // Use the pooled ShapeSets to populate the vectors for each fragSet
+  // Keep track of the minimum fragSet size that each frag is in, which will
+  // be used in computeFragSynthonSims.
+  std::unordered_map<void *, unsigned int> minFragSetSize;
+  for (const auto &fragSet : fragSets) {
+    for (const auto &frag : fragSet) {
+      if (auto it = minFragSetSize.find(frag.get());
+          it != minFragSetSize.end()) {
+        if (it->second < fragSet.size()) {
+          it->second = fragSet.size();
+        }
+      } else {
+        minFragSetSize[frag.get()] = fragSet.size();
+      }
+    }
+  }
+  // Use the pooled ShapeSets to populate the vectors for each fragSet.
+  // Use the smallest minFragSetSize as the minShapeSetSize as we are
+  // only doing 1 shape for all the identical frags.
   fragNum = 0;
   d_fragShapes.reserve(fragSmiToFrag.size());
+  std::unordered_map<void *, unsigned int> minShapeSetSize;
   for (auto &[fragSmi, frags] : fragSmiToFrag) {
+    minShapeSetSize[d_fragShapesPool[fragNum].get()] = 10;
     for (auto &frag : frags) {
+      if (minFragSetSize[frag] <
+          minShapeSetSize[d_fragShapesPool[fragNum].get()]) {
+        minShapeSetSize[d_fragShapesPool[fragNum].get()] = minFragSetSize[frag];
+      }
       d_fragShapes.emplace_back(frag, d_fragShapesPool[fragNum].get());
     }
     ++fragNum;
@@ -388,13 +411,16 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
     return p1.first > p2.first;
   });
 
-  // The search will require that all fragments are compared against all
-  // synthons at least once.  It's likely that a fragment occurs more than once
-  // in the fragment sets, so compute them all up front.  This makes maximum use
-  // of the parallel environment, doesn't do anything that wouldn't be done at
-  // some point and may prevent duplicated comparisons.
-  if (!computeFragSynthonSims(endTime)) {
-    return false;
+  // It's likely that a fragment occurs more than once in the fragment sets,
+  // so compute all the fragment->synthon similarities up front.  This makes
+  // maximum use of the parallel environment, doesn't do anything that
+  // wouldn't be done at some point and may prevent duplicated comparisons.
+  // Only do it if running in parallel. We'll do them on the fly otherwise.
+  const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
+  if (numThreadsToUse > 1) {
+    if (!computeFragSynthonSims(endTime, minShapeSetSize)) {
+      return false;
+    }
   }
   return true;
 }
@@ -474,41 +500,65 @@ void processShapeSynthonList(
 }  // namespace
 
 bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
-    const TimePoint *endTime) {
+    const TimePoint *endTime,
+    std::unordered_map<void *, unsigned int> &minShapeSetSize) {
   float threshold =
       getParams().similarityCutoff - getParams().fragSimilarityAdjuster;
 
   std::unique_ptr<ProgressBar> pbar;
   if (getParams().useProgressBar) {
-    pbar.reset(new ProgressBar(
-        getParams().useProgressBar,
-        d_fragShapesPool.size() * getSpace().d_synthonPool.size()));
+    std::uint64_t numToDo = 0UL;
+    for (size_t i = 0U; i < d_fragShapesPool.size(); ++i) {
+      for (size_t j = 0U; j < getSpace().d_synthonPool.size(); ++j) {
+        auto mfss = minShapeSetSize[d_fragShapesPool[i].get()];
+        if (mfss <=
+            getSpace().d_synthonPool[j].second->getMaxSynthonSetSize()) {
+          numToDo++;
+        }
+      }
+    }
+    pbar.reset(new ProgressBar(getParams().useProgressBar, numToDo));
     std::cout << "Computing fragment/synthon shape similarities for "
               << d_fragShapesPool.size() << " fragments against "
               << getSpace().d_synthonPool.size() << " synthons with "
               << getNumThreadsToUse(getParams().numThreads) << " threads."
               << std::endl;
   }
-
-  if (const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
-      numThreadsToUse > 1) {
-    std::vector<std::pair<SearchShapeInput *, Synthon *>> toDo;
-    toDo.reserve(2500000);
-    for (size_t i = 0U; i < d_fragShapesPool.size(); ++i) {
-      for (size_t j = 0U; j < getSpace().d_synthonPool.size(); ++j) {
+  std::cout << d_fragShapesPool.size() << " vs " << d_fragShapes.size()
+            << std::endl;
+  const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
+  std::vector<std::pair<SearchShapeInput *, Synthon *>> toDo;
+  toDo.reserve(2500000);
+  unsigned int skipped = 0;
+  unsigned int notSkipped = 0;
+  for (size_t i = 0U; i < d_fragShapesPool.size(); ++i) {
+    for (size_t j = 0U; j < getSpace().d_synthonPool.size(); ++j) {
+      auto mfss = minShapeSetSize[d_fragShapesPool[i].get()];
+      // If the smallest fragment set that this fragment is in is bigger
+      // than the largest SynthonSet the synthon is in, we won't ever
+      // need to know the similarity between them, so skip.
+      if (mfss <= getSpace().d_synthonPool[j].second->getMaxSynthonSetSize()) {
         toDo.push_back(
             std::make_pair(d_fragShapesPool[i].get(),
                            getSpace().d_synthonPool[j].second.get()));
-        if (toDo.size() == 2500000) {
-          processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims,
-                                  pbar, numThreadsToUse);
-          toDo.clear();
-        }
+        notSkipped++;
+      } else {
+        skipped++;
+      }
+      if (toDo.size() == 2500000) {
+        processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims,
+                                pbar, numThreadsToUse);
+        toDo.clear();
       }
     }
-    processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims, pbar,
-                            numThreadsToUse);
   }
+  processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims, pbar,
+                          numThreadsToUse);
+  std::cout << "\nskipped " << skipped << " not skipped " << notSkipped << " : "
+            << skipped + notSkipped << " vs "
+            << d_fragShapesPool.size() * getSpace().d_synthonPool.size()
+            << " : " << std::endl;
+
   return !ControlCHandler::getGotSignal();
 }  // namespace
 
