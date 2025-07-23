@@ -527,8 +527,6 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
   const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
   std::vector<std::pair<SearchShapeInput *, Synthon *>> toDo;
   toDo.reserve(2500000);
-  unsigned int skipped = 0;
-  unsigned int notSkipped = 0;
   for (size_t i = 0U; i < d_fragShapesPool.size(); ++i) {
     for (size_t j = 0U; j < getSpace().d_synthonPool.size(); ++j) {
       auto mfss = minShapeSetSize[d_fragShapesPool[i].get()];
@@ -539,9 +537,6 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
         toDo.push_back(
             std::make_pair(d_fragShapesPool[i].get(),
                            getSpace().d_synthonPool[j].second.get()));
-        notSkipped++;
-      } else {
-        skipped++;
       }
       if (toDo.size() == 2500000) {
         processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims,

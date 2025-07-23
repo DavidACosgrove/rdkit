@@ -483,3 +483,41 @@ FC1(F)CCC(N[1*:1])CC1	K	1	r4	3)");
   double bestSim = hitMol2->getProp<double>("Similarity");
   CHECK(bestSim > firstSim);
 }
+
+TEST_CASE("Shape Hits back onto query") {
+  // Make sure the hits are properly translated to the reference
+  // frame of the query.
+  SynthonSpace synthonspace;
+  REQUIRE(rdbase);
+  std::string fName(rdbase);
+  std::string libName =
+      fName +
+      "/Code/GraphMol/SynthonSpaceSearch/data/hits_back_onto_query_test_shapes.spc";
+  synthonspace.readDBFile(libName);
+  auto tagrisso_pdb_core =
+      "c1cc(Nc2nccc(c3cn(C)c4ccccc34)n2)ccc1 |(-30.966,18.467,-10.003;-29.741,18.8,-10.881;-29.776,18.58,-12.402;-28.626,18.878,-13.264;-27.858,20.11,-13.139;-26.809,20.446,-14.135;-26.039,21.676,-14.006;-26.301,22.606,-12.864;-27.356,22.266,-11.866;-27.643,23.19,-10.674;-26.776,24.159,-10.172;-27.396,24.761,-9.099;-26.842,25.83,-8.286;-28.633,24.178,-8.929;-29.782,24.445,-7.884;-31.052,23.635,-7.939;-31.218,22.587,-8.984;-30.11,22.344,-9.979;-28.784,23.198,-9.912;-28.114,21.037,-12.005;-31.044,18.019,-13.045;-32.253,17.694,-12.176;-32.227,17.912,-10.676)|"_smiles;
+  SynthonSpaceSearchParams params;
+  params.maxHits = -1;
+  params.numThreads = -1;
+  params.similarityCutoff = 1.0;
+  params.numConformers = 100;
+  params.confRMSThreshold = 1.0;
+  params.timeOut = 0;
+  params.randomSeed = 0xdac;
+
+  RDGeom::Point3D tag_centre;
+  for (const auto atom : tagrisso_pdb_core->atoms()) {
+    tag_centre += tagrisso_pdb_core->getConformer().getAtomPos(atom->getIdx());
+  }
+  tag_centre /= tagrisso_pdb_core->getNumAtoms();
+  auto results = synthonspace.shapeSearch(*tagrisso_pdb_core, params);
+  REQUIRE(!results.getHitMolecules().empty());
+  for (const auto &m : results.getHitMolecules()) {
+    RDGeom::Point3D hit_centre;
+    for (const auto atom : m->atoms()) {
+      hit_centre += m->getConformer().getAtomPos(atom->getIdx());
+    }
+    hit_centre /= m->getNumAtoms();
+    CHECK((hit_centre - tag_centre).length() < 2.0);
+  }
+}
