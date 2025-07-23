@@ -42,7 +42,8 @@ class SynthonSpaceRascalSearcher : public SynthonSpaceSearcher {
                    const std::vector<size_t> &synthNums) const override;
   double approxSimilarity(const SynthonSpaceHitSet *hitset,
                           const std::vector<size_t> &synthNums) const override;
-  bool verifyHit(ROMol &hit) override;
+  bool verifyHit(ROMol &hit, const std::string &rxnId,
+                 const std::vector<const std::string *> &synthNames) override;
 
  private:
   bool extraSearchSetup(

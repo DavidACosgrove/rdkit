@@ -473,11 +473,18 @@ double SynthonSpaceSubstructureSearcher::approxSimilarity(
   return static_cast<double>(qbit) / static_cast<double>(numAtoms);
 }
 
-bool SynthonSpaceSubstructureSearcher::verifyHit(ROMol &hit) {
-  if (!SynthonSpaceSearcher::verifyHit(hit)) {
+bool SynthonSpaceSubstructureSearcher::verifyHit(
+    ROMol &hit, const std::string &rxnId,
+    const std::vector<const std::string *> &synthNames) {
+  if (!SynthonSpaceSearcher::verifyHit(hit, rxnId, synthNames)) {
     return false;
   }
-  return !SubstructMatch(hit, getQuery(), d_matchParams).empty();
+  if (!SubstructMatch(hit, getQuery(), d_matchParams).empty()) {
+    const auto prodName = details::buildProductName(rxnId, synthNames);
+    hit.setProp<std::string>(common_properties::_Name, prodName);
+    return true;
+  }
+  return false;
 }
 
 void SynthonSpaceSubstructureSearcher::getConnectorRegions(

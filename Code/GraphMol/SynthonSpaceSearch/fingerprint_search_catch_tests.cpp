@@ -256,5 +256,6 @@ TEST_CASE("FP Best Hit Found") {
   CHECK(results.getHitMolecules().empty());
   auto &bestHit = results.getBestHit();
   REQUIRE(bestHit);
+  CHECK_NOTHROW(bestHit->getProp<std::string>(common_properties::_Name));
   CHECK(bestHit->getProp<double>("Similarity") < 0.8);
 }

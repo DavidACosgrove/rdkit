@@ -72,7 +72,8 @@ class SynthonSpaceSearcher {
   // the derived class' criteria.  This function checks the chiralAtomCount
   // if appropriate, which required a non-const ROMol.  Some derived classes
   // will also update d_bestHitFound.
-  virtual bool verifyHit(ROMol &mol);
+  virtual bool verifyHit(ROMol &mol, const std::string &,
+                         const std::vector<const std::string *> &);
 
   // Compute an approximate similarity between the hit and query.  It's used
   // to sort the possible hits in descending approximate similarity to try

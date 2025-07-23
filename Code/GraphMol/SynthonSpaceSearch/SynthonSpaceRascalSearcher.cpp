@@ -252,8 +252,10 @@ double SynthonSpaceRascalSearcher::approxSimilarity(
   return bestSim;
 }
 
-bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) {
-  if (!SynthonSpaceSearcher::verifyHit(hit)) {
+bool SynthonSpaceRascalSearcher::verifyHit(
+    ROMol &hit, const std::string &rxnId,
+    const std::vector<const std::string *> &synthNames) {
+  if (!SynthonSpaceSearcher::verifyHit(hit, rxnId, synthNames)) {
     return false;
   }
   auto res = RascalMCES::rascalMCES(hit, getQuery(), d_rascalOptions);
@@ -261,9 +263,15 @@ bool SynthonSpaceRascalSearcher::verifyHit(ROMol &hit) {
   // even if the final similarity value ends up below the threshold.
   // We only want those over the threshold.
   if (!res.empty()) {
-    updateBestHitSoFar(hit, res.front().getSimilarity());
+    if (res.front().getSimilarity() > getBestSimilaritySoFar()) {
+      const auto prodName = details::buildProductName(rxnId, synthNames);
+      hit.setProp<std::string>(common_properties::_Name, prodName);
+      updateBestHitSoFar(hit, res.front().getSimilarity());
+    }
     if (res.front().getSimilarity() >= d_rascalOptions.similarityThreshold) {
       hit.setProp<double>("Similarity", res.front().getSimilarity());
+      const auto prodName = details::buildProductName(rxnId, synthNames);
+      hit.setProp<std::string>(common_properties::_Name, prodName);
       return true;
     }
   }

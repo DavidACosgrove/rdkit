@@ -592,12 +592,17 @@ void finaliseHit(const std::unique_ptr<RWMol> &queryConfs,
                  const std::unique_ptr<RWMol> &allHitConfs,
                  const std::unique_ptr<SearchShapeInput> &allHitShapes,
                  unsigned int hitConfNum, const std::vector<float> &matrix,
-                 double sim, ROMol &hit) {
+                 double sim, const std::string &rxnId,
+                 const std::vector<const std::string *> &synthNames,
+                 ROMol &hit) {
   hit.setProp<double>("Similarity", sim);
   hit.setProp<unsigned int>("Query_Conformer", queryConfNum);
   // Make a molecule of this query conformer, and add it to the hit.
   ROMol thisConf(*queryConfs, false, queryConfNum);
   hit.setProp<std::string>("Query_CXSmiles", MolToCXSmiles(thisConf));
+  const auto prodName = details::buildProductName(rxnId, synthNames);
+  hit.setProp<std::string>(common_properties::_Name, prodName);
+
   // Copy the conformer into the hit.
   hit.clearConformers();
   auto hitConf = new Conformer(allHitConfs->getConformer(hitConfNum));
@@ -608,7 +613,9 @@ void finaliseHit(const std::unique_ptr<RWMol> &queryConfs,
 }
 }  // namespace
 
-bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) {
+bool SynthonSpaceShapeSearcher::verifyHit(
+    ROMol &hit, const std::string &rxnId,
+    const std::vector<const std::string *> &synthNames) {
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
@@ -636,15 +643,14 @@ bool SynthonSpaceShapeSearcher::verifyHit(ROMol &hit) {
         bool finalisedHit = false;
         if (sim > getBestSimilaritySoFar()) {
           finaliseHit(dp_queryConfs, dp_queryShapes, i, isomer, hitShapes, j,
-                      matrix, sim, hit);
-
+                      matrix, sim, rxnId, synthNames, hit);
           finalisedHit = true;
           updateBestHitSoFar(hit, sim);
         }
         if (sim >= bestSim) {
           if (!finalisedHit) {
             finaliseHit(dp_queryConfs, dp_queryShapes, i, isomer, hitShapes, j,
-                        matrix, sim, hit);
+                        matrix, sim, rxnId, synthNames, hit);
           }
           // If we're only interested in whether there's a shape match, and
           // not in finding the best shape, we're done.

@@ -292,15 +292,23 @@ double SynthonSpaceFingerprintSearcher::approxSimilarity(
   return TanimotoSimilarity(fullFP, *d_queryFP);
 }
 
-bool SynthonSpaceFingerprintSearcher::verifyHit(ROMol &hit) {
-  if (!SynthonSpaceSearcher::verifyHit(hit)) {
+bool SynthonSpaceFingerprintSearcher::verifyHit(
+    ROMol &hit, const std::string &rxnId,
+    const std::vector<const std::string *> &synthNames) {
+  if (!SynthonSpaceSearcher::verifyHit(hit, rxnId, synthNames)) {
     return false;
   }
   const std::unique_ptr<ExplicitBitVect> fp(d_fpGen.getFingerprint(hit));
   const auto sim = TanimotoSimilarity(*fp, *d_queryFP);
-  updateBestHitSoFar(hit, sim);
+  if (sim > getBestSimilaritySoFar()) {
+    const auto prodName = details::buildProductName(rxnId, synthNames);
+    hit.setProp<std::string>(common_properties::_Name, prodName);
+    updateBestHitSoFar(hit, sim);
+  }
   if (sim >= getParams().similarityCutoff) {
     hit.setProp<double>("Similarity", sim);
+    const auto prodName = details::buildProductName(rxnId, synthNames);
+    hit.setProp<std::string>(common_properties::_Name, prodName);
     return true;
   }
   return false;

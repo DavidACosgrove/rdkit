@@ -105,13 +105,8 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
   // when split is a match to the synthons (c1ccc(C[1*])o1 and [1*]N)
   // but the product the hydroxyquinazoline is aromatic, at least in
   // the RDKit model so the N in the query doesn't match.
-  if (!verifyHit(*prod)) {
+  if (!verifyHit(*prod, hitset->d_reaction->getId(), synthNames)) {
     prod.reset();
-  }
-  if (prod) {
-    const auto prodName =
-        details::buildProductName(hitset->d_reaction->getId(), synthNames);
-    prod->setProp<std::string>(common_properties::_Name, prodName);
   }
   return prod;
 }
@@ -335,7 +330,8 @@ void SynthonSpaceSearcher::updateBestHitSoFar(const ROMol &possBest,
 
 // It's conceivable that building the full molecule has changed the
 // chiral atom count.
-bool SynthonSpaceSearcher::verifyHit(ROMol &mol) {
+bool SynthonSpaceSearcher::verifyHit(ROMol &mol, const std::string &,
+                                     const std::vector<const std::string *> &) {
   if (getParams().minHitChiralAtoms || getParams().maxHitChiralAtoms) {
     auto numChiralAtoms = details::countChiralAtoms(mol);
     if (numChiralAtoms < getParams().minHitChiralAtoms ||

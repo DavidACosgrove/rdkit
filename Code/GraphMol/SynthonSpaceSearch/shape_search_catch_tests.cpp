@@ -274,6 +274,7 @@ TEST_CASE("Shape Best Hit Found") {
   CHECK(results.getHitMolecules().empty());
   auto &bestHit = results.getBestHit();
   CHECK(bestHit);
+  CHECK_NOTHROW(bestHit->getProp<std::string>(common_properties::_Name));
   CHECK(bestHit->getProp<double>("Similarity") < 1.0);
   CHECK(bestHit->getConformer().is3D());
 }

@@ -40,7 +40,8 @@ class SynthonSpaceSubstructureSearcher : public SynthonSpaceSearcher {
   // divided by the number of atoms in the product.
   double approxSimilarity(const SynthonSpaceHitSet *hitset,
                           const std::vector<size_t> &synthNums) const override;
-  bool verifyHit(ROMol &hit) override;
+  bool verifyHit(ROMol &hit, const std::string &rxnId,
+                 const std::vector<const std::string *> &synthNames) override;
 
  private:
   // These are the pattern fingerprints for the fragments in this
