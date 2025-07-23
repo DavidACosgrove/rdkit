@@ -524,8 +524,6 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
               << getNumThreadsToUse(getParams().numThreads) << " threads."
               << std::endl;
   }
-  std::cout << d_fragShapesPool.size() << " vs " << d_fragShapes.size()
-            << std::endl;
   const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
   std::vector<std::pair<SearchShapeInput *, Synthon *>> toDo;
   toDo.reserve(2500000);
@@ -554,11 +552,6 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
   }
   processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims, pbar,
                           numThreadsToUse);
-  std::cout << "\nskipped " << skipped << " not skipped " << notSkipped << " : "
-            << skipped + notSkipped << " vs "
-            << d_fragShapesPool.size() * getSpace().d_synthonPool.size()
-            << " : " << std::endl;
-
   return !ControlCHandler::getGotSignal();
 }  // namespace
 
