@@ -50,8 +50,15 @@ SynthonSpaceFPHitSet::SynthonSpaceFPHitSet(
       synthonFPs[i].emplace_back(sfps[i][stu[i][j]].second->getFP().get());
     }
   }
-  addFP = reaction.getAddFP().get();
-  subtractFP = reaction.getSubtractFP().get();
 }
+
+SynthonSpaceShapeHitSet::SynthonSpaceShapeHitSet(
+    const SynthonSet &reaction, const std::vector<std::vector<size_t>> &stu,
+    const std::vector<std::unique_ptr<ROMol>> &fragSet,
+    const std::vector<SearchShapeInput *> &fShapes,
+    const std::vector<unsigned int> &sSetOrder)
+    : SynthonSpaceHitSet(reaction, stu, fragSet),
+      fragShapes(fShapes),
+      synthonSetOrder(sSetOrder) {}
 
 }  // namespace RDKit::SynthonSpaceSearch

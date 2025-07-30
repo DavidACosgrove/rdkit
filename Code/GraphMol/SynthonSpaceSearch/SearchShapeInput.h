@@ -88,7 +88,8 @@ PrepareConformers(const RDKit::ROMol &mol,
 // effectively means no threshold.
 RDKIT_PUBCHEMSHAPE_EXPORT std::pair<double, double> bestSimilarity(
     SearchShapeInput &refShape, SearchShapeInput &fitShape,
-    std::vector<float> &matrix, double threshold = 3.0, double opt_param = 1.0,
+    std::vector<float> &matrix, unsigned int &bestRefConf,
+    unsigned int &bestFitConf, double threshold = 3.0, double opt_param = 1.0,
     unsigned int max_preiters = 10u, unsigned int max_postiters = 30u);
 
 // Mock a molecule up from the shape for visual inspection.  No bonds.

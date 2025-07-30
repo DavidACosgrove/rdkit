@@ -38,12 +38,12 @@ SynthonSpaceShapeSearcher::SynthonSpaceShapeSearcher(
   }
 }
 
-bool SynthonSpaceShapeSearcher::fragMatchedSynthon(const void *frag,
-                                                   const void *synthon,
-                                                   float &sim) const {
+bool SynthonSpaceShapeSearcher::fragMatchedSynthon(
+    const void *frag, const void *synthon,
+    std::tuple<float, float, unsigned int> &sim) const {
   auto it = d_fragSynthonSims.find(std::make_pair(frag, synthon));
   if (it == d_fragSynthonSims.end()) {
-    sim = -1.0;
+    sim = std::make_tuple(-1.0, -1.0, 0);
     return false;
   }
   sim = it->second;
@@ -83,14 +83,14 @@ std::vector<std::vector<size_t>> getHitSynthons(
     synthonsToUse.emplace_back(synthonSet.size());
   }
   std::vector<float> matrix(12, 0.0);
-  float sim;
+  std::tuple<float, float, unsigned int> sim;
   for (size_t i = 0; i < synthonSetOrder.size(); i++) {
     const auto fragNum = fragOrders[i].first;
     const auto &synthons = reaction.getSynthons()[synthonSetOrder[fragNum]];
     // Get the smallest fragment volume.
     bool fragMatched = false;
     // Because the combination score is the sum of 2 tanimotos, it's not
-    // possible to use the threshold to set upper and lower bonds on the
+    // possible to use the threshold to set upper and lower bounds on the
     // search space as is done with fingerprints and Rascal similarity.
     // We just need to plough through them in order.
     for (size_t j = 0; j < synthons.size(); j++) {
@@ -102,17 +102,19 @@ std::vector<std::vector<size_t>> getHitSynthons(
         if (shapeSearcher.fragMatchedSynthon(fragShapes[fragNum],
                                              synthons[j].second, sim)) {
           synthonsToUse[synthonSetOrder[fragNum]][j] = true;
-          fragSims[synthonSetOrder[fragNum]].emplace_back(j, sim);
+          fragSims[synthonSetOrder[fragNum]].emplace_back(
+              j, std::get<0>(sim) + std::get<1>(sim));
           fragMatched = true;
         }
       } else {
-        if (const auto sim = bestSimilarity(*fragShapes[fragNum],
-                                            *synthons[j].second->getShapes(),
-                                            matrix, similarityCutoff);
-            sim.first + sim.second >= similarityCutoff) {
+        unsigned int bestRefConf, bestFitConf;
+        if (auto csim = bestSimilarity(
+                *fragShapes[fragNum], *synthons[j].second->getShapes(), matrix,
+                bestRefConf, bestFitConf, similarityCutoff);
+            csim.first + csim.second >= similarityCutoff) {
           synthonsToUse[synthonSetOrder[fragNum]][j] = true;
           fragSims[synthonSetOrder[fragNum]].emplace_back(
-              j, sim.first + sim.second);
+              j, csim.first + csim.second);
           fragMatched = true;
         }
       }
@@ -162,18 +164,40 @@ SynthonSpaceShapeSearcher::searchFragSet(
   if (fragSet.size() > reaction.getSynthons().size()) {
     return results;
   }
+
   // Collect the ShapeSets for the fragSet
   std::vector<SearchShapeInput *> fragShapes;
   fragShapes.reserve(fragSet.size());
   for (auto &frag : fragSet) {
-    std::pair<void *, ShapeSet *> tmp{frag.get(), nullptr};
-    const auto it = std::ranges::lower_bound(
-        d_fragShapes, tmp, [](const auto &p1, const auto &p2) -> bool {
-          return p1.first > p2.first;
-        });
-    fragShapes.push_back(it->second);
+    auto shape = getFragShape(frag.get());
+    fragShapes.push_back(shape);
   }
 
+#if 0
+  std::vector<float> matrix(12, 0.0);
+  for (size_t i = 0; i < fragShapes.size(); i++) {
+    if (MolToSmiles(*fragSet[i]) == "[1*]C(=O)NC1COC1") {
+      std::cout << MolToCXSmiles(*shapeToMol(*fragShapes[i])) << std::endl;
+      const auto &synthon = getSpace().getSynthonFromPool("O=C(NC1COC1)[1*]");
+      const auto &shapes = synthon->getShapes();
+      for (size_t j = 0; j < shapes->getNumShapes(); ++j) {
+        shapes->setActiveShape(j);
+
+        auto [st, ct] =
+            AlignShape(*fragShapes[i], *shapes, matrix, 1.0, 10u, 30u);
+        std::cout << j << " : " << st << " : " << ct << " = " << st + ct
+                  << std::endl;
+      }
+      std::cout << "DOING" << std::endl;
+      unsigned int bestRefConf, bestFitConf;
+      auto [fst, fct] = bestSimilarity(
+          *fragShapes[i], *shapes, matrix, bestRefConf, bestFitConf,
+          getParams().similarityCutoff, 1.0, 10u, 30u);
+      std::cout << "by the lot : " << fst << " : " << fct << " = " << fst + fct
+                << std::endl;
+    }
+  }
+#endif
   const auto connPatterns = details::getConnectorPatterns(fragSet);
   const auto synthConnPatts = reaction.getSynthonConnectorPatterns();
 
@@ -211,15 +235,29 @@ SynthonSpaceShapeSearcher::searchFragSet(
           getParams().similarityCutoff - getParams().fragSimilarityAdjuster,
           reaction, synthonOrder, *this);
       if (!theseSynthons.empty()) {
-        std::unique_ptr<SynthonSpaceHitSet> hs(
-            new SynthonSpaceHitSet(reaction, theseSynthons, fragSet));
+        std::unique_ptr<SynthonSpaceHitSet> hs(new SynthonSpaceShapeHitSet(
+            reaction, theseSynthons, fragSet, fragShapes, synthonOrder));
         if (hs->numHits) {
           results.push_back(std::move(hs));
         }
       }
     }
   }
-
+  if (!results.empty()) {
+    std::cout << "got results " << results.size() << std::endl << "[";
+    for (const auto &fs : fragSet) {
+      std::cout << "\"" << MolToSmiles(*fs) << "\", ";
+    }
+    std::cout << "]" << std::endl;
+    for (const auto &his : results) {
+      auto hs = dynamic_cast<SynthonSpaceShapeHitSet *>(his.get());
+      std::cout << hs->frags.size() << " and " << hs->synthonsToUse.size()
+                << std::endl;
+      for (size_t i = 0; i < hs->fragShapes.size(); i++) {
+        std::cout << "frag " << i << " : " << hs->fragShapes[i] << std::endl;
+      }
+    }
+  }
   return results;
 }
 
@@ -392,7 +430,9 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   }
   // Use the pooled ShapeSets to populate the vectors for each fragSet.
   // Use the smallest minFragSetSize as the minShapeSetSize as we are
-  // only doing 1 shape for all the identical frags.
+  // only doing 1 shape for all the identical frags.  d_fragShapes will
+  // hold pointers to shapes in d_fragShapesPool, keyed on the corresponding
+  // fragment.
   fragNum = 0;
   d_fragShapes.reserve(fragSmiToFrag.size());
   std::unordered_map<void *, unsigned int> minShapeSetSize;
@@ -415,12 +455,8 @@ bool SynthonSpaceShapeSearcher::extraSearchSetup(
   // so compute all the fragment->synthon similarities up front.  This makes
   // maximum use of the parallel environment, doesn't do anything that
   // wouldn't be done at some point and may prevent duplicated comparisons.
-  // Only do it if running in parallel. We'll do them on the fly otherwise.
-  const auto numThreadsToUse = getNumThreadsToUse(getParams().numThreads);
-  if (numThreadsToUse > 1) {
-    if (!computeFragSynthonSims(endTime, minShapeSetSize)) {
-      return false;
-    }
+  if (!computeFragSynthonSims(endTime, minShapeSetSize)) {
+    return false;
   }
   return true;
 }
@@ -455,13 +491,24 @@ void computeSomeFragSynthonSims(
     fragShape = toDo[thisPair].first;
     synthon = toDo[thisPair].second;
     if (synthon->getShapes() && !synthon->getShapes()->hasNoShapes()) {
-      const auto sim = bestSimilarity(*fragShape, *synthon->getShapes().get(),
-                                      matrix, threshold);
-
+      unsigned int bestRefConf, bestFitConf;
+      const auto sim =
+          bestSimilarity(*fragShape, *synthon->getShapes().get(), matrix,
+                         bestFitConf, bestRefConf, threshold);
       if (sim.first + sim.second >= threshold) {
+        // std::cout << fragShape << " : " << fragShape->getNumShapes() << " : "
+        //           << fragShape->confCoords.front().size() / 3 << " to "
+        //           << synthon->getSmiles() << " : "
+        //           << synthon->getShapes()->getNumShapes()
+        //           << " :: " << synthon->getShapes()->coord.size() / 3 << " :
+        //           "
+        //           << sim.first << ", " << sim.second << " : "
+        //           << sim.first + sim.second << " : " << bestFitConf << " : "
+        //           << bestRefConf << std::endl;
         std::pair<const void *, const void *> p{fragShape, synthon};
         std::unique_lock lock1{mtx};
-        fragSynthonSims.insert(std::make_pair(p, sim.first + sim.second));
+        fragSynthonSims.insert(std::make_pair(
+            p, std::make_tuple(sim.first, sim.second, bestRefConf)));
       }
       if (pbar) {
         --numProgs;
@@ -545,42 +592,125 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
       }
     }
   }
+  std::cout << "toDO :: " << toDo.size() << std::endl;
   processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims, pbar,
                           numThreadsToUse);
+  std::cout << " got " << d_fragSynthonSims.size() << std::endl;
   return !ControlCHandler::getGotSignal();
 }  // namespace
 
 bool SynthonSpaceShapeSearcher::quickVerify(
     const SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &synthNums) const {
-  auto approxSim = approxSimilarity(hitset, synthNums);
-  return approxSim >=
-         getParams().similarityCutoff - getParams().approxSimilarityAdjuster;
+  // The approximate similarity should already have been checked in
+  // processToTrySet so no need to do it again.
+  if (!SynthonSpaceSearcher::quickVerify(hitset, synthNums)) {
+    return false;
+  }
 }
 
 double SynthonSpaceShapeSearcher::approxSimilarity(
     const SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &synthNums) const {
-  double maxVol = 0.0;
-  double featureVol = 0.0;
-  // The synthon shapes are sorted in descending order of sov + sof.
-  // Assume therefore that the maximum volume of the hit is the sum
-  // of the sov's of the first shape in each synthon, minus the volume
-  // of their dummy atoms.
-  for (size_t i = 0; i < synthNums.size(); i++) {
-    const auto &synth = hitset->synthonsToUse[i][synthNums[i]].second;
-    const auto &shapes = synth->getShapes();
-    if (!shapes || shapes->hasNoShapes()) {
-      return false;
+  double approxSim = 0.0;
+  // std::cout << "\nAPPROX SIMILARITY" << std::endl;
+  if (hasPrecomputedSims()) {
+    // Calculate the overlap volumes for each fragShape->synthon using
+    // the shape and colour tanimotos already calculated and use them to
+    // calculate an approximation of the total similarities.
+    const auto hs = dynamic_cast<const SynthonSpaceShapeHitSet *>(hitset);
+    std::tuple<float, float, unsigned int> sim;
+    double totShapeOv = 0.0;
+    double totColourOv = 0.0;
+    double totSynthVol = 0.0;
+    double totSynthColourVol = 0.0;
+    double totFragVol = 0.0;
+    double totFragColourVol = 0.0;
+    // Not all fragShapes will have a matching synthon.  For example,
+    // if a 2 fragment split matched 2 synthons from a 3 synthon SynthonSet.
+    // All synthons of the 3rd set will have been included as potential hits.
+    // Do the overlap vol calcs with the fragments to matching synthon.
+    for (size_t i = 0; i < hs->fragShapes.size(); i++) {
+      const auto &synth = hs->synthonsToUse[hs->synthonSetOrder[i]]
+                                           [synthNums[hs->synthonSetOrder[i]]]
+                                               .second;
+      const auto &shapes = synth->getShapes();
+      auto fragShape = hs->fragShapes[i];
+
+      // Look up the similarity for this shape/synthon combination.  If it
+      // isn't there, something has gone catastrophically wrong somewhere.
+      if (!fragMatchedSynthon(fragShape, synth, sim)) {
+        std::cout << "awooga " << fragShape << " : " << synth << " not found"
+                  << std::endl;
+        std::cout << MolToSmiles(*hs->frags[i]) << " : " << synth->getSmiles()
+                  << std::endl;
+        exit(1);
+      }
+
+      // Get the volume of the synthon for the shape conformer that gave
+      // the similarity values.
+      double synthVol =
+          shapes->sovs[std::get<2>(sim)] - shapes->dummyVols[std::get<2>(sim)];
+      double synthColourVol = shapes->sofs[std::get<2>(sim)];
+      totSynthVol += synthVol;
+      totSynthColourVol += synthColourVol;
+
+      // There will be only shape for the fragment.
+      auto fragVol = fragShape->sovs.front() - fragShape->dummyVols.front();
+      auto fragColourVol = fragShape->sofs.front();
+      totFragVol += fragVol;
+      totFragColourVol += fragColourVol;
+      double shapeOv =
+          std::get<0>(sim) * (synthVol + fragVol) / (1 + std::get<0>(sim));
+      // The volumes are approximations because of the dummy volume thing, so
+      // make sure the shapeOv we use isn't bigger than either of the other
+      // volumes.
+      shapeOv = std::min({shapeOv, synthVol, fragVol});
+      totShapeOv += shapeOv;
+      double colorOv = std::get<1>(sim) * (synthColourVol + fragColourVol) /
+                       (1 + std::get<1>(sim));
+      totColourOv += colorOv;
     }
-    maxVol += shapes->sovs.front() - shapes->dummyVols.front();
-    featureVol += shapes->sofs.front();
+    // Add in the volumes of un-matched Synthons
+    for (size_t i = hs->fragShapes.size(); i < hs->synthonSetOrder.size();
+         i++) {
+      const auto &synth =
+          hs->synthonsToUse[hs->synthonSetOrder[i]][synthNums[i]].second;
+      const auto &shapes = synth->getShapes();
+      double synthVol =
+          shapes->sovs[std::get<2>(sim)] - shapes->dummyVols[std::get<2>(sim)];
+      totSynthVol += synthVol;
+      double synthColourVol = shapes->sofs.front();
+      totSynthColourVol += synthColourVol;
+    }
+    double st = totShapeOv / (totSynthVol + totFragVol - totShapeOv);
+    double ct =
+        totColourOv / (totSynthColourVol + totFragColourVol - totColourOv);
+    approxSim = st + ct;
+  } else {
+    // This is the best we can do without pre-computed similarities
+    double maxVol = 0.0;
+    double featureVol = 0.0;
+    // The synthon shapes are sorted in descending order of sov + sof.
+    // Assume therefore that the maximum volume of the hit is the sum
+    // of the sov's of the first shape in each synthon, minus the volume
+    // of their dummy atoms.
+    for (size_t i = 0; i < synthNums.size(); i++) {
+      const auto &synth = hitset->synthonsToUse[i][synthNums[i]].second;
+      const auto &shapes = synth->getShapes();
+      if (!shapes || shapes->hasNoShapes()) {
+        return false;
+      }
+      maxVol += shapes->sovs.front() - shapes->dummyVols.front();
+      featureVol += shapes->sofs.front();
+    }
+    double maxSt = std::min(maxVol, dp_queryShapes->sovs.front()) /
+                   std::max(maxVol, dp_queryShapes->sovs.front());
+    double maxCt = std::min(featureVol, dp_queryShapes->sofs.front()) /
+                   std::max(featureVol, dp_queryShapes->sofs.front());
+    approxSim = maxSt + maxCt;
   }
-  double maxSt = std::min(maxVol, dp_queryShapes->sovs.front()) /
-                 std::max(maxVol, dp_queryShapes->sovs.front());
-  double maxCt = std::min(featureVol, dp_queryShapes->sofs.front()) /
-                 std::max(featureVol, dp_queryShapes->sofs.front());
-  return maxSt + maxCt;
+  return approxSim;
 }
 
 namespace {
@@ -664,6 +794,57 @@ bool SynthonSpaceShapeSearcher::verifyHit(
     }
   }
   return foundHit;
+}
+
+void SynthonSpaceShapeSearcher::processToTrySet(
+    std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
+        &toTry,
+    const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results) {
+  // This needs to be done a bit differently because the approximate
+  // similarities depend on the fragments as well as the synthons selected.
+  // For the other searches, such as fingerprints, the synthons are compared
+  // with the full query so it doesn't matter which entry in the hit set
+  // is used.  If we uniquify on reaction/synthons straight away, we
+  // may end up with a reaction/synthon pair that doesn't hit the threshold
+  // even though one of the other hitsets might have the smae reaction/synthon
+  // pair coupled with a different fragSet that does go over the threshold.
+  // First calculate the approximate similarities and discard any that
+  // don't meet the threshold.
+  std::vector<std::pair<size_t, double>> approxSims;
+  approxSims.reserve(toTry.size());
+  for (size_t i = 0U; i < toTry.size(); ++i) {
+    const auto &tt = toTry[i];
+    auto sim = approxSimilarity(tt.first, tt.second);
+    if (sim >=
+        getParams().similarityCutoff - getParams().approxSimilarityAdjuster) {
+      approxSims.push_back(std::make_pair(i, sim));
+    }
+  }
+
+  std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
+      newToTry;
+  newToTry.reserve(approxSims.size());
+  newToTry.push_back(toTry[approxSims[0].first]);
+  for (size_t i = 0; i < approxSims.size(); i++) {
+    newToTry.push_back(toTry[approxSims[i].first]);
+  }
+  toTry = std::move(newToTry);
+  details::sortAndUniquifyToTry(toTry);
+  std::cout << "Trying " << toTry.size() << " potential hits" << std::endl;
+  makeHitsFromToTry(toTry, endTime, results);
+}
+
+SearchShapeInput *SynthonSpaceShapeSearcher::getFragShape(
+    const void *frag) const {
+  std::pair<const void *, ShapeSet *> tmp{frag, nullptr};
+  const auto it = std::ranges::lower_bound(
+      d_fragShapes, tmp, [](const auto &p1, const auto &p2) -> bool {
+        return p1.first > p2.first;
+      });
+  if (it != d_fragShapes.end()) {
+    return it->second;
+  }
+  return nullptr;
 }
 
 }  // namespace RDKit::SynthonSpaceSearch

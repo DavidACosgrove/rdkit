@@ -203,6 +203,10 @@ RDKIT_SYNTHONSPACESEARCH_EXPORT void makeShapesFromMols(
     DGeomHelpers::EmbedParameters &dgParams,
     const ShapeBuildParams &shapeParams, std::unique_ptr<ProgressBar> &pbar);
 
+RDKIT_SYNTHONSPACESEARCH_EXPORT void sortAndUniquifyToTry(
+    std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
+        &toTry);
+
 }  // namespace details
 }  // namespace SynthonSpaceSearch
 }  // namespace RDKit

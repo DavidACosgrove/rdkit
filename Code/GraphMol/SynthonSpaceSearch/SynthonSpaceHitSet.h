@@ -58,8 +58,32 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceFPHitSet
   SynthonSpaceFPHitSet &operator=(SynthonSpaceFPHitSet &&rhs) = delete;
 
   std::vector<std::vector<ExplicitBitVect *>> synthonFPs;
-  ExplicitBitVect *addFP;
-  ExplicitBitVect *subtractFP;
+};
+
+// This sub-class holds results from a SynthonSpaceShapeSearch.
+// It needs pointers to the fragment shapes and the order of the
+// synthon sets as they matched the fragments.
+struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceShapeHitSet
+    : SynthonSpaceHitSet {
+  SynthonSpaceShapeHitSet() = delete;
+  SynthonSpaceShapeHitSet(const SynthonSet &reaction,
+                          const std::vector<std::vector<size_t>> &stu,
+                          const std::vector<std::unique_ptr<ROMol>> &fragSet,
+                          const std::vector<SearchShapeInput *> &fShapes,
+                          const std::vector<unsigned int> &sSetOrder);
+  SynthonSpaceShapeHitSet(const SynthonSpaceShapeHitSet &lhs) = delete;
+  SynthonSpaceShapeHitSet(SynthonSpaceShapeHitSet &&lhs) = delete;
+  ~SynthonSpaceShapeHitSet() override = default;
+  SynthonSpaceShapeHitSet &operator=(const SynthonSpaceShapeHitSet &rhs) =
+      delete;
+  SynthonSpaceShapeHitSet &operator=(SynthonSpaceShapeHitSet &&rhs) = delete;
+
+  // The shapes corresponding to the frags, for the approximate similarity
+  // calculation.
+  std::vector<SearchShapeInput *> fragShapes;
+  // The order of the synthon sets in the SynthonSet as they matched the
+  // fragments.
+  std::vector<unsigned int> synthonSetOrder;
 };
 
 }  // namespace RDKit::SynthonSpaceSearch

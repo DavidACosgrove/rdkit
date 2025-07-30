@@ -96,6 +96,11 @@ class SynthonSpaceSearcher {
   void updateBestHitSoFar(const ROMol &possBest, double sim);
   double getBestSimilaritySoFar() const { return d_bestSimilarity; }
 
+  void makeHitsFromToTry(
+      const std::vector<
+          std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>> &toTry,
+      const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results);
+
  private:
   std::unique_ptr<std::mt19937> d_randGen;
 
@@ -131,14 +136,10 @@ class SynthonSpaceSearcher {
       const std::vector<std::unique_ptr<SynthonSpaceHitSet>> &hitsets,
       const TimePoint *endTime, bool &timedOut,
       std::vector<std::unique_ptr<ROMol>> &results);
-  void makeHitsFromToTry(
-      const std::vector<
-          std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>> &toTry,
-      const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results);
   void sortToTryByApproxSimilarity(
       std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
           &toTry) const;
-  void processToTrySet(
+  virtual void processToTrySet(
       std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
           &toTry,
       const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results);

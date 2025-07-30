@@ -38,12 +38,14 @@ struct hash_address_pair {
   }
 };
 
-// Used for storing the pre-computed matches between fragments and
+// Used for storing the pre-computed simlarities between fragments and
 // synthons.  The actual type of the first address in the pair will vary,
 // the second should always be Synthon *.  There's an entry only if
-// the fragment->synthon similarity exceeded the threshold.
+// the fragment->synthon similarity exceeded the threshold.  Keeps the
+// shape and colour tanimotos separately.
 using FragSynthonSims =
-    std::unordered_map<std::pair<const void *, const void *>, float,
+    std::unordered_map<std::pair<const void *, const void *>,
+                       std::tuple<float, float, unsigned int>,
                        hash_address_pair>;
 
 // Concrete class that does the search by fingerprint similarity.
@@ -61,7 +63,7 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
   // Use d_fragSynthonSims to decide if the fragment matched the
   // Synthon.
   bool fragMatchedSynthon(const void *frag, const void *synthon,
-                          float &sim) const;
+                          std::tuple<float, float, unsigned int> &sim) const;
   bool hasPrecomputedSims() const { return !d_fragSynthonSims.empty(); }
 
  protected:
@@ -79,7 +81,7 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
   // just copy the query.
   std::unique_ptr<RWMol> dp_queryConfs;
   // These are the fragment shapes for this search, derived from
-  // d_query.  The shapes in d_fragShapes are keyed on the address
+  // d_query.  The shapes in d_fragShapes are sorted on the address
   // of the corresponding fragment.  d_fragShapesPool is never read,
   // it is just used a repository of the shapes for the duration of
   // the search.
@@ -104,6 +106,16 @@ class SynthonSpaceShapeSearcher : public SynthonSpaceSearcher {
   bool computeFragSynthonSims(
       const TimePoint *endTime,
       std::unordered_map<void *, unsigned int> &minFragSetSize);
+
+  void processToTrySet(
+      std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
+          &toTry,
+      const TimePoint *endTime,
+      std::vector<std::unique_ptr<ROMol>> &results) override;
+
+  // Given the frag, return the corresponding frag shape.  Returns nullptr
+  // if not found.
+  SearchShapeInput *getFragShape(const void *frag) const;
 };
 }  // namespace RDKit::SynthonSpaceSearch
 #endif  // SYNTHONSPACESHAPESEARCHER_H

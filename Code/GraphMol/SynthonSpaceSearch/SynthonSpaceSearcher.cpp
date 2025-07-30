@@ -71,6 +71,7 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
   }
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);
+  std::cout << "allHits size : " << allHits.size() << std::endl;
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
@@ -107,6 +108,17 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
   // the RDKit model so the N in the query doesn't match.
   if (!verifyHit(*prod, hitset->d_reaction->getId(), synthNames)) {
     prod.reset();
+  }
+  if (prod) {
+    std::cout << "\nHit from " << hitset->d_reaction->getId() << " ";
+    for (auto sn : synthNums) {
+      std::cout << sn << " ";
+    }
+    std::cout << " : ";
+    for (auto sn : synthNames) {
+      std::cout << *sn << " ";
+    }
+    std::cout << std::endl;
   }
   return prod;
 }
@@ -359,33 +371,6 @@ void sortHits(std::vector<std::unique_ptr<ROMol>> &hits) {
   }
 }
 
-void sortAndUniquifyToTry(
-    std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
-        &toTry) {
-  // Uniquify on hit name.
-  std::vector<std::pair<size_t, std::string>> tmp;
-  tmp.reserve(toTry.size());
-  for (size_t i = 0; i < toTry.size(); i++) {
-    tmp.emplace_back(
-        i, details::buildProductName(toTry[i].first, toTry[i].second));
-  }
-  std::sort(tmp.begin(), tmp.end(),
-            [](const auto &lhs, const auto &rhs) -> bool {
-              return lhs.second < rhs.second;
-            });
-  tmp.erase(std::unique(tmp.begin(), tmp.end(),
-                        [](const auto &lhs, const auto &rhs) -> bool {
-                          return lhs.second == rhs.second;
-                        }),
-            tmp.end());
-  std::vector<std::pair<const SynthonSpaceHitSet *, std::vector<size_t>>>
-      newToTry;
-  newToTry.reserve(tmp.size());
-  std::transform(tmp.begin(), tmp.end(), back_inserter(newToTry),
-                 [&](const auto &p) -> auto { return toTry[p.first]; });
-  toTry = newToTry;
-}
-
 bool haveEnoughHits(const std::vector<std::unique_ptr<ROMol>> &results,
                     const std::int64_t maxHits, const std::int64_t hitStart) {
   const std::int64_t numHits = std::accumulate(
@@ -631,9 +616,8 @@ void SynthonSpaceSearcher::processToTrySet(
     const TimePoint *endTime, std::vector<std::unique_ptr<ROMol>> &results) {
   // There are possibly duplicate entries in toTry, because 2
   // different fragmentations might produce overlapping synthon lists in
-  // the same reaction. The duplicates need to be removed.  Although
-  // when doing the job in batches this is less likely.
-  sortAndUniquifyToTry(toTry);
+  // the same reaction. The duplicates need to be removed.
+  details::sortAndUniquifyToTry(toTry);
 
   if (d_params.randomSample) {
     std::shuffle(toTry.begin(), toTry.end(), *d_randGen);

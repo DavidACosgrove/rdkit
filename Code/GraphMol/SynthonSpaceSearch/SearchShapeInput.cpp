@@ -288,12 +288,11 @@ std::unique_ptr<SearchShapeInput> PrepareConformers(
   return result;
 }
 
-std::pair<double, double> bestSimilarity(SearchShapeInput &refShape,
-                                         SearchShapeInput &fitShape,
-                                         std::vector<float> &matrix,
-                                         double threshold, double opt_param,
-                                         unsigned int max_preiters,
-                                         unsigned int max_postiters) {
+std::pair<double, double> bestSimilarity(
+    SearchShapeInput &refShape, SearchShapeInput &fitShape,
+    std::vector<float> &matrix, unsigned int &bestRefConf,
+    unsigned int &bestFitConf, double threshold, double opt_param,
+    unsigned int max_preiters, unsigned int max_postiters) {
   // The best score achievable is when the smaller volume is entirely inside
   // the larger volume.  The Shape tanimoto is the fraction of volume in
   // common.  The scores for the different conformations are sorted in
@@ -318,24 +317,22 @@ std::pair<double, double> bestSimilarity(SearchShapeInput &refShape,
     refShape.setActiveShape(i);
     for (size_t j = 0; j < fitShape.confCoords.size(); j++) {
       auto maxSim = maxScore(refShape.sovs[i], fitShape.sovs[j],
-                             fitShape.sofs[i], fitShape.sofs[j]);
+                             refShape.sofs[i], fitShape.sofs[j]);
       if (maxSim > threshold) {
         fitShape.setActiveShape(j);
         auto [st, ct] = AlignShape(refShape, fitShape, matrix, opt_param,
                                    max_preiters, max_postiters);
         double combo_t = st + ct;
-        if (combo_t > threshold) {
-          return std::make_pair(st, ct);
-        }
         if (combo_t > best_combo_t) {
           best_combo_t = combo_t;
           best_st = st;
           best_ct = ct;
+          bestRefConf = i;
+          bestFitConf = j;
         }
       }
     }
   }
-
   return std::make_pair(best_st, best_ct);
 }
 

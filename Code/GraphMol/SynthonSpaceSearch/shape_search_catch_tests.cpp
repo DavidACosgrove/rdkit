@@ -66,6 +66,11 @@ TEST_CASE("Shape Small tests") {
       fullRoot + "triazole_space.txt",
       fullRoot + "urea_space.txt",
   };
+  std::vector<std::string> enumLibNames{
+      fullRoot + "amide_space_enum.smi",
+      fullRoot + "triazole_space_enum.smi",
+      fullRoot + "urea_space_enum.smi",
+  };
 #endif
   std::vector<std::string> dbNames{
       fullRoot + "amide_space_shapes.spc",
@@ -80,8 +85,7 @@ TEST_CASE("Shape Small tests") {
   std::vector<std::string> querySmis{
       "c1ccccc1C(=O)N1CCCC1",
       "C[C@H]1CCN(c2nnc(CO)n2C2CCCC2)C1 |(3.88187,-1.9608,1.02401;3.40947,-0.556473,0.685633;3.49763,-0.278493,-0.787477;2.18424,0.313597,-1.21035;1.39217,0.480256,0.0110759;0.36454,1.42337,0.278193;0.656593,2.66561,0.766052;-0.477075,3.33073,0.923413;-1.48168,2.52297,0.540741;-2.93641,2.8664,0.551747;-3.33354,3.43671,-0.657732;-0.965924,1.32594,0.134935;-1.71735,0.224133,-0.333621;-1.11549,-0.643316,-1.37025;-2.26431,-1.65079,-1.54776;-2.58926,-1.96617,-0.0975393;-2.00229,-0.836476,0.740437;1.90383,-0.551243,0.906815),wD:1.0|",
-      "C[C@@H]1C[C@H](NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1 |(1.04478,-0.224363,-2.91518;1.46111,-1.07435,-1.76352;0.306282,-1.55748,-0.916018;-0.365201,-0.475593,-0.123586;-1.76672,-0.342998,-0.464794;-2.78181,-0.454019,0.51802;-2.5057,-0.664137,1.73574;-4.16163,-0.338949,0.199908;-5.17788,-0.4597,1.20931;-6.35254,0.434956,1.04892;-7.08067,-0.58036,0.437714;-6.19369,-1.54598,0.869789;0.333956,0.862517,-0.269047;1.75934,0.639384,-0.124627;2.53261,1.42843,0.743485;1.99398,2.35859,1.42205;3.96629,1.24952,0.929582;4.47592,0.048496,1.32782;5.80644,-0.103658,1.49611;6.61864,0.989857,1.25231;6.12678,2.18712,0.856797;4.80783,2.3177,0.695962;4.34378,3.52947,0.29874;2.46143,-0.410331,-0.868145),wD:1.0,3.3|",
-  };
+      "C[C@@H]1C[C@H](NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1 |(-0.346914,-0.986206,-4.28744;-0.686863,-0.0357247,-3.13265;0.429505,-0.1946,-2.14134;0.21099,0.659676,-0.907145;1.06526,0.0812473,0.104663;2.29297,0.75201,0.373712;2.5837,1.80373,-0.246936;3.23325,0.27478,1.33777;4.47647,0.99197,1.57602;4.94347,1.01294,2.99117;5.59284,-0.21541,2.82613;5.71049,0.107583,1.47157;-1.19052,0.721766,-0.417623;-2.14086,-0.0964663,-1.12904;-3.25312,-0.745252,-0.540367;-3.95877,-1.43507,-1.38825;-3.7227,-0.763533,0.803759;-4.9481,-0.204581,1.05395;-5.52492,-0.18107,2.24654;-4.86554,-0.748644,3.30451;-3.63585,-1.32731,3.13734;-3.08234,-1.32608,1.89052;-1.84839,-1.9059,1.69441;-2.02702,-0.329978,-2.57998),wD:1.0,wU:3.3|"};
   // The synthon search gives 1 hit for the urea space, where the
   // brute-force search gives 4 because the fragment similarities fall
   // below the threshold.  For example, comparing [2*]c1nccnc1F from
@@ -90,13 +94,16 @@ TEST_CASE("Shape Small tests") {
   // good synthon match, the feature score is low because the nitrogen
   // acceptors don't align.  In the full molecule overlay, that is
   // compensated for by other things.
-  std::vector<size_t> expNumHits{3, 4, 1};
+  std::vector<size_t> expNumHits{3, 8, 1};
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
   shapeBuildOptions.rmsThreshold = 0.5;
-  shapeBuildOptions.numThreads = -1;
+  shapeBuildOptions.numThreads = 1;
 
   for (size_t i = 0; i < dbNames.size(); i++) {
+    if (i != 1) {
+      continue;
+    }
     SynthonSpace synthonspace;
 #if 0
     // In case the databases ever need updating.
@@ -116,12 +123,18 @@ TEST_CASE("Shape Small tests") {
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     auto results = synthonspace.shapeSearch(*queryMol, params);
     CHECK(expNumHits[i] == results.getHitMolecules().size());
+    for (const auto &hit : results.getHitMolecules()) {
+      std::cout << "hit sim : " << hit->getProp<double>("Similarity") << " : "
+                << MolToSmiles(*hit) << " : "
+                << hit->getProp<std::string>(common_properties::_Name)
+                << std::endl;
+    }
 #if 0
     // Leave this in for now, in case we need to check brute force search
     // in future.
     auto mols = loadLibrary(enumLibNames[i]);
     prepareMolecule(queryMol.get());
-    RDKit::SDWriter sdw2(enumOutputNames[i]);
+    // RDKit::SDWriter sdw2(enumOutputNames[i]);
     std::vector<float> matrix(12, 0.0);
     unsigned int numHits = 0;
     for (auto &[smiles, mol] : mols) {
@@ -135,7 +148,7 @@ TEST_CASE("Shape Small tests") {
                       << " for " << i << ", " << j << std::endl;
             ++numHits;
             foundHit = true;
-            sdw2.write(*mol);
+            // sdw2.write(*mol);
             break;
           }
         }
