@@ -71,7 +71,6 @@ SearchResults SynthonSpaceSearcher::search(ThreadMode threadMode) {
   }
   std::uint64_t totHits = 0;
   auto allHits = doTheSearch(fragments, endTime, timedOut, totHits, threadMode);
-  std::cout << "allHits size : " << allHits.size() << std::endl;
   if (!timedOut && !ControlCHandler::getGotSignal() && d_params.buildHits) {
     buildHits(allHits, endTime, timedOut, results);
   }
@@ -108,17 +107,6 @@ std::unique_ptr<ROMol> SynthonSpaceSearcher::buildAndVerifyHit(
   // the RDKit model so the N in the query doesn't match.
   if (!verifyHit(*prod, hitset->d_reaction->getId(), synthNames)) {
     prod.reset();
-  }
-  if (prod) {
-    std::cout << "\nHit from " << hitset->d_reaction->getId() << " ";
-    for (auto sn : synthNums) {
-      std::cout << sn << " ";
-    }
-    std::cout << " : ";
-    for (auto sn : synthNames) {
-      std::cout << *sn << " ";
-    }
-    std::cout << std::endl;
   }
   return prod;
 }

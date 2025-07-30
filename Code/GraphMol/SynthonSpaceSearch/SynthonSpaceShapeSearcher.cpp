@@ -173,31 +173,6 @@ SynthonSpaceShapeSearcher::searchFragSet(
     fragShapes.push_back(shape);
   }
 
-#if 0
-  std::vector<float> matrix(12, 0.0);
-  for (size_t i = 0; i < fragShapes.size(); i++) {
-    if (MolToSmiles(*fragSet[i]) == "[1*]C(=O)NC1COC1") {
-      std::cout << MolToCXSmiles(*shapeToMol(*fragShapes[i])) << std::endl;
-      const auto &synthon = getSpace().getSynthonFromPool("O=C(NC1COC1)[1*]");
-      const auto &shapes = synthon->getShapes();
-      for (size_t j = 0; j < shapes->getNumShapes(); ++j) {
-        shapes->setActiveShape(j);
-
-        auto [st, ct] =
-            AlignShape(*fragShapes[i], *shapes, matrix, 1.0, 10u, 30u);
-        std::cout << j << " : " << st << " : " << ct << " = " << st + ct
-                  << std::endl;
-      }
-      std::cout << "DOING" << std::endl;
-      unsigned int bestRefConf, bestFitConf;
-      auto [fst, fct] = bestSimilarity(
-          *fragShapes[i], *shapes, matrix, bestRefConf, bestFitConf,
-          getParams().similarityCutoff, 1.0, 10u, 30u);
-      std::cout << "by the lot : " << fst << " : " << fct << " = " << fst + fct
-                << std::endl;
-    }
-  }
-#endif
   const auto connPatterns = details::getConnectorPatterns(fragSet);
   const auto synthConnPatts = reaction.getSynthonConnectorPatterns();
 
@@ -240,21 +215,6 @@ SynthonSpaceShapeSearcher::searchFragSet(
         if (hs->numHits) {
           results.push_back(std::move(hs));
         }
-      }
-    }
-  }
-  if (!results.empty()) {
-    std::cout << "got results " << results.size() << std::endl << "[";
-    for (const auto &fs : fragSet) {
-      std::cout << "\"" << MolToSmiles(*fs) << "\", ";
-    }
-    std::cout << "]" << std::endl;
-    for (const auto &his : results) {
-      auto hs = dynamic_cast<SynthonSpaceShapeHitSet *>(his.get());
-      std::cout << hs->frags.size() << " and " << hs->synthonsToUse.size()
-                << std::endl;
-      for (size_t i = 0; i < hs->fragShapes.size(); i++) {
-        std::cout << "frag " << i << " : " << hs->fragShapes[i] << std::endl;
       }
     }
   }
@@ -496,15 +456,6 @@ void computeSomeFragSynthonSims(
           bestSimilarity(*fragShape, *synthon->getShapes().get(), matrix,
                          bestFitConf, bestRefConf, threshold);
       if (sim.first + sim.second >= threshold) {
-        // std::cout << fragShape << " : " << fragShape->getNumShapes() << " : "
-        //           << fragShape->confCoords.front().size() / 3 << " to "
-        //           << synthon->getSmiles() << " : "
-        //           << synthon->getShapes()->getNumShapes()
-        //           << " :: " << synthon->getShapes()->coord.size() / 3 << " :
-        //           "
-        //           << sim.first << ", " << sim.second << " : "
-        //           << sim.first + sim.second << " : " << bestFitConf << " : "
-        //           << bestRefConf << std::endl;
         std::pair<const void *, const void *> p{fragShape, synthon};
         std::unique_lock lock1{mtx};
         fragSynthonSims.insert(std::make_pair(
@@ -592,10 +543,8 @@ bool SynthonSpaceShapeSearcher::computeFragSynthonSims(
       }
     }
   }
-  std::cout << "toDO :: " << toDo.size() << std::endl;
   processShapeSynthonList(toDo, threshold, endTime, d_fragSynthonSims, pbar,
                           numThreadsToUse);
-  std::cout << " got " << d_fragSynthonSims.size() << std::endl;
   return !ControlCHandler::getGotSignal();
 }  // namespace
 
@@ -607,13 +556,13 @@ bool SynthonSpaceShapeSearcher::quickVerify(
   if (!SynthonSpaceSearcher::quickVerify(hitset, synthNums)) {
     return false;
   }
+  return true;
 }
 
 double SynthonSpaceShapeSearcher::approxSimilarity(
     const SynthonSpaceHitSet *hitset,
     const std::vector<size_t> &synthNums) const {
   double approxSim = 0.0;
-  // std::cout << "\nAPPROX SIMILARITY" << std::endl;
   if (hasPrecomputedSims()) {
     // Calculate the overlap volumes for each fragShape->synthon using
     // the shape and colour tanimotos already calculated and use them to
@@ -639,13 +588,7 @@ double SynthonSpaceShapeSearcher::approxSimilarity(
 
       // Look up the similarity for this shape/synthon combination.  If it
       // isn't there, something has gone catastrophically wrong somewhere.
-      if (!fragMatchedSynthon(fragShape, synth, sim)) {
-        std::cout << "awooga " << fragShape << " : " << synth << " not found"
-                  << std::endl;
-        std::cout << MolToSmiles(*hs->frags[i]) << " : " << synth->getSmiles()
-                  << std::endl;
-        exit(1);
-      }
+      fragMatchedSynthon(fragShape, synth, sim);
 
       // Get the volume of the synthon for the shape conformer that gave
       // the similarity values.
@@ -830,7 +773,6 @@ void SynthonSpaceShapeSearcher::processToTrySet(
   }
   toTry = std::move(newToTry);
   details::sortAndUniquifyToTry(toTry);
-  std::cout << "Trying " << toTry.size() << " potential hits" << std::endl;
   makeHitsFromToTry(toTry, endTime, results);
 }
 

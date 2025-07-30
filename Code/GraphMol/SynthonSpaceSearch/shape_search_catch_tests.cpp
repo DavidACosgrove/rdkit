@@ -123,12 +123,6 @@ TEST_CASE("Shape Small tests") {
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     auto results = synthonspace.shapeSearch(*queryMol, params);
     CHECK(expNumHits[i] == results.getHitMolecules().size());
-    for (const auto &hit : results.getHitMolecules()) {
-      std::cout << "hit sim : " << hit->getProp<double>("Similarity") << " : "
-                << MolToSmiles(*hit) << " : "
-                << hit->getProp<std::string>(common_properties::_Name)
-                << std::endl;
-    }
 #if 0
     // Leave this in for now, in case we need to check brute force search
     // in future.
