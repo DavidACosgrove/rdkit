@@ -31,11 +31,6 @@ SynthonSpaceShapeSearcher::SynthonSpaceShapeSearcher(
   if (space.getNumConformers() == 0) {
     throw std::runtime_error("No conformers found in SynthonSpaceSearch");
   }
-  // For the fragmentation, we need to be able to keep track of the
-  // original atoms indices.
-  for (auto atom : getQuery().atoms()) {
-    atom->setProp<unsigned int>("ORIG_IDX", atom->getIdx());
-  }
 }
 
 bool SynthonSpaceShapeSearcher::fragMatchedSynthon(
@@ -665,10 +660,12 @@ void finaliseHit(const std::unique_ptr<RWMol> &queryConfs,
                  const std::unique_ptr<RWMol> &allHitConfs,
                  const std::unique_ptr<SearchShapeInput> &allHitShapes,
                  unsigned int hitConfNum, const std::vector<float> &matrix,
-                 double sim, const std::string &rxnId,
+                 double shape_tan, double color_tan, const std::string &rxnId,
                  const std::vector<const std::string *> &synthNames,
                  ROMol &hit) {
-  hit.setProp<double>("Similarity", sim);
+  hit.setProp<double>("Similarity", shape_tan + color_tan);
+  hit.setProp<double>("ShapeTanimoto", shape_tan);
+  hit.setProp<double>("ColorTanimoto", color_tan);
   hit.setProp<unsigned int>("Query_Conformer", queryConfNum);
   // Make a molecule of this query conformer, and add it to the hit.
   ROMol thisConf(*queryConfs, false, queryConfNum);
@@ -716,14 +713,14 @@ bool SynthonSpaceShapeSearcher::verifyHit(
         bool finalisedHit = false;
         if (sim > getBestSimilaritySoFar()) {
           finaliseHit(dp_queryConfs, dp_queryShapes, i, isomer, hitShapes, j,
-                      matrix, sim, rxnId, synthNames, hit);
+                      matrix, st, ct, rxnId, synthNames, hit);
           finalisedHit = true;
           updateBestHitSoFar(hit, sim);
         }
         if (sim >= bestSim) {
           if (!finalisedHit) {
             finaliseHit(dp_queryConfs, dp_queryShapes, i, isomer, hitShapes, j,
-                        matrix, sim, rxnId, synthNames, hit);
+                        matrix, st, ct, rxnId, synthNames, hit);
           }
           // If we're only interested in whether there's a shape match, and
           // not in finding the best shape, we're done.

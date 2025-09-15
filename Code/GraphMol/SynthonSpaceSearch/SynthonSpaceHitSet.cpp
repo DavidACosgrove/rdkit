@@ -50,6 +50,8 @@ SynthonSpaceFPHitSet::SynthonSpaceFPHitSet(
       synthonFPs[i].emplace_back(sfps[i][stu[i][j]].second->getFP().get());
     }
   }
+  addFP = reaction.getAddFP().get();
+  subtractFP = reaction.getSubtractFP().get();
 }
 
 SynthonSpaceShapeHitSet::SynthonSpaceShapeHitSet(

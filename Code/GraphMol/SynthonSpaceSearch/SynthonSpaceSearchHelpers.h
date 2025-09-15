@@ -71,12 +71,12 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceSearchParams {
              // risk of missing some hits.  The value you use should have
              // a positive correlation with your FOMO.
   double approxSimilarityAdjuster{
-      0.05};  // The fingerprint search uses an approximate similarity method
-              // before building a product and doing a final check.  The
-              // similarityCutoff is reduced by this value for the approximate
-              // check.  A lower value will give faster run times at the
-              // risk of missing some hits.  The value you use should have a
-              // positive correlation with your FOMO.
+      0.1};  // The fingerprint search uses an approximate similarity method
+             // before building a product and doing a final check.  The
+             // similarityCutoff is reduced by this value for the approximate
+             // check.  A lower value will give faster run times at the
+             // risk of missing some hits.  The value you use should have a
+             // positive correlation with your FOMO.
   unsigned int minHitHeavyAtoms{0};  // Minimum number of heavy atoms in a hit.
   int maxHitHeavyAtoms{-1};          // Maximum number of heavy atoms in a hit.
   // -1 means no maximum.

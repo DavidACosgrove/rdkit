@@ -34,7 +34,7 @@ struct ShapeBuildParams;
 // For holding a sample molecule from this set, based on the given
 // synthon which is in the d_synthonSetNum vector of d_synthons
 // of the SynthonSet.  Used for building shapes.  The d_mol isn't
-// build immediately to save memory, so the information needed to
+// built immediately to save memory, so the information needed to
 // produce it is all captured.
 struct SampleMolRec {
   const class SynthonSet *d_synthonSet{nullptr};
@@ -128,6 +128,8 @@ class RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSet {
 
   void buildSynthonFingerprints(
       const FingerprintGenerator<std::uint64_t> &fpGen);
+  void buildAddAndSubtractFPs(const FingerprintGenerator<std::uint64_t> &fpGen,
+                              unsigned int numBits);
 
   // Return the molecules for synthons for which the bits are true.
   // Obviously requires that reqSynths is the same dimensions as

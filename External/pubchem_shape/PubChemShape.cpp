@@ -519,6 +519,11 @@ std::pair<double, double> AlignMolecule(
   auto tanis = AlignShape(refShape, fitShape, matrix, opt_param, max_preiters,
                           max_postiters);
 
+  std::cout << "ref shape : " << refShape.sov << " and " << refShape.sof
+            << std::endl;
+  std::cout << "fit shape : " << fitShape.sov << " and " << fitShape.sof
+            << std::endl;
+
   // transform fit coords
   Conformer &fit_conformer = fit.getConformer(fitConfId);
   std::vector<double> finalTrans{0.0, 0.0, 0.0};
@@ -528,6 +533,10 @@ std::pair<double, double> AlignMolecule(
   TransformConformer(finalTrans, matrix, fitShape, fit_conformer);
   fit.setProp("shape_align_shape_tanimoto", tanis.first);
   fit.setProp("shape_align_color_tanimoto", tanis.second);
+
+  auto fitShape2 = PrepareConformer(fit, fitConfId, shapeOpts);
+  std::cout << "fit shape post overlay: " << fitShape2.sov << " and "
+            << fitShape2.sof << std::endl;
 
   return tanis;
 }

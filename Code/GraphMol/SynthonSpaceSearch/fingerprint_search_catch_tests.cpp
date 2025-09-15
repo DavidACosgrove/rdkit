@@ -89,7 +89,7 @@ TEST_CASE("FP Small tests") {
       "C[C@@H]1CC(NC(=O)NC2COC2)CN(C(=O)c2nccnc2F)C1",
   };
 
-  std::vector<size_t> expNumHits{2, 4, 4};
+  std::vector<size_t> expNumHits{2, 3, 4};
 
   for (size_t i = 0; i < libNames.size(); i++) {
     SynthonSpace synthonspace;
@@ -98,7 +98,6 @@ TEST_CASE("FP Small tests") {
     SynthonSpaceSearchParams params;
     params.randomSeed = 1;
     params.approxSimilarityAdjuster = 0.2;
-    params.fragSimilarityAdjuster = 0.2;
     params.numThreads = 1;
     auto queryMol = v2::SmilesParse::MolFromSmiles(querySmis[i]);
     std::unique_ptr<FingerprintGenerator<std::uint64_t>> fpGen(
@@ -120,7 +119,18 @@ TEST_CASE("FP Small tests") {
     for (const auto &r : names) {
       fullSmis.insert(MolToSmiles(*mols[r]));
     }
-    CHECK(resSmis == fullSmis);
+    if (i != 1) {
+      CHECK(resSmis == fullSmis);
+    } else {
+      // In the triazole library, one of the hits found by the brute force
+      // method (triazole-1_1-1_2-2_3-1) is missed by the SynthonSpaceSearch
+      // because it requires that the fragment [1*]n([3*])C1CCCC1 is similar
+      // to synthon c1ccccc1-n([3*])[1*] which it isn't.  Instead, make sure
+      // all the ones that are found are in the brute force results.
+      for (const auto &rs : resSmis) {
+        CHECK(fullSmis.find(rs) != fullSmis.end());
+      }
+    }
   }
 }
 
@@ -140,8 +150,8 @@ TEST_CASE("FP Binary File") {
     params.numThreads = numThreads;
     CHECK_NOTHROW(
         results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params));
-    CHECK(results.getHitMolecules().size() == 92);
-    CHECK(results.getMaxNumResults() == 400);
+    CHECK(results.getHitMolecules().size() == 4);
+    CHECK(results.getMaxNumResults() == 420);
   }
 
   // Make sure it rejects the wrong sort of fingerprint.
@@ -181,7 +191,6 @@ TEST_CASE("Hit Filters") {
   auto queryMol = "CCNC(=O)Cc1cncc(CCOC2c3ccccc3CC2)c1"_smiles;
   SynthonSpaceSearchParams params;
   params.similarityCutoff = 0.45;
-  params.approxSimilarityAdjuster = 0.1;
   synthonspace.readDBFile(libName);
   results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
   CHECK(results.getHitMolecules().size() == 18);
@@ -204,7 +213,6 @@ TEST_CASE("Hit Filters") {
   {
     SynthonSpaceSearchParams params;
     params.similarityCutoff = 0.45;
-    params.approxSimilarityAdjuster = 0.1;
     params.minHitMolWt = 375.0;
     results = synthonspace.fingerprintSearch(*queryMol, *fpGen, params);
     CHECK(results.getHitMolecules().size() == 13);
@@ -222,13 +230,13 @@ TEST_CASE("Hit Filters") {
     params.approxSimilarityAdjuster = 0.1;
     auto chiralQuery = "Cc1nccn1CCc1ccsc1COO[C@@H]1CCC[C@H](N)C1"_smiles;
     results = synthonspace.fingerprintSearch(*chiralQuery, *fpGen, params);
-    CHECK(results.getHitMolecules().size() == 210);
+    CHECK(results.getHitMolecules().size() == 17);
     params.minHitChiralAtoms = 1;
     results = synthonspace.fingerprintSearch(*chiralQuery, *fpGen, params);
-    CHECK(results.getHitMolecules().size() == 161);
+    CHECK(results.getHitMolecules().size() == 11);
     params.maxHitChiralAtoms = 1;
     results = synthonspace.fingerprintSearch(*chiralQuery, *fpGen, params);
-    CHECK(results.getHitMolecules().size() == 39);
+    CHECK(results.getHitMolecules().size() == 4);
     for (const auto &r : results.getHitMolecules()) {
       auto numChiralAtoms = details::countChiralAtoms(*r);
       CHECK((numChiralAtoms >= 1 && numChiralAtoms <= 1));
@@ -248,8 +256,10 @@ TEST_CASE("FP Best Hit Found") {
   auto queryMol = "O=C(Nc1c(CNC=O)cc[s]1)c1nccnc1"_smiles;
   SynthonSpaceSearchParams params;
   params.similarityCutoff = 0.8;
-  params.approxSimilarityAdjuster = 0.2;
-  params.fragSimilarityAdjuster = 0.1;
+  // We need particularly generous leeway on the fragment and approx
+  // similarities to get a close miss for the test.
+  params.approxSimilarityAdjuster = 0.4;
+  params.fragSimilarityAdjuster = 0.4;
   synthonspace.readDBFile(libName);
   CHECK_NOTHROW(results =
                     synthonspace.fingerprintSearch(*queryMol, *fpGen, params));

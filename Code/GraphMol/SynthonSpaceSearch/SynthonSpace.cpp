@@ -636,79 +636,38 @@ void SynthonSpace::buildSynthonFingerprints(
   BOOST_LOG(rdWarningLog) << "Building the fingerprints of "
                           << d_synthonPool.size()
                           << " synthons may take some time." << std::endl;
-  if (d_synthonReactions.empty()) {
-    fillSynthonReactions();
-  }
 
-  std::vector<unsigned int> doneRxns(d_synthonPool.size(), 0u);
-  bool cancelled = false;
-  std::vector<std::vector<std::unique_ptr<SampleMolRec>>> allSampleMols;
-  buildSynthonSampleMolecules(1000, allSampleMols);
-  std::ranges::sort(allSampleMols,
-                    [](const auto &sm1, const auto &sm2) -> bool {
-                      return sm1.front()->d_numAtoms > sm2.front()->d_numAtoms;
-                    });
-  AdditionalOutput addlOutput;
-  addlOutput.allocateAtomToBits();
-  std::unique_ptr<ProgressBar> pbar;
-  if (progressBarWidth) {
-    pbar.reset(new ProgressBar(progressBarWidth, allSampleMols.size()));
-  }
-
-  while (!cancelled) {
-    // Loop around until all synthons have a fingerprint or we've run out
-    // of synthon/reaction combinations.
-    std::vector<std::unique_ptr<SampleMolRec>> sampleMols;
-    sampleMols.reserve(d_synthonPool.size());
-    for (auto &allSampleMol : allSampleMols) {
-      if (!allSampleMol.empty() && !allSampleMol.back()->d_synthon->getFP()) {
-        sampleMols.push_back(std::move(allSampleMol.back()));
-        allSampleMol.pop_back();
-        sampleMols.back()->d_mol =
-            sampleMols.back()->d_synthonSet->buildMolecule(
-                sampleMols.back()->d_synthonNums);
-      }
+  if (const auto fpType = fpGen.infoString();
+      fpType != d_fpType || !hasFingerprints()) {
+    BOOST_LOG(rdWarningLog)
+        << "Building the fingerprints may take some time." << std::endl;
+    std::unique_ptr<ProgressBar> pbar;
+    if (progressBarWidth) {
+      pbar.reset(new ProgressBar(progressBarWidth, d_reactions.size()));
     }
-    if (sampleMols.empty()) {
-      break;
-    }
-    std::ranges::sort(sampleMols, [](const auto &a, const auto &b) -> bool {
-      return a->d_numAtoms > b->d_numAtoms;
-    });
-    std::unique_ptr<ExplicitBitVect> fullFP;
-    for (const auto &sm : sampleMols) {
-      if (!sm->d_mol) {
-        continue;
+    d_fpType = fpType;
+    unsigned int numBits = 0;
+    for (const auto &[id, synthSet] : d_reactions) {
+      if (ControlCHandler::getGotSignal()) {
+        return;
       }
-      fullFP.reset(
-          fpGen.getFingerprint(*sm->d_mol, nullptr, nullptr, -1, &addlOutput));
-      auto atomToBits = *addlOutput.atomToBits;
-      // Make a fingerprint for the whole molecule, and extract just the
-      // bits set by the atoms from this synthon.
-      std::unique_ptr<ExplicitBitVect> sampleFP(
-          new ExplicitBitVect(fullFP->getNumBits()));
-      for (const auto atom : sm->d_mol->atoms()) {
-        unsigned int molNum;
-        if (atom->getPropIfPresent<unsigned int>("molNum", molNum)) {
-          if (molNum == sm->d_synthonSetNum) {
-            for (const auto bitIdx : atomToBits[atom->getIdx()]) {
-              sampleFP->setBit(bitIdx);
-            }
-          }
-        }
+      synthSet->buildSynthonFingerprints(fpGen);
+      if (!numBits) {
+        numBits = synthSet->getSynthons()
+                      .front()
+                      .front()
+                      .second->getFP()
+                      ->getNumBits();
       }
-      sm->d_synthon->setFP(std::move(sampleFP));
+      synthSet->buildAddAndSubtractFPs(fpGen, numBits);
       if (pbar) {
         pbar->increment();
       }
     }
-    if (ControlCHandler::getGotSignal()) {
-      cancelled = true;
+    d_fpType = fpGen.infoString();
+    for (auto &rxn : d_reactions) {
+      rxn.second->initializeSearchOrders();
     }
-  }
-  d_fpType = fpGen.infoString();
-  for (auto &rxn : d_reactions) {
-    rxn.second->initializeSearchOrders();
   }
 }
 
@@ -844,9 +803,6 @@ void SynthonSpace::reportSynthonUsage(std::ostream &os) const {
   for (const auto &it : d_synthonReactions) {
     counts[it.second.size()]++;
   }
-  for (size_t i = 1; i < maxSize + 1; i++) {
-    os << counts[i] << " synthons in " << i << " reaction(s)" << std::endl;
-  }
 }
 
 bool SynthonSpace::hasAddAndSubstractFingerprints() const {
@@ -901,7 +857,7 @@ Synthon *SynthonSpace::getSynthonFromPool(const std::string &smiles) const {
           [](const std::pair<std::string, std::unique_ptr<Synthon>> &p1,
              const std::pair<std::string, std::unique_ptr<Synthon>> &p2)
               -> bool { return p1.first < p2.first; });
-      it != d_synthonPool.end()) {
+      it != d_synthonPool.end() && it->first == smiles) {
     return it->second.get();
   }
   return nullptr;

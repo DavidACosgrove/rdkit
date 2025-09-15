@@ -490,14 +490,102 @@ void SynthonSet::buildSynthonFingerprints(
           fpGen.getFingerprint(*synth.second->getSearchMol())));
     }
   }
-  d_fingerprintSearchOrders = orderSynthonsForSearch(
-      [](const Synthon *synth1, const Synthon *synth2) -> bool {
-        return synth1->getFP()->getNumOnBits() <
-               synth2->getFP()->getNumOnBits();
-      });
 }
 
-namespace {}  // namespace
+void SynthonSet::buildAddAndSubtractFPs(
+    const FingerprintGenerator<std::uint64_t> &fpGen, unsigned int numBits) {
+  PRECONDITION(hasFingerprints(), "No fingerprints for synthons.");
+  d_addFP.reset();
+  d_subtractFP.reset();
+  std::vector<std::vector<size_t>> synthonNums(d_synthons.size());
+  std::vector<size_t> numSynthons(d_synthons.size());
+  std::vector<int> naddbitcounts(numBits, 0);
+  std::vector<int> nsubbitcounts(numBits, 0);
+  size_t totSamples = 1;
+  // Sample the synthons evenly across their size ranges.
+  for (size_t i = 0; i < d_synthons.size(); ++i) {
+    std::vector<std::pair<size_t, std::pair<std::string, Synthon *>>>
+        sortedSynthons(d_synthons[i].size());
+    for (size_t j = 0; j < d_synthons[i].size(); ++j) {
+      sortedSynthons[j] = std::make_pair(j, d_synthons[i][j]);
+    }
+    std::sort(sortedSynthons.begin(), sortedSynthons.end(),
+              [](const std::pair<size_t, std::pair<std::string, Synthon *>> &a,
+                 const std::pair<size_t, std::pair<std::string, Synthon *>> &b)
+                  -> bool {
+                auto as = a.second.second;
+                auto bs = b.second.second;
+                if (as->getOrigMol()->getNumAtoms() ==
+                    bs->getOrigMol()->getNumAtoms()) {
+                  return a.second.first < b.second.first;
+                }
+                return as->getOrigMol()->getNumAtoms() <
+                       bs->getOrigMol()->getNumAtoms();
+              });
+    size_t stride = d_synthons[i].size() / 40;
+    if (!stride) {
+      stride = 1;
+    }
+    for (size_t j = 0; j < d_synthons[i].size(); j += stride) {
+      synthonNums[i].push_back(j);
+    }
+    numSynthons[i] = synthonNums[i].size();
+    totSamples *= numSynthons[i];
+  }
+  details::Stepper stepper(numSynthons);
+  std::vector<size_t> theseSynthNums(synthonNums.size(), 0);
+  while (stepper.d_currState[0] != numSynthons[0]) {
+    if (ControlCHandler::getGotSignal()) {
+      return;
+    }
+    for (size_t i = 0; i < stepper.d_currState.size(); ++i) {
+      theseSynthNums[i] = synthonNums[i][stepper.d_currState[i]];
+    }
+    auto prod = buildProduct(theseSynthNums);
+    std::unique_ptr<ExplicitBitVect> prodFP(fpGen.getFingerprint(*prod));
+    ExplicitBitVect approxFP(*d_synthons[0][theseSynthNums[0]].second->getFP());
+    for (size_t j = 1; j < d_synthons.size(); ++j) {
+      approxFP |= *d_synthons[j][theseSynthNums[j]].second->getFP();
+    }
+    // addFP is what's in the productFP and not in approxFP
+    // and subtractFP is vice versa.  The former captures the bits of
+    // the molecule formed by the joining the fragments, the latter
+    // the bits connecting the dummy atoms.
+    std::unique_ptr<ExplicitBitVect> addFP(
+        new ExplicitBitVect(*prodFP & ~approxFP));
+    IntVect v;
+    addFP->getOnBits(v);
+    for (auto i : v) {
+      naddbitcounts[i]++;
+    }
+    std::unique_ptr<ExplicitBitVect> subtractFP(
+        new ExplicitBitVect(approxFP & ~(*prodFP)));
+    subtractFP->getOnBits(v);
+    for (auto i : v) {
+      nsubbitcounts[i]++;
+    }
+    stepper.step();
+  }
+
+  // This is the fraction of products that must set a bit for
+  // it to be included.  Arrived at by empirical means.
+  double frac = 0.75;
+  d_addFP = std::make_unique<ExplicitBitVect>(numBits);
+  for (size_t i = 0; i < naddbitcounts.size(); ++i) {
+    if (naddbitcounts[i] > int(totSamples * frac)) {
+      d_addFP->setBit(i);
+    }
+  }
+  d_subtractFP = std::make_unique<ExplicitBitVect>(numBits);
+  for (size_t i = 0; i < nsubbitcounts.size(); ++i) {
+    if (nsubbitcounts[i] > int(totSamples * frac)) {
+      d_subtractFP->setBit(i);
+    }
+  }
+
+  // Take the complement of the subtract FP so it can be used directly
+  *d_subtractFP = ~(*d_subtractFP);
+}
 
 std::string SynthonSet::buildProductName(
     const std::vector<size_t> &synthNums) const {

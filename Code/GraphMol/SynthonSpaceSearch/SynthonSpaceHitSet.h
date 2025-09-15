@@ -58,6 +58,8 @@ struct RDKIT_SYNTHONSPACESEARCH_EXPORT SynthonSpaceFPHitSet
   SynthonSpaceFPHitSet &operator=(SynthonSpaceFPHitSet &&rhs) = delete;
 
   std::vector<std::vector<ExplicitBitVect *>> synthonFPs;
+  ExplicitBitVect *addFP;
+  ExplicitBitVect *subtractFP;
 };
 
 // This sub-class holds results from a SynthonSpaceShapeSearch.

@@ -160,8 +160,7 @@ bool SynthonSpaceFingerprintSearcher::extraSearchSetup(
     return false;
   }
 
-  // Generate the fingerprints for the fragments.  This is the
-  // time-consuming bit that will be threaded if the need arises.
+  // Generate the fingerprints for the fragments.
   d_fragFPPool.resize(fragSmiToFrag.size());
   unsigned int fragNum = 0;
   for (auto &[fragSmi, frags] : fragSmiToFrag) {
@@ -288,7 +287,10 @@ double SynthonSpaceFingerprintSearcher::approxSimilarity(
   for (unsigned int i = 1; i < synthNums.size(); ++i) {
     fullFP |= *hs->synthonFPs[i][synthNums[i]];
   }
-
+  fullFP |= *hs->addFP;
+  // The subtract FP has already had its bits flipped, so just do a
+  // straight AND.
+  fullFP &= *hs->subtractFP;
   return TanimotoSimilarity(fullFP, *d_queryFP);
 }
 
