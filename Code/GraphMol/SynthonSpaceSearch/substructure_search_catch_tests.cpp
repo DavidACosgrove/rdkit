@@ -773,3 +773,18 @@ c1c/c2n3/c1=C\C1=N/C(=C\c4c(C)c5c(n4[Mg]3)/C(=C3\N=C(\C=2)[C@@H](C)[C@@H]3C)[C@@
   bool cancelled = false;
   CHECK_NOTHROW(space.readStream(iss, cancelled));
 }
+
+TEST_CASE("Enhanced Stereochemistry - Github 8650") {
+  SynthonSpace space;
+  std::istringstream iss(
+      "SMILES\tsynton_id\tsynton#\treaction_id\trelease\nC[C@H]1CC[C@H](CC1)F |&1:1,4|\tABCDEFGHIJKL1234567890\t1\tx_1abc\t2024-02\n");
+  bool cancelled = false;
+  CHECK_NOTHROW(space.readStream(iss, cancelled));
+  // Bonus bug - it returned a valid reaction even if it had a different name.
+  CHECK_THROWS(space.getReaction("rhubarb"));
+  auto rxn = space.getReaction("x_1abc");
+  auto synthons = rxn->getSynthons();
+  REQUIRE(synthons.size() == 1);
+  REQUIRE(synthons[0].size() == 1);
+  CHECK(synthons[0][0].second->getSmiles() == "C[C@H]1CC[C@H](CC1)F |&1:1,4|");
+}

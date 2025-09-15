@@ -123,7 +123,10 @@ yysmiles_error( const char *input,
 		void *,int, unsigned int bad_token_position, const char * msg )
 {
   yyErrorCleanup(ms);
-  SmilesParseOps::detail::printSyntaxErrorMessage(input, msg, bad_token_position);
+  SmilesParseOps::detail::printSyntaxErrorMessage(input,
+                                                  msg,
+                                                  bad_token_position,
+                                                  "SMILES");
 }
 
 void
@@ -133,9 +136,23 @@ yysmiles_error( const char *input,
 		void *,int, unsigned int bad_token_position, const char * msg )
 {
   yyErrorCleanup(ms);
-  SmilesParseOps::detail::printSyntaxErrorMessage(input, msg, bad_token_position);
+  SmilesParseOps::detail::printSyntaxErrorMessage(input,
+                                                  msg,
+                                                  bad_token_position,
+                                                  "SMILES");
 }
 
+void
+yysmiles_error( const char *input,
+                std::vector<RDKit::RWMol *> *ms,
+                unsigned int bad_token_position, const char * msg )
+{
+  yyErrorCleanup(ms);
+  SmilesParseOps::detail::printSyntaxErrorMessage(input,
+                                                  msg,
+                                                  bad_token_position,
+                                                  "SMILES");
+}
 
 
 
@@ -597,14 +614,14 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] =
 {
-       0,   121,   121,   124,   128,   131,   135,   139,   142,   147,
-     152,   155,   163,   164,   165,   166,   174,   185,   196,   217,
-     226,   232,   253,   277,   296,   306,   327,   335,   349,   352,
-     353,   359,   360,   366,   374,   375,   376,   377,   378,   379,
-     380,   384,   385,   386,   387,   388,   389,   390,   391,   392,
-     396,   397,   398,   399,   400,   404,   405,   406,   407,   408,
-     409,   413,   414,   418,   419,   420,   421,   422,   423,   424,
-     428,   429,   433,   434,   445,   446
+       0,   138,   138,   141,   145,   148,   152,   156,   159,   165,
+     170,   173,   181,   182,   183,   184,   192,   203,   214,   235,
+     244,   250,   271,   295,   314,   324,   345,   353,   367,   370,
+     371,   377,   378,   384,   392,   393,   394,   395,   396,   397,
+     398,   402,   403,   404,   405,   406,   407,   408,   409,   410,
+     414,   415,   416,   417,   418,   422,   423,   424,   425,   426,
+     427,   431,   432,   436,   437,   438,   439,   440,   441,   442,
+     446,   447,   451,   452,   463,   464
 };
 #endif
 
@@ -1362,6 +1379,7 @@ yyreduce:
                            {
   yyerrok;
   yyErrorCleanup(molList);
+  yyerror(input, molList, current_token_position, "syntax error");
   YYABORT;
 }
     break;
