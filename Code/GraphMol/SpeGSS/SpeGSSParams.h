@@ -17,8 +17,8 @@ struct SpeGSSParams {
       4.5;  // Distance that grid extends beyond molecule.
             // Same as default distance cutoff for GaussianShape
   double gridSpacing =
-      0.25;               // Spacing between grid points - x, y and z the same.
-  double isoValue = 0.5;  // Contour value for surface.
+      0.25;  // Spacing between grid points - x, y and z the same.
+  double contourValue = 0.05;  // Contour value for surface.
 };
 
 }  // namespace SpeGSS
