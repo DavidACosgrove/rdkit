@@ -50,7 +50,18 @@ template <class GRIDTYPE>
 RDKIT_RDGEOMETRYLIB_EXPORT double protrudeDistance(const GRIDTYPE &grid1,
                                                    const GRIDTYPE &grid2);
 
-//! calculate the grid centroid within a window of a point
+//! Calculate the coordinates of a point centred at the given point
+//! that is the weighted mean of the grid points within the given
+//! radius.  The weights are the values at the grid points, the
+//! sum of which is passed back in weightSum
+/*!
+ \param grid          the input grid
+ \param pt            the point of interest
+ \param windowRadius  the radius of the window
+ \param weightSum     used to pass back the sum of the weights
+
+ \return a Point3D.
+ */
 RDKIT_RDGEOMETRYLIB_EXPORT Point3D
 computeGridCentroid(const UniformGrid3D &grid, const Point3D &pt,
                     double windowRadius, double &weightSum);

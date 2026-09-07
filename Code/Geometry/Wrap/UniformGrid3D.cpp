@@ -183,7 +183,10 @@ struct uGrid3D_wrapper {
     python::def(
         "ComputeGridCentroid", computeGridCentroidWrap,
         python::args("grid", "pt", "windowRadius"),
-        "Compute the grid point at the center of sphere around a Point3D");
+        "Compute the coordinates of a point centred at the given point"
+        " that is the weighted mean of the grid points within the given"
+        " radius.  The weights are the values at the grid points.  Returns"
+        " a tuple of the sum of the weights and a Point3D.");
     python::def(
         "FindGridTerminalPoints", findGridTerminalPointsWrap,
         python::args("grid", "windowRadius", "inclusionFraction"),
