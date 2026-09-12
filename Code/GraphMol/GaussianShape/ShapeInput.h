@@ -68,8 +68,6 @@ class ROMol;
 class Conformer;
 namespace GaussianShape {
 
-constexpr double CARBON_RAD = 1.70;
-constexpr double DUMMY_RAD = 2.16;  // same as Xe
 // From Grant et al.
 constexpr double P = 2.7;
 constexpr double KAPPA = 2.41798793102;
