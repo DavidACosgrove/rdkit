@@ -27,6 +27,7 @@
 #include <GraphMol/MolOps.h>
 #include <GraphMol/QueryAtom.h>
 #include <GraphMol/ChemTransforms/ChemTransforms.h>
+#include <GraphMol/GaussianShape/AtomRadii.h>
 #include <GraphMol/SmilesParse/SmartsWrite.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpaceHitSet.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>

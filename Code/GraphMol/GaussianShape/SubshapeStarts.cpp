@@ -15,6 +15,7 @@
 
 #include <boost/dynamic_bitset.hpp>
 
+#include <Numerics/Alignment/AlignPoints.h>
 #include "Geometry/GridUtils.h"
 #include "GraphMol/ROMol.h"
 #include <GraphMol/GaussianShape/SubshapeStarts.h>
@@ -423,6 +424,17 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
               << p->getPosition().z << ";";
   }
   std::cout << std::endl;
+  // addSkeletonPoints(*d_refGrid, options, d_refPoints);
+  SubshapeOptions tmpOptions = options;
+  tmpOptions.pointRadScale = 0.5;
+  clusterTerminalPoints(tmpOptions, d_refPoints);
+  std::cout << "Ref points + skeleton points : " << d_refPoints.size() << " "
+            << std::endl;
+  for (const auto &p : d_refPoints) {
+    std::cout << p->getPosition().x << "," << p->getPosition().y << ","
+              << p->getPosition().z << ";";
+  }
+  std::cout << std::endl;
   buildTerminalPoints(fit, fitConfId, options, *d_fitGrid, d_fitPoints);
   std::cout << "Fit points : " << d_fitPoints.size() << " " << std::endl;
   for (const auto &p : d_fitPoints) {
@@ -430,33 +442,79 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
               << p->getPosition().z << ";";
   }
   std::cout << std::endl;
-  addSkeletonPoints(*d_fitGrid, options, d_fitPoints);
-  std::cout << "Fit points + skeleton points : " << d_fitPoints.size() << " "
-            << std::endl;
-  for (const auto &p : d_fitPoints) {
-    std::cout << p->getPosition().x << "," << p->getPosition().y << ","
-              << p->getPosition().z << ";";
-  }
-  std::cout << std::endl;
-  double minDistSq = std::numeric_limits<double>::max();
-  size_t minI, minJ;
-  for (size_t i = 1; i < d_fitPoints.size(); ++i) {
-    for (size_t j = 0; j < i; ++j) {
-      double distSq =
-          (d_fitPoints[i]->getPosition() - d_fitPoints[j]->getPosition())
-              .lengthSq();
-      if (distSq < minDistSq) {
-        minDistSq = distSq;
-        minI = i;
-        minJ = j;
-      }
-      if (distSq < 1.0) {
-        std::cout << sqrt(distSq) << " for " << i << " -> " << j << std::endl;
+
+  size_t numTris = 0, numStarts = 0;
+  buildDistMatrices();
+  std::array<double, 3> refTriDists;
+  std::array<double, 3> fitTriDists;
+
+  for (size_t ref_i = 2; ref_i < d_refPoints.size(); ++ref_i) {
+    for (size_t ref_j = 1; ref_j < ref_i; ++ref_j) {
+      for (size_t ref_k = 0; ref_k < ref_j; ++ref_k) {
+        refTriDists[0] = d_refPointsDists[ref_i][ref_j];
+        refTriDists[1] = d_refPointsDists[ref_i][ref_k];
+        refTriDists[2] = d_refPointsDists[ref_j][ref_k];
+        std::ranges::sort(refTriDists);
+        for (size_t tgt_i = 2; tgt_i < d_fitPoints.size(); ++tgt_i) {
+          for (size_t tgt_j = 1; tgt_j < tgt_i; ++tgt_j) {
+            for (size_t tgt_k = 0; tgt_k < tgt_j; ++tgt_k) {
+              fitTriDists[0] = d_fitPointsDists[tgt_i][tgt_j];
+              fitTriDists[1] = d_fitPointsDists[tgt_i][tgt_k];
+              fitTriDists[2] = d_fitPointsDists[tgt_j][tgt_k];
+              std::ranges::sort(fitTriDists);
+              std::cout << ref_i << " -> " << ref_j << " -> " << ref_k << " to "
+                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+                        << std::endl;
+              std::cout << fabs(refTriDists[0] - fitTriDists[0]) << " : " << fabs(refTriDists[1] - fitTriDists[1])
+              << " : " << fabs(refTriDists[2] - fitTriDists[2])  << " vs " << options.triangleSideTolerance << std::endl;
+              if (fabs(refTriDists[0] - fitTriDists[0]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[1] - fitTriDists[1]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[2] - fitTriDists[2]) >
+                      options.triangleSideTolerance) {
+                continue;
+              }
+              std::cout << ref_i << " -> " << ref_j << " -> " << ref_k << " to "
+                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+                        << std::endl;
+              std::cout << ref_i << " -> " << ref_k << " -> " << ref_j << " to "
+                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+                        << std::endl;
+              std::cout << ref_j << " -> " << ref_i << " -> " << ref_k << " to "
+                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+                        << std::endl;
+              std::cout << ref_j << " -> " << ref_k << " -> " << ref_i << " to "
+                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+                        << std::endl;
+              std::cout << ref_k << " -> " << ref_i << " -> " << ref_j << " to "
+                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+                        << std::endl;
+              std::cout << ref_k << " -> " << ref_j << " -> " << ref_i << " to "
+                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+                        << std::endl;
+              numStarts += 6;
+              ++numTris;
+              d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
+                  ref_i, ref_j, ref_k, tgt_i, tgt_j, tgt_k});
+              d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
+                  ref_i, ref_k, ref_j, tgt_i, tgt_j, tgt_k});
+              d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
+                  ref_j, ref_i, ref_k, tgt_i, tgt_j, tgt_k});
+              d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
+                  ref_j, ref_k, ref_i, tgt_i, tgt_j, tgt_k});
+              d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
+                  ref_k, ref_i, ref_j, tgt_i, tgt_j, tgt_k});
+              d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
+                  ref_k, ref_j, ref_i, tgt_i, tgt_j, tgt_k});
+            }
+          }
+        }
       }
     }
   }
-  std::cout << "Closest : " << sqrt(minDistSq) << " for " << minI << " -> "
-            << minJ << std::endl;
+  std::cout << "Total triangles : " << numTris << " for " << numStarts
+            << " starts" << std::endl;
 }
 
 namespace {
@@ -487,5 +545,48 @@ SubshapeStarts &SubshapeStarts::operator=(const SubshapeStarts &other) {
   copyPoints(other.d_fitPoints, d_fitPoints);
   return *this;
 }
+
+std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::getNextStartTransform(double *ssd) {
+  if (d_nextStart == d_possStarts.size()) {
+    return std::unique_ptr<RDGeom::Transform3D>();
+  }
+  auto trans = std::make_unique<RDGeom::Transform3D>();
+  std::vector<const RDGeom::Point3D *> refs(3);
+  refs[0] = &d_refPoints[d_possStarts[d_nextStart][0]]->getPosition();
+  refs[1] = &d_refPoints[d_possStarts[d_nextStart][1]]->getPosition();
+  refs[2] = &d_refPoints[d_possStarts[d_nextStart][2]]->getPosition();
+  std::vector<const RDGeom::Point3D *> fits(3);
+  fits[0] = &d_fitPoints[d_possStarts[d_nextStart][3]]->getPosition();
+  fits[1] = &d_fitPoints[d_possStarts[d_nextStart][4]]->getPosition();
+  fits[2] = &d_fitPoints[d_possStarts[d_nextStart][5]]->getPosition();
+  auto rssd = RDNumeric::Alignments::AlignPoints(refs, fits, *trans);
+  ++d_nextStart;
+  if (ssd) {
+    *ssd = rssd;
+  }
+  return trans;
+}
+
+namespace {
+std::vector<std::vector<double>> buildDistMatrix(
+    const std::vector<std::unique_ptr<SubshapePoint>> &points) {
+  std::vector<std::vector<double>> dists(points.size(),
+                                         std::vector<double>(points.size()));
+  for (size_t i = 1; i < points.size(); ++i) {
+    for (size_t j = 0; j < i; ++j) {
+      dists[i][j] = dists[j][i] =
+          (points[i]->getPosition() - points[j]->getPosition()).length();
+      std::cout << i << " -> " << j << ": " << dists[i][j] << std::endl;
+    }
+  }
+  return dists;
+}
+}  // namespace
+
+void SubshapeStarts::buildDistMatrices() {
+  d_refPointsDists = buildDistMatrix(d_refPoints);
+  d_fitPointsDists = buildDistMatrix(d_fitPoints);
+}
+
 }  // namespace GaussianShape
 }  // namespace RDKit

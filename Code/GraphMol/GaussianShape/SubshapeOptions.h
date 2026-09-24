@@ -36,7 +36,9 @@ struct SubshapeOptions {
   double maxDistC =
       15.0;  // A mysterious distance used when pruning skeleton points
   double symFactor =
-      1.5;  // An another weird constant used when pruning skeleton points
+      1.5;  // Another weird constant used when pruning skeleton points
+  double triangleSideTolerance = 1.0;
+  double rmsdTriangleTolerance = 0.5;
 };
 
 }  // namespace GaussianShape

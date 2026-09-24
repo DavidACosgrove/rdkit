@@ -12,6 +12,7 @@
 #include <GraphMol/DistGeomHelpers/Embedder.h>
 #include <GraphMol/FileParsers/MolSupplier.h>
 #include <GraphMol/FileParsers/MolWriters.h>
+#include <GraphMol/GaussianShape/AtomRadii.h>
 #include <GraphMol/GaussianShape/GaussianShape.h>
 #include <GraphMol/MolAlign/AlignMolecules.h>
 #include <GraphMol/SynthonSpaceSearch/SynthonSpace.h>

@@ -741,6 +741,7 @@ std::
                 "Nc1cc(Cn2c(C(=O)O)c(-c3ccc[nH]c3=O)c3cc(C(F)(F)F)ccc32)ccn1 |(29.4427,46.05,43.4472;28.8505,44.9996,42.7518;27.6724,44.4529,43.2669;27.0734,43.3813,42.5955;25.8189,42.6999,43.052;25.2163,43.3606,44.2071;24.4581,44.4943,44.0838;24.1931,45.0901,42.7808;24.1204,46.4333,42.7998;23.8923,44.4562,41.7912;24.0461,44.8297,45.3707;23.2097,45.9536,45.7413;23.5041,46.7963,46.7667;22.6287,47.9099,47.1092;21.5037,48.1244,46.3872;21.1624,47.2732,45.3588;21.9195,46.1834,44.9822;21.563,45.4266,44.0641;24.5817,43.8725,46.2645;24.4958,43.6833,47.6538;25.1452,42.5857,48.2292;25.0531,42.3252,49.6881;24.5934,41.0857,49.9422;26.2447,42.4118,50.3073;24.2575,43.1875,50.3428;25.8943,41.6963,47.4464;25.9994,41.8646,46.0771;25.324,42.958,45.5057;27.6791,42.8877,41.4291;28.8324,43.5019,40.9842;29.4267,44.5435,41.6155)|",
 };
 std::vector<std::shared_ptr<RWMol>> lobsters;
+
 void initLobsters() {
   if (lobsters.empty()) {
     for (const auto &text : lobstersText) {
@@ -1081,9 +1082,93 @@ TEST_CASE("Subshape Starts") {
   auto pdb_0zn_1tmn =
       R"([C@H](CCc1ccccc1)(C(=O)O)N[C@H](C(=O)N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2)CC(C)C |(35.672,41.482,-5.722;34.516,40.842,-6.512;34.843,39.355,-6.7;33.819,38.475,-7.45;33.825,38.414,-8.838;32.951,37.553,-9.53;32.064,36.747,-8.81;32.096,36.799,-7.402;32.985,37.656,-6.73;35.934,42.778,-6.452;36.833,42.858,-7.316;35.175,43.735,-6.275;35.516,41.561,-4.218;36.707,42.096,-3.513;38.055,41.449,-3.859;39.11,42.138,-3.959;37.975,40.129,-3.983;39.134,39.277,-4.298;38.825,38.04,-5.133;37.649,37.934,-5.605;39.788,37.369,-5.652;39.985,38.945,-3.037;39.221,37.953,-2.164;37.934,37.961,-1.823;37.579,36.695,-1.314;38.63,35.975,-1.286;39.736,36.771,-1.642;41.052,36.341,-1.48;41.213,35.042,-0.964;40.095,34.215,-0.69;38.765,34.665,-0.855;36.506,41.966,-2.002;37.6,42.757,-1.31;37.546,44.225,-1.728;37.408,42.58,0.19),wD:0.0,wU:17.21,13.33|)"_smiles;
   REQUIRE(pdb_0zn_1tmn);
+  GaussianShape::SubshapeStarts starts(*pdb_0zn_1tmn, *pdb_trp_3tmn);
+  int i = 0;
+  GaussianShape::SubshapeOptions options;
+  double ssdCutoff = options.rmsdTriangleTolerance * options.rmsdTriangleTolerance * 3.0;
+  GaussianShape::ShapeInputOptions shapeOpts;
+  RDGeom::Transform3D xform;
+  double bestCombo = 0.0;
+  ROMol bestMol;
 
-  MolTransforms::canonicalizeMol(*pdb_trp_3tmn);
-  std::cout << MolToCXSmiles(*pdb_trp_3tmn) << std::endl;
-  MolTransforms::canonicalizeMol(*pdb_0zn_1tmn);
-  GaussianShape::SubshapeStarts starts(*pdb_trp_3tmn, *pdb_0zn_1tmn);
+  while (true) {
+    double ssd = 0.0;
+    auto trans = starts.getNextStartTransform(&ssd);
+    if (!trans) {
+      break;
+    }
+    if (ssd > ssdCutoff) {
+      continue;
+    }
+    ++i;
+    ROMol mol(*pdb_trp_3tmn);
+    MolTransforms::transformConformer(mol.getConformer(), *trans);
+    std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
+    GaussianShape::ShapeOverlayOptions opts;
+    opts.startMode = GaussianShape::StartMode::ROTATE_0;
+    opts.normalize = false;
+    auto res = GaussianShape::AlignMolecule(*pdb_0zn_1tmn, mol, shapeOpts, shapeOpts, &xform, opts);
+    std::cout << i << " : " << res[0] << ", " << res[1] << ", " << res[2] << "  ssd = " << ssd << std::endl;
+    std::cout << MolToCXSmiles(mol) << std::endl;
+    if (res[0] > bestCombo) {
+      bestCombo = res[0];
+      bestMol = std::move(mol);
+    }
+    std::cout << MolToCXSmiles(bestMol) << std::endl;
+    std::cout << "Best score : " << bestCombo << std::endl;
+  }
+
+}
+
+TEST_CASE("Subshape Starts 5ht3ligs") {
+  std::string dirName;
+  if (getenv("RDBASE")) {
+    dirName = getenv("RDBASE");
+  } else {
+    std::cout << "Need RDBASE" << std::endl;
+  }
+  std::string ligsFile =
+      dirName + "/rdkit/Chem/Subshape/test_data/5ht3ligs.sdf";
+  auto suppl = SDMolSupplier(ligsFile, true, false);
+  std::vector<std::unique_ptr<ROMol>> mols;
+  while (!suppl.atEnd()) {
+    mols.emplace_back(suppl.next());
+    std::cout << mols.back()->getName() << " has " << mols.back()->getNumAtoms()
+              << " atoms." << std::endl;
+  }
+  std::cout << MolToCXSmiles(*mols[1], true, false, -1, false) << std::endl;
+  std::cout << MolToCXSmiles(*mols[0], true, false, -1, false) << std::endl;
+  GaussianShape::SubshapeStarts starts(*mols[0], *mols[1]);
+  std::cout << "Num possible starts : " << starts.getNumPossibleStarts()
+            << std::endl;
+  GaussianShape::SubshapeOptions options;
+  double ssdCutoff = options.rmsdTriangleTolerance * options.rmsdTriangleTolerance * 3.0;
+  GaussianShape::ShapeInputOptions shapeOpts;
+  RDGeom::Transform3D xform;
+
+  int i = 0;
+  while (true) {
+    double ssd = 0.0;
+    auto trans = starts.getNextStartTransform(&ssd);
+    if (!trans) {
+      break;
+    }
+    if (ssd > ssdCutoff) {
+      continue;
+    }
+    ++i;
+    ROMol mol(*mols[1]);
+    MolTransforms::transformConformer(mol.getConformer(), *trans);
+    std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
+    GaussianShape::ShapeOverlayOptions opts;
+    opts.startMode = GaussianShape::StartMode::ROTATE_0;
+    opts.normalize = false;
+    auto res = GaussianShape::AlignMolecule(*mols[0], mol, shapeOpts, shapeOpts, &xform, opts);
+    std::cout << i << " : " << res[0] << ", " << res[1] << ", " << res[2] << "  ssd = " << ssd << std::endl;
+    std::cout << MolToCXSmiles(mol) << std::endl;
+  }
+
+  auto stdRes = GaussianShape::AlignMolecule(*mols[0], *mols[1]);
+  std::cout << stdRes[0] << ", " << stdRes[1] << ", " << stdRes[2] << std::endl;
+  std::cout << MolToCXSmiles(*mols[1]) << std::endl;
 }

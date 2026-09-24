@@ -22,7 +22,7 @@
 #ifndef RDKIT_SUBSHAPESTARTS_H
 #define RDKIT_SUBSHAPESTARTS_H
 
-// #include <GraphMol/GaussianShape/SubshapeGrid.h>
+#include <Geometry/Transform3D.h>
 #include <Geometry/UniformGrid3D.h>
 #include <GraphMol/GaussianShape/SubshapeOptions.h>
 #include <GraphMol/GaussianShape/SubshapePoint.h>
@@ -45,11 +45,27 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   SubshapeStarts &operator=(SubshapeStarts &&other) = default;
   ~SubshapeStarts() = default;
 
+  std::uint64_t getNumPossibleStarts() const { return d_possStarts.size(); }
+  // Cycle through the valid triangle matches, returning the transform
+  // for the next match.  Returns an empty one at the end.  If ssd is
+  // not null returns the sum of the squared distances in it, as calculated
+  // by RDNumerics::Alignments::AlignPoints.  Since there are only 3 points
+  // in the alignment, it is easy to change the tolerance to use this.
+  std::unique_ptr<RDGeom::Transform3D> getNextStartTransform(double *ssd = nullptr);
+
  private:
   std::unique_ptr<RDGeom::UniformGrid3D> d_refGrid;
   std::unique_ptr<RDGeom::UniformGrid3D> d_fitGrid;
   std::vector<std::unique_ptr<SubshapePoint>> d_refPoints;
   std::vector<std::unique_ptr<SubshapePoint>> d_fitPoints;
+  std::vector<std::vector<double>> d_refPointsDists;
+  std::vector<std::vector<double>> d_fitPointsDists;
+  std::uint64_t d_nextStart = 0;
+  std::vector<std::array<std::uint64_t, 6>> d_possStarts;
+
+  // Make the squared distance matrices for the points.
+  void buildDistMatrices();
+
 };
 
 }  // namespace GaussianShape

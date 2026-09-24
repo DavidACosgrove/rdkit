@@ -1,7 +1,7 @@
 rdkit_library(GaussianShape
         GaussianShape.cpp ShapeInput.cpp SingleConformerAlignment.cpp
         SubshapeGrid.cpp SubshapeStarts.cpp SubshapePoint.cpp
-        SHARED LINK_LIBRARIES SmilesParse SubstructMatch MolTransforms ShapeHelpers)
+        SHARED LINK_LIBRARIES SmilesParse SubstructMatch MolTransforms ShapeHelpers Alignment)
 if(RDK_BIG_ENDIAN)
     target_compile_definitions(GaussianShape PRIVATE RDKIT_NO_SIMDIVPICKERS)
 else()

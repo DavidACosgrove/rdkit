@@ -14,6 +14,7 @@
 #include <Geometry/Transform3D.h>
 #include <GraphMol/CIPLabeler/Descriptor.h>
 #include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <GraphMol/GaussianShape/AtomRadii.h>
 #include <GraphMol/GaussianShape/GaussianShape.h>
 #include <GraphMol/GaussianShape/ShapeOverlayOptions.h>
 #include <GraphMol/GaussianShape/SingleConformerAlignment.h>

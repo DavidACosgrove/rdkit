@@ -9,6 +9,8 @@
 
 #include <RDGeneral/Exceptions.h>
 
+namespace RDKit {
+namespace GaussianShape {
 constexpr double CARBON_RAD = 1.70;
 constexpr double DUMMY_RAD = 2.16;  // same as Xe
 
@@ -75,5 +77,7 @@ static double getStandardAtomRadius(const unsigned int atomicNum) {
   throw ValueErrorException("No VdW radius for atom with Z=" +
                             std::to_string(atomicNum));
 }
+}  // namespace GaussianShape
+}  // namespace RDKit
 
 #endif  // RDKIT_ATOMRADII_H
