@@ -62,8 +62,6 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   std::array<double, 7> getNextStartQuaternion(double *ssd = nullptr);
 
  private:
-  std::unique_ptr<RDGeom::UniformGrid3D> d_refGrid;
-  std::unique_ptr<RDGeom::UniformGrid3D> d_fitGrid;
   std::vector<std::unique_ptr<SubshapePoint>> d_refPoints;
   std::vector<std::unique_ptr<SubshapePoint>> d_fitPoints;
   std::vector<std::vector<double>> d_refPointsDists;

@@ -1235,11 +1235,7 @@ TEST_CASE("Synthon onto Query") {
     // "*NCc1nccnc1C
     // |(0.133381,0.213595,0.631104;-0.812438,1.2772,0.502007;-0.799076,2.0887,-0.677972;-1.05755,1.37696,-1.94529;-1.48516,0.106286,-2.02087;-1.71697,-0.489857,-3.20421;-1.51147,0.222498,-4.38487;-1.08081,1.50097,-4.32204;-0.860094,2.06497,-3.12375;-0.380626,3.48061,-3.06328)|"_smiles;
     GaussianShape::SubshapeOptions options;
-    options.clusterStartsThreshold = 0.5;
-    options.addSkeletonPointsToRef = true;
-    options.pointRadScale = 0.5;
-    options.n_max = 100;
-    options.sortBeforeClustering = true;
+    options.clusterStartsThreshold = 2.0;
     GaussianShape::SubshapeStarts starts(*largeMol, *synth2, -1, -1, options);
     std::cout << "Num possible starts : " << starts.getNumPossibleStarts()
               << std::endl;

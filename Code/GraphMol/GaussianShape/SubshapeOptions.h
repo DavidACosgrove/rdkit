@@ -17,37 +17,21 @@ namespace RDKit {
 namespace GaussianShape {
 
 struct SubshapeOptions {
-  double gridSpacing = 0.5;
-  double r_b = 0.25;  // half the thickness of the atom shell
-  double n_max = 7;   // max neighbours for terminal points
-  double r_w = 3.0;   // The window radius for the terminal points.  The paper
-                      // says 4.0, Greg uses 3.0.
-  bool sortBeforeClustering =
-      false;  // The original algorithm clusters the terminal points
-              // in the order they are produced.  The results thus
-              // depend on the input atom order.  If this is true, they
-              // are first sorted in descending number of neighbours
-              // which gives a less prominent dependence on input order.
+  double r_w = 3.0;  // The window radius for finding the neighbours of atoms
+                     // when building points.  The paper says 4.0, Greg
+                     // uses 3.0.
   double clusterStartsThreshold =
-      1.0;  // Clusters the start transformations at
-            // this threshold so that similar start points
+      2.0;  // Clusters the start transformations at
+            // this RMSD threshold so that similar start points
             // are not used.  < 0.0 means no clustering.
-  bool addSkeletonPointsToRef = true;  // Adds what the paper calls skeleton
-                                       // points to the reference.  This is
-                                       // especially important if the fit is
-                                       // small in which case the 5 terminal
-                                       // points may be very close together.
-  unsigned int numTerminalPoints = 5;  // This is the ideal number.  We may get
-                                       // fewer, but we need at least 3.
-  double pointRadScale = 0.75;         // For the clustering
-  double stepSize =
-      1.0;  // The minimum distance of a skeleton point from a terminal point
-  double maxDistC =
-      15.0;  // A mysterious distance used when pruning skeleton points
-  double symFactor =
-      1.5;  // Another weird constant used when pruning skeleton points
-  double triangleSideTolerance = 1.0;
-  double rmsdTriangleTolerance = 0.5;
+  double triangleSideTolerance = 1.0;  // When deciding if 2 triangles match so
+                                       // are to be used as a start point, this
+                                       // is the threshold in the difference in
+                                       // side lengths.
+  double rmsdTriangleTolerance = 0.5;  // When assessing whether two triangles
+                                       // are overlaid well enough to be used
+                                       // as start point, this is the RMSD
+                                       // tolerance.
 };
 
 }  // namespace GaussianShape
