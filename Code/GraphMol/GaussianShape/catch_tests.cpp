@@ -1087,43 +1087,39 @@ TEST_CASE("Subshape Starts") {
   auto pdb_0zn_1tmn =
       R"([C@H](CCc1ccccc1)(C(=O)O)N[C@H](C(=O)N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2)CC(C)C |(35.672,41.482,-5.722;34.516,40.842,-6.512;34.843,39.355,-6.7;33.819,38.475,-7.45;33.825,38.414,-8.838;32.951,37.553,-9.53;32.064,36.747,-8.81;32.096,36.799,-7.402;32.985,37.656,-6.73;35.934,42.778,-6.452;36.833,42.858,-7.316;35.175,43.735,-6.275;35.516,41.561,-4.218;36.707,42.096,-3.513;38.055,41.449,-3.859;39.11,42.138,-3.959;37.975,40.129,-3.983;39.134,39.277,-4.298;38.825,38.04,-5.133;37.649,37.934,-5.605;39.788,37.369,-5.652;39.985,38.945,-3.037;39.221,37.953,-2.164;37.934,37.961,-1.823;37.579,36.695,-1.314;38.63,35.975,-1.286;39.736,36.771,-1.642;41.052,36.341,-1.48;41.213,35.042,-0.964;40.095,34.215,-0.69;38.765,34.665,-0.855;36.506,41.966,-2.002;37.6,42.757,-1.31;37.546,44.225,-1.728;37.408,42.58,0.19),wD:0.0,wU:17.21,13.33|)"_smiles;
   REQUIRE(pdb_0zn_1tmn);
-  GaussianShape::SubshapeStarts starts(*pdb_0zn_1tmn, *pdb_trp_3tmn);
-  int i = 0;
-  GaussianShape::SubshapeOptions options;
-  double ssdCutoff =
-      options.rmsdTriangleTolerance * options.rmsdTriangleTolerance * 3.0;
-  GaussianShape::ShapeInputOptions shapeOpts;
-  RDGeom::Transform3D xform;
-  double bestCombo = 0.0;
-  ROMol bestMol;
-
-  while (true) {
-    double ssd = 0.0;
-    auto trans = starts.getNextStartTransform(&ssd);
-    if (!trans) {
-      break;
-    }
-    if (ssd > ssdCutoff) {
-      continue;
-    }
-    ++i;
-    ROMol mol(*pdb_trp_3tmn);
-    MolTransforms::transformConformer(mol.getConformer(), *trans);
-    std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
+#if 1
+  {
     GaussianShape::ShapeOverlayOptions opts;
-    opts.startMode = GaussianShape::StartMode::ROTATE_0;
-    opts.normalize = false;
-    auto res = GaussianShape::AlignMolecule(*pdb_0zn_1tmn, mol, shapeOpts,
-                                            shapeOpts, &xform, opts);
-    std::cout << i << " : " << res[0] << ", " << res[1] << ", " << res[2]
-              << "  ssd = " << ssd << std::endl;
-    std::cout << MolToCXSmiles(mol) << std::endl;
-    if (res[0] > bestCombo) {
-      bestCombo = res[0];
-      bestMol = std::move(mol);
-    }
-    std::cout << MolToCXSmiles(bestMol) << std::endl;
-    std::cout << "Best score : " << bestCombo << std::endl;
+    opts.nSteps = 100;
+    opts.startMode = GaussianShape::StartMode::ROTATE_180_FRAGMENT;
+    opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    auto probeShape = GaussianShape::ShapeInput(*pdb_trp_3tmn, -1);
+    auto refShape = GaussianShape::ShapeInput(*pdb_0zn_1tmn, -1);
+    RDGeom::Transform3D xform;
+    // Use the smaller molecule as the probe
+    auto scores = GaussianShape::AlignShape(refShape, probeShape, &xform, opts);
+    std::cout << "frag mode scores : " << scores[0] << ", " << scores[1] << ", "
+              << scores[2] << std::endl;
+    ROMol mol(*pdb_trp_3tmn);
+    MolTransforms::transformConformer(mol.getConformer(), xform);
+    std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
+  }
+#endif
+  {
+    GaussianShape::ShapeOverlayOptions opts;
+    opts.nSteps = 100;
+    opts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    auto probeShape = GaussianShape::ShapeInput(*pdb_trp_3tmn, -1);
+    auto refShape = GaussianShape::ShapeInput(*pdb_0zn_1tmn, -1);
+    RDGeom::Transform3D xform;
+    // Use the smaller molecule as the probe
+    auto scores = GaussianShape::AlignShape(refShape, probeShape, &xform, opts);
+    std::cout << "subshape mode scores : " << scores[0] << ", " << scores[1]
+              << ", " << scores[2] << std::endl;
+    ROMol mol(*pdb_trp_3tmn);
+    MolTransforms::transformConformer(mol.getConformer(), xform);
+    std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
   }
 }
 
@@ -1145,7 +1141,9 @@ TEST_CASE("Subshape Starts 5ht3ligs") {
   }
   std::cout << MolToCXSmiles(*mols[1], true, false, -1, false) << std::endl;
   std::cout << MolToCXSmiles(*mols[0], true, false, -1, false) << std::endl;
-  GaussianShape::SubshapeStarts starts(*mols[0], *mols[1]);
+  GaussianShape::ShapeInput shape0 = GaussianShape::ShapeInput(*mols[0]);
+  GaussianShape::ShapeInput shape1 = GaussianShape::ShapeInput(*mols[1]);
+  GaussianShape::SubshapeStarts starts(shape0, shape1);
   std::cout << "Num possible starts : " << starts.getNumPossibleStarts()
             << std::endl;
   GaussianShape::SubshapeOptions options;
@@ -1236,7 +1234,11 @@ TEST_CASE("Synthon onto Query") {
     // |(0.133381,0.213595,0.631104;-0.812438,1.2772,0.502007;-0.799076,2.0887,-0.677972;-1.05755,1.37696,-1.94529;-1.48516,0.106286,-2.02087;-1.71697,-0.489857,-3.20421;-1.51147,0.222498,-4.38487;-1.08081,1.50097,-4.32204;-0.860094,2.06497,-3.12375;-0.380626,3.48061,-3.06328)|"_smiles;
     GaussianShape::SubshapeOptions options;
     options.clusterStartsThreshold = 2.0;
-    GaussianShape::SubshapeStarts starts(*largeMol, *synth2, -1, -1, options);
+    auto largeShape = GaussianShape::ShapeInput(*largeMol, -1);
+    std::cout << MolToCXSmiles(*largeShape.shapeToMol()) << std::endl;
+    auto synth2Shape = GaussianShape::ShapeInput(*synth2, -1);
+    std::cout << MolToCXSmiles(*synth2Shape.shapeToMol()) << std::endl;
+    GaussianShape::SubshapeStarts starts(largeShape, synth2Shape, options);
     std::cout << "Num possible starts : " << starts.getNumPossibleStarts()
               << std::endl;
     double ssdCutoff =

@@ -23,7 +23,6 @@
 #define RDKIT_SUBSHAPESTARTS_H
 
 #include "Geometry/Transform3D.h"
-#include "Geometry/UniformGrid3D.h"
 #include "GraphMol/GaussianShape/SubshapeOptions.h"
 #include "GraphMol/GaussianShape/SubshapePoint.h"
 
@@ -34,10 +33,13 @@ class ROMol;
 
 namespace GaussianShape {
 
+class ShapeInput;
+
 class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
  public:
-  SubshapeStarts(const ROMol &ref, const ROMol &fit, int refConfId = -1,
-                 int fitConfId = -1,
+  // Create from the 2 ShapeInputs, assuming they are already in
+  // the correct active shape.
+  SubshapeStarts(const ShapeInput &ref, const ShapeInput &fit,
                  const SubshapeOptions &options = SubshapeOptions());
   SubshapeStarts(const SubshapeStarts &other);
   SubshapeStarts(SubshapeStarts &&other) = default;
@@ -59,7 +61,8 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   // Likewise, returning the transformation as a quaternion and translation
   // such as the SingleConformerAlignment likes - first 4
   // elements the quaternion, last 3 the translation.
-  std::array<double, 7> getNextStartQuaternion(double *ssd = nullptr);
+  std::unique_ptr<std::array<double, 7>> getNextStartQuaternion(
+      double *ssd = nullptr);
 
  private:
   std::vector<std::unique_ptr<SubshapePoint>> d_refPoints;
@@ -76,7 +79,7 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   // points that put the target start overlays more than the
   // threshold apart so we don't do an optimisation from a very
   // similar position (by RMSD) to one that has already been attempted.
-  void clusterStartPoints(const ROMol &fit, int fitConfId,
+  void clusterStartPoints(const ShapeInput &fit,
                           const SubshapeOptions &options);
   // Sort the start points in ascending ssd, as returns by
   // getNextStartTransform so the ones that have the best

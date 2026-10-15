@@ -45,6 +45,18 @@ class SubshapePoint {
   unsigned int d_numNbours;  // Number of neighbours used to derive the point.
 };
 
+inline SubshapePoint::SubshapePoint(
+    const std::vector<std::unique_ptr<SubshapePoint>> &points,
+    const boost::dynamic_bitset<> &pointsToUse) {
+  for (size_t i = 0; i < points.size(); ++i) {
+    if (pointsToUse.test(i)) {
+      d_pos += points[i]->getPosition();
+    }
+  }
+  d_pos /= pointsToUse.count();
+  d_numNbours = pointsToUse.count();
+}
+
 }  // namespace GaussianShape
 }  // namespace RDKit
 #endif  // RDKIT_SUBSHAPEPOINT_H

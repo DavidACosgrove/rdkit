@@ -11,15 +11,12 @@
 //
 
 #include <algorithm>
-#include <numbers>
-
-#include <boost/dynamic_bitset.hpp>
 
 #include <Eigen/Geometry>
 
+#include "Geometry/Transform3D.h"
 #include "Numerics/Alignment/AlignPoints.h"
-#include "Geometry/GridUtils.h"
-#include "GraphMol/ROMol.h"
+#include "GraphMol/GaussianShape/ShapeInput.h"
 #include "GraphMol/GaussianShape/SubshapeStarts.h"
 #include "GraphMol/SmilesParse/SmilesWrite.h"
 #include "GraphMol/MolAlign/AlignMolecules.h"
@@ -33,25 +30,18 @@ namespace GaussianShape {
 namespace {
 
 void makeInitialPoints(
-    const ROMol &mol, int confId, const SubshapeOptions &options,
+    const ShapeInput &shape, const SubshapeOptions &options,
     std::vector<std::unique_ptr<SubshapePoint>> &termPoints) {
-  const auto &conf = mol.getConformer(confId);
+  auto atomPoints = shape.getAtomPoints();
   double rWSq = options.r_w * options.r_w;
-  std::vector<std::vector<unsigned int>> nbours(mol.getNumAtoms());
+  std::vector<std::vector<unsigned int>> nbours(atomPoints.size());
 
-  for (const auto atom1 : mol.atoms()) {
-    unsigned int at1Idx = atom1->getIdx();
-    const auto pos1 = conf.getAtomPos(at1Idx);
-    for (const auto atom2 : mol.atoms()) {
-      unsigned int at2Idx = atom2->getIdx();
-      if (at1Idx <= at2Idx) {
-        continue;
-      }
-      const auto pos2 = conf.getAtomPos(at2Idx);
-      double sqDist = (pos1 - pos2).lengthSq();
+  for (size_t i = 1; i < atomPoints.size(); ++i) {
+    for (size_t j = 1; j < i; ++j) {
+      double sqDist = (atomPoints[i] - atomPoints[j]).lengthSq();
       if (sqDist < rWSq) {
-        nbours[at1Idx].push_back(at2Idx);
-        nbours[at2Idx].push_back(at1Idx);
+        nbours[i].push_back(j);
+        nbours[j].push_back(i);
       }
     }
   }
@@ -64,14 +54,14 @@ void makeInitialPoints(
     // sense, and indeed the algorithm in Figure 6 is different from
     // equation 3.  This follows what Greg did in his Python implementation
     // in $RDBASE/rdkit/Chem/Subshape/BuilderUtils.py
-    auto pnt = conf.getAtomPos(i);
+    auto pnt = atomPoints[i];
     double totWt = 1.0;  // For atom i
     for (const auto n : nbours[i]) {
       // Add one to the weights because Greg put i in the nbours lists, which
       // I haven't done.
       double wt =
           static_cast<double>(nbours[i].size() + 1) / (nbours[n].size() + 1);
-      pnt += conf.getAtomPos(n) * wt;
+      pnt += atomPoints[n] * wt;
       totWt += wt;
     }
     pnt /= totWt;
@@ -116,11 +106,10 @@ void prunePoints(std::vector<std::unique_ptr<SubshapePoint>> &termPoints) {
 
 }  // namespace
 
-SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
-                               int refConfId, int fitConfId,
+SubshapeStarts::SubshapeStarts(const ShapeInput &ref, const ShapeInput &fit,
                                const SubshapeOptions &options) {
   std::cout << "RRRRRRRRRRRRRef" << std::endl;
-  makeInitialPoints(ref, refConfId, options, d_refPoints);
+  makeInitialPoints(ref, options, d_refPoints);
   prunePoints(d_refPoints);
   std::cout << "Ref points : " << d_refPoints.size() << " " << std::endl;
   for (const auto &p : d_refPoints) {
@@ -129,7 +118,7 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
   }
   std::cout << std::endl;
   std::cout << "FFFFFFFFFFFit" << std::endl;
-  makeInitialPoints(fit, fitConfId, options, d_fitPoints);
+  makeInitialPoints(fit, options, d_fitPoints);
   prunePoints(d_fitPoints);
   std::cout << "Orig Fit points : " << d_fitPoints.size() << " " << std::endl;
   for (const auto &p : d_fitPoints) {
@@ -216,7 +205,7 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
   }
   std::cout << "Total starts :: " << d_possStarts.size() << std::endl;
   if (options.clusterStartsThreshold > 0.0) {
-    clusterStartPoints(fit, fitConfId, options);
+    clusterStartPoints(fit, options);
   }
   std::cout << "Clustered starts : " << d_possStarts.size() << std::endl;
   sortStartPoints();
@@ -269,8 +258,14 @@ std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::getNextStartTransform(
   return trans;
 }
 
-std::array<double, 7> SubshapeStarts::getNextStartQuaternion(double *ssd) {
+std::unique_ptr<std::array<double, 7>> SubshapeStarts::getNextStartQuaternion(
+    double *ssd) {
   auto trans = getNextStartTransform(ssd);
+  std::unique_ptr<std::array<double, 7>> retVal;
+  if (!trans) {
+    return retVal;
+  }
+
   Eigen::Matrix3d r;
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 3; ++j) {
@@ -278,16 +273,16 @@ std::array<double, 7> SubshapeStarts::getNextStartQuaternion(double *ssd) {
     }
   }
   auto q = Eigen::Quaterniond(r);
-  std::array<double, 7> rs;
-  rs[0] = q.x();
-  rs[1] = q.y();
-  rs[2] = q.z();
-  rs[3] = q.w();
-  rs[4] = trans->getValUnchecked(0, 3);
-  rs[5] = trans->getValUnchecked(1, 3);
-  rs[6] = trans->getValUnchecked(2, 3);
+  retVal.reset(new std::array<double, 7>());
+  (*retVal)[0] = q.x();
+  (*retVal)[1] = q.y();
+  (*retVal)[2] = q.z();
+  (*retVal)[3] = q.w();
+  (*retVal)[4] = trans->getValUnchecked(0, 3);
+  (*retVal)[5] = trans->getValUnchecked(1, 3);
+  (*retVal)[6] = trans->getValUnchecked(2, 3);
 
-  return rs;
+  return retVal;
 }
 
 namespace {
@@ -310,14 +305,15 @@ void SubshapeStarts::buildDistMatrices() {
   d_fitPointsDists = buildDistMatrix(d_fitPoints);
 }
 
-void SubshapeStarts::clusterStartPoints(const ROMol &fit, int fitConfId,
+void SubshapeStarts::clusterStartPoints(const ShapeInput &fit,
                                         const SubshapeOptions &options) {
   std::vector<size_t> selTrans;
-  std::vector<std::unique_ptr<ROMol>> selConfs;
+  std::vector<std::vector<RDGeom::Point3D>> selShapes;
   selTrans.reserve(getNumPossibleStarts());
   double ssdCutoff =
       options.rmsdTriangleTolerance * options.rmsdTriangleTolerance * 3.0;
-  auto fitConf = fit.getConformer(fitConfId);
+  double shapeCutoff =
+      options.clusterStartsThreshold * options.clusterStartsThreshold;
 
   for (size_t i = 0; i < getNumPossibleStarts(); ++i) {
     double ssd = 0.0;
@@ -326,24 +322,29 @@ void SubshapeStarts::clusterStartPoints(const ROMol &fit, int fitConfId,
     if (ssd > ssdCutoff) {
       continue;
     }
-    std::unique_ptr<ROMol> fitCp(new ROMol(fit, true));
-    fitCp->addConformer(new Conformer(fitConf));
-    MolTransforms::transformConformer(fitCp->getConformer(), *trans);
+    auto fitPoints = fit.getAtomPoints();
+    std::for_each(fitPoints.begin(), fitPoints.end(),
+                  [&trans](RDGeom::Point3D &p) { trans->TransformPoint(p); });
+
     if (selTrans.empty()) {
       selTrans.push_back(i);
-      selConfs.emplace_back(std::move(fitCp));
+      selShapes.emplace_back(std::move(fitPoints));
     } else {
       bool foundSimilar = false;
-      for (const auto &c : selConfs) {
-        auto rmsd = MolAlign::CalcRMS(*fitCp, *c);
-        if (rmsd < options.clusterStartsThreshold) {
+      for (const auto &sp : selShapes) {
+        double msd = 0.0;
+        for (size_t j = 0; j < sp.size(); ++j) {
+          msd += (sp[j] - fitPoints[j]).lengthSq();
+        }
+        msd /= sp.size();
+        if (msd < shapeCutoff) {
           foundSimilar = true;
           break;
         }
       }
       if (!foundSimilar) {
         selTrans.push_back(i);
-        selConfs.emplace_back(std::move(fitCp));
+        selShapes.emplace_back(std::move(fitPoints));
       }
     }
   }

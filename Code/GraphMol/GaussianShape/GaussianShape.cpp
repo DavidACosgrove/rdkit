@@ -19,14 +19,13 @@
 #include <cmath>
 #include <numbers>
 
-#include <Geometry/Transform3D.h>
-#include <GraphMol/ROMol.h>
-#include <GraphMol/GaussianShape/GaussianShape.h>
-
+#include "Geometry/Transform3D.h"
+#include "GraphMol/ROMol.h"
+#include "GraphMol/GaussianShape/GaussianShape.h"
 #include "GraphMol/SmilesParse/SmilesWrite.h"
-
-#include <GraphMol/GaussianShape/ShapeInput.h>
-#include <GraphMol/GaussianShape/SingleConformerAlignment.h>
+#include "GraphMol/GaussianShape/ShapeInput.h"
+#include "GraphMol/GaussianShape/SubshapeStarts.h"
+#include "GraphMol/GaussianShape/SingleConformerAlignment.h"
 
 namespace RDKit {
 namespace GaussianShape {
@@ -265,9 +264,69 @@ StartMode decideStartModeFromEigenValues(const ShapeInput &refShape,
   return startModeWF;
 }
 
-std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
-                                 RDGeom::Transform3D &bestXform,
-                                 const ShapeOverlayOptions &overlayOpts) {
+void setupSubshapeAligners(
+    ShapeInput &refShape, ShapeInput &fitShape,
+    const ShapeOverlayOptions &overlayOpts,
+    std::vector<std::unique_ptr<SingleConformerAlignment>> &aligners,
+    std::vector<std::pair<double, unsigned int>> &bestScoreForStart) {
+  const auto &options = overlayOpts.subshapeOptions;
+  double ssdCutoff =
+      options.rmsdTriangleTolerance * options.rmsdTriangleTolerance * 3.0;
+
+  SubshapeStarts starts(refShape, fitShape, options);
+  starts.gotoFirstPossibleStart();
+  bestScoreForStart.reserve(starts.getNumPossibleStarts());
+  aligners.reserve(starts.getNumPossibleStarts());
+  const bool useColor = overlayOpts.optimMode != OptimMode::SHAPE_ONLY;
+
+  for (std::uint64_t i = 0; i < starts.getNumPossibleStarts(); i++) {
+    double ssd = 0.0;
+    auto quat = starts.getNextStartQuaternion(&ssd);
+    if (!quat) {
+      break;
+    }
+    if (ssd > ssdCutoff) {
+      continue;
+    }
+    double score = 0.0;
+    SingleConformerAlignment sca(
+        refShape.getCoords(), refShape.getAlphas(),
+        refShape.getFeatureTypes().data(), refShape.getCarbonRadii(),
+        refShape.getNumAtoms(), refShape.getNumFeatures(),
+        refShape.getShapeVolume(), refShape.getColorVolume(),
+        fitShape.getCoords(), fitShape.getAlphas(),
+        fitShape.getFeatureTypes().data(), fitShape.getCarbonRadii(),
+        fitShape.getNumAtoms(), fitShape.getNumFeatures(),
+        fitShape.getShapeVolume(), fitShape.getColorVolume(), *quat,
+        overlayOpts.optimMode, overlayOpts.simAlpha, overlayOpts.simBeta,
+        overlayOpts.optParam, overlayOpts.useDistCutoff, overlayOpts.distCutoff,
+        overlayOpts.shapeConvergenceCriterion, overlayOpts.nSteps);
+    const auto scores = sca.calcScores(useColor);
+    score = scores[0];
+
+    aligners.emplace_back(std::make_unique<SingleConformerAlignment>(
+        refShape.getCoords(), refShape.getAlphas(),
+        refShape.getFeatureTypes().data(), refShape.getCarbonRadii(),
+        refShape.getNumAtoms(), refShape.getNumFeatures(),
+        refShape.getShapeVolume(), refShape.getColorVolume(),
+        fitShape.getCoords(), fitShape.getAlphas(),
+        fitShape.getFeatureTypes().data(), fitShape.getCarbonRadii(),
+        fitShape.getNumAtoms(), fitShape.getNumFeatures(),
+        fitShape.getShapeVolume(), fitShape.getColorVolume(), *quat,
+        overlayOpts.optimMode, overlayOpts.simAlpha, overlayOpts.simBeta,
+        overlayOpts.optParam, overlayOpts.useDistCutoff, overlayOpts.distCutoff,
+        overlayOpts.shapeConvergenceCriterion, overlayOpts.nSteps));
+    bestScoreForStart.push_back({score, aligners.size() - 1});
+    std::cout << "bsss : " << bestScoreForStart.back().first << " for "
+              << bestScoreForStart.back().second << std::endl;
+  }
+}
+
+void setupRotateTranslateAligners(
+    ShapeInput &refShape, ShapeInput &fitShape,
+    const ShapeOverlayOptions &overlayOpts,
+    std::vector<std::unique_ptr<SingleConformerAlignment>> &aligners,
+    std::vector<std::pair<double, unsigned int>> &bestScoreForStart) {
   unsigned int finalRotIndex = 1;
   auto startMode = overlayOpts.startMode;
   if (startMode == StartMode::A_LA_PUBCHEM) {
@@ -297,13 +356,9 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
     finalTransIndex = 7;
   }
 
-  std::array<double, 3> bestScore;
-  double bestTotal = -1.0;
-
-  // Get together the start transformations.
-  std::vector<std::unique_ptr<SingleConformerAlignment>> aligners;
-  std::vector<std::pair<double, unsigned int>> bestScoreForStart;
+  // Get together the start transformations and aligners
   bestScoreForStart.reserve(finalTransIndex * finalRotIndex);
+  aligners.reserve(finalTransIndex * finalRotIndex);
   unsigned int k = 0;
   for (unsigned int j = 0; j < finalTransIndex; j++) {
     auto refDisp = getInitialTranslation(j, refShape, fitShape);
@@ -335,16 +390,42 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
       bestScoreForStart.push_back({score, k});
     }
   }
+}
+
+void setupAligners(
+    ShapeInput &refShape, ShapeInput &fitShape,
+    const ShapeOverlayOptions &overlayOpts,
+    std::vector<std::unique_ptr<SingleConformerAlignment>> &aligners,
+    std::vector<std::pair<double, unsigned int>> &bestScoreForStart) {
+  if (overlayOpts.startMode == StartMode::SUBSHAPE) {
+    setupSubshapeAligners(refShape, fitShape, overlayOpts, aligners,
+                          bestScoreForStart);
+  } else {
+    setupRotateTranslateAligners(refShape, fitShape, overlayOpts, aligners,
+                                 bestScoreForStart);
+  }
+}
+
+std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
+                                 RDGeom::Transform3D &bestXform,
+                                 const ShapeOverlayOptions &overlayOpts) {
+  std::vector<std::unique_ptr<SingleConformerAlignment>> aligners;
+  std::vector<std::pair<double, unsigned int>> bestScoreForStart;
+  setupAligners(refShape, fitShape, overlayOpts, aligners, bestScoreForStart);
 
   // Do it in 2 cycles, a quick optimisation first, followed by an additional
   // longer one for those that look like they're going to win.
+  std::array<double, 3> bestScore;
+  double bestTotal = -1.0;
+
   for (unsigned int cycle = 0; cycle < 2; cycle++) {
     std::ranges::sort(bestScoreForStart,
                       [](const auto &p1, const auto &p2) -> bool {
                         return p1.first > p2.first;
                       });
     std::vector<std::pair<double, unsigned int>> nextBestScoreForStart;
-    nextBestScoreForStart.reserve(finalTransIndex * finalRotIndex);
+    nextBestScoreForStart.reserve(aligners.size());
+
     for (const auto &[bssf, m] : bestScoreForStart) {
       if (cycle == 1) {
         if (bssf < 0.7 * bestScore[0]) {
@@ -354,6 +435,12 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
       std::array<double, 20> outScores;
       aligners[m]->doOverlay(outScores, cycle);
       nextBestScoreForStart.emplace_back(outScores[0], m);
+      std::cout << "cycle = " << cycle << " start  score = " << bssf
+                << "   finish score = " << outScores[0];
+      if (outScores[0] > 0.3) {
+        std::cout << " XX";
+      }
+      std::cout << std::endl;
       if (outScores[0] > bestTotal) {
         bestTotal = outScores[0];
         bestScore =

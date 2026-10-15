@@ -15,7 +15,8 @@
 #define RDKIT_SHAPEOVERLAYOPTIONS_GUARD
 #include <ostream>
 
-#include <RDGeneral/export.h>
+#include "RDGeneral/export.h"
+#include "GraphMol/GaussianShape/SubshapeOptions.h"
 
 namespace RDKit {
 namespace GaussianShape {
@@ -35,6 +36,8 @@ enum class RDKIT_GAUSSIANSHAPE_EXPORT StartMode {
   ROTATE_45_FRAGMENT,  //! Translate probe to each end of ref and then ROTATE_90
   A_LA_PUBCHEM,  //! Uses the eigenvalues of the principal vectors to decide
                  //! whether to do ROTATE_180_WIGGLE or ROTATE_45
+  SUBSHAPE,      //! Use Subshape analysis to set start positions - based on
+                 //! matching triangles of similarly-placed atoms
 };
 
 enum class RDKIT_GAUSSIANSHAPE_EXPORT OptimMode {
@@ -82,6 +85,7 @@ struct RDKIT_GAUSSIANSHAPE_EXPORT ShapeOverlayOptions {
       0.001};  //! Optimisation stops when the shape score changes by less
                //! than this amount.  A larger number is faster but less
                //! precise.
+  SubshapeOptions subshapeOptions{SubshapeOptions()};
 };
 
 inline std::ostream &operator<<(std::ostream &os, const StartMode &sm) {
@@ -109,6 +113,9 @@ inline std::ostream &operator<<(std::ostream &os, const StartMode &sm) {
       break;
     case StartMode::A_LA_PUBCHEM:
       os << "A_LA_PUBCHEM";
+      break;
+    case StartMode::SUBSHAPE:
+      os << "SUBSHAPE";
       break;
   }
   return os;
