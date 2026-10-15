@@ -25,9 +25,18 @@ struct SubshapeOptions {
   bool sortBeforeClustering =
       false;  // The original algorithm clusters the terminal points
               // in the order they are produced.  The results thus
-              // on the input atom order.  If this is true, they
+              // depend on the input atom order.  If this is true, they
               // are first sorted in descending number of neighbours
               // which gives a less prominent dependence on input order.
+  double clusterStartsThreshold =
+      1.0;  // Clusters the start transformations at
+            // this threshold so that similar start points
+            // are not used.  < 0.0 means no clustering.
+  bool addSkeletonPointsToRef = true;  // Adds what the paper calls skeleton
+                                       // points to the reference.  This is
+                                       // especially important if the fit is
+                                       // small in which case the 5 terminal
+                                       // points may be very close together.
   unsigned int numTerminalPoints = 5;  // This is the ideal number.  We may get
                                        // fewer, but we need at least 3.
   double pointRadScale = 0.75;         // For the clustering

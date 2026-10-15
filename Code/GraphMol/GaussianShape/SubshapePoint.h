@@ -25,7 +25,8 @@ namespace GaussianShape {
 
 class SubshapePoint {
  public:
-  explicit SubshapePoint(const RDGeom::Point3D &pos) : d_pos(pos) {}
+  explicit SubshapePoint(const RDGeom::Point3D &pos, unsigned int numNbours = 1)
+      : d_pos(pos), d_numNbours(numNbours) {}
   // Make a new point at the average position of the points given.
   SubshapePoint(const std::vector<std::unique_ptr<SubshapePoint>> &points,
                 const boost::dynamic_bitset<> &pointsToUse);
@@ -37,12 +38,11 @@ class SubshapePoint {
 
   const RDGeom::Point3D &getPosition() const { return d_pos; }
   void setPosition(const RDGeom::Point3D &pos) { d_pos = pos; }
-  const RDGeom::Point3D &getDirection() const { return d_dir; }
-  void setDirection(const RDGeom::Point3D &dir) { d_dir = dir; }
+  unsigned int getNumNbours() const { return d_numNbours; }
 
  private:
-  RDGeom::Point3D d_pos;  // position
-  RDGeom::Point3D d_dir;  // direction, as defined in the paper
+  RDGeom::Point3D d_pos;     // position
+  unsigned int d_numNbours;  // Number of neighbours used to derive the point.
 };
 
 }  // namespace GaussianShape

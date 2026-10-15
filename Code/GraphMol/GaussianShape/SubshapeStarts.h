@@ -22,10 +22,10 @@
 #ifndef RDKIT_SUBSHAPESTARTS_H
 #define RDKIT_SUBSHAPESTARTS_H
 
-#include <Geometry/Transform3D.h>
-#include <Geometry/UniformGrid3D.h>
-#include <GraphMol/GaussianShape/SubshapeOptions.h>
-#include <GraphMol/GaussianShape/SubshapePoint.h>
+#include "Geometry/Transform3D.h"
+#include "Geometry/UniformGrid3D.h"
+#include "GraphMol/GaussianShape/SubshapeOptions.h"
+#include "GraphMol/GaussianShape/SubshapePoint.h"
 
 #include <RDGeneral/export.h>
 
@@ -46,12 +46,20 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   ~SubshapeStarts() = default;
 
   std::uint64_t getNumPossibleStarts() const { return d_possStarts.size(); }
+
+  // To initialise the possible starts (valid triangle matches) iterations.
+  void gotoFirstPossibleStart() { d_nextStart = 0; }
   // Cycle through the valid triangle matches, returning the transform
   // for the next match.  Returns an empty one at the end.  If ssd is
   // not null returns the sum of the squared distances in it, as calculated
   // by RDNumerics::Alignments::AlignPoints.  Since there are only 3 points
   // in the alignment, it is easy to change the tolerance to use this.
-  std::unique_ptr<RDGeom::Transform3D> getNextStartTransform(double *ssd = nullptr);
+  std::unique_ptr<RDGeom::Transform3D> getNextStartTransform(
+      double *ssd = nullptr);
+  // Likewise, returning the transformation as a quaternion and translation
+  // such as the SingleConformerAlignment likes - first 4
+  // elements the quaternion, last 3 the translation.
+  std::array<double, 7> getNextStartQuaternion(double *ssd = nullptr);
 
  private:
   std::unique_ptr<RDGeom::UniformGrid3D> d_refGrid;
@@ -66,6 +74,16 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   // Make the squared distance matrices for the points.
   void buildDistMatrices();
 
+  // Cluster the start points at the threshold - only keep start
+  // points that put the target start overlays more than the
+  // threshold apart so we don't do an optimisation from a very
+  // similar position (by RMSD) to one that has already been attempted.
+  void clusterStartPoints(const ROMol &fit, int fitConfId,
+                          const SubshapeOptions &options);
+  // Sort the start points in ascending ssd, as returns by
+  // getNextStartTransform so the ones that have the best
+  // match between SubShapePoint triangles are at the start.
+  void sortStartPoints();
 };
 
 }  // namespace GaussianShape

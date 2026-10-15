@@ -26,6 +26,7 @@ SubshapePoint::SubshapePoint(
     }
   }
   d_pos /= pointsToUse.count();
+  d_numNbours = pointsToUse.count();
 }
 
 }  // namespace GaussianShape

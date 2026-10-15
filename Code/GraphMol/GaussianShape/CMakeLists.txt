@@ -1,7 +1,7 @@
 rdkit_library(GaussianShape
         GaussianShape.cpp ShapeInput.cpp SingleConformerAlignment.cpp
         SubshapeGrid.cpp SubshapeStarts.cpp SubshapePoint.cpp
-        SHARED LINK_LIBRARIES SmilesParse SubstructMatch MolTransforms ShapeHelpers Alignment)
+        SHARED LINK_LIBRARIES SmilesParse SubstructMatch MolAlign MolTransforms ShapeHelpers Alignment)
 if(RDK_BIG_ENDIAN)
     target_compile_definitions(GaussianShape PRIVATE RDKIT_NO_SIMDIVPICKERS)
 else()
@@ -15,7 +15,7 @@ target_compile_definitions(GaussianShape PRIVATE RDKIT_GAUSSIANSHAPE_BUILD)
 rdkit_headers(GaussianShape.h ShapeInput.h ShapeOverlayOptions.h, SubshapeStarts.h)
 
 rdkit_catch_test(testGaussianShape catch_tests.cpp LINK_LIBRARIES GaussianShape
-        FileParsers MolAlign MolTransforms DistGeomHelpers DistGeometry ${TBB_DEP})
+        FileParsers MolTransforms DistGeomHelpers DistGeometry ${TBB_DEP})
 
 if(RDK_BUILD_BOOST_PYTHON_WRAPPERS)
     add_subdirectory(Wrap)

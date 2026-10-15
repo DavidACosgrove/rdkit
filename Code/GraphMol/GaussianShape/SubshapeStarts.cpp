@@ -15,11 +15,18 @@
 
 #include <boost/dynamic_bitset.hpp>
 
-#include <Numerics/Alignment/AlignPoints.h>
+#include <Eigen/Geometry>
+
+#include "Numerics/Alignment/AlignPoints.h"
 #include "Geometry/GridUtils.h"
 #include "GraphMol/ROMol.h"
-#include <GraphMol/GaussianShape/SubshapeStarts.h>
-#include <GraphMol/ShapeHelpers/ShapeEncoder.h>
+#include "GraphMol/GaussianShape/SubshapeStarts.h"
+#include "GraphMol/SmilesParse/SmilesWrite.h"
+#include "GraphMol/MolAlign/AlignMolecules.h"
+#include "GraphMol/MolTransforms/MolTransforms.h"
+#include "GraphMol/ShapeHelpers/ShapeEncoder.h"
+
+#include <SimDivPickers/LeaderPicker.h>
 
 namespace RDKit {
 namespace GaussianShape {
@@ -103,7 +110,8 @@ void makeInitialTerminalPoints(
     std::vector<std::unique_ptr<SubshapePoint>> &termPoints) {
   const auto &conf = mol.getConformer(confId);
   double rWSq = options.r_w * options.r_w;
-  std::cout << "makeInitialTerminalPoints at " << options.r_w << std::endl;
+  std::cout << "makeInitialTerminalPoints at r_w = " << options.r_w
+            << std::endl;
   std::vector<std::vector<unsigned int>> nbours(mol.getNumAtoms());
 
   for (const auto atom1 : mol.atoms()) {
@@ -140,11 +148,12 @@ void makeInitialTerminalPoints(
         totWt += wt;
       }
       pnt /= totWt;
-      termPoints.push_back(std::make_unique<SubshapePoint>(pnt));
-      // std::cout << pnt.x << "," << pnt.y << "," << pnt.z << ";";
+      termPoints.push_back(
+          std::make_unique<SubshapePoint>(pnt, nbours[i].size() + 1));
+      std::cout << pnt.x << "," << pnt.y << "," << pnt.z << ";";
     }
   }
-  // std::cout << " :: " << termPoints.size() << std::endl;
+  std::cout << " :: " << termPoints.size() << std::endl;
 }
 
 void clusterTerminalPoints(
@@ -162,12 +171,12 @@ void clusterTerminalPoints(
     for (size_t j = 0; j < i; ++j) {
       if ((p1->getPosition() - termPoints[j]->getPosition()).lengthSq() <
           radCutoffSq) {
-        // std::cout
-        //     << i << " -> " << j << " : "
-        //     << (p1->getPosition() - termPoints[j]->getPosition()).length()
-        //     << " : "
-        //     << (p1->getPosition() - termPoints[j]->getPosition()).lengthSq()
-        //     << " vs " << radCutoffSq << std::endl;
+        std::cout
+            << i << " -> " << j << " : "
+            << (p1->getPosition() - termPoints[j]->getPosition()).length()
+            << " : "
+            << (p1->getPosition() - termPoints[j]->getPosition()).lengthSq()
+            << " vs " << radCutoffSq << std::endl;
         nbours[i].set(j);
         nbours[j].set(i);
       }
@@ -179,13 +188,22 @@ void clusterTerminalPoints(
   // descending order of number of neighbours.  There will still
   // be ties, though, which means some atom order dependence seems
   // unavoidable.
-  if (options.sortBeforeClustering) {
-    std::ranges::sort(nbours, [](const auto &a, const auto &b) -> bool {
-      return a.count() > b.count();
-    });
-  }
+  // if (options.sortBeforeClustering) {
+  // std::ranges::sort(nbours, [](const auto &a, const auto &b) -> bool {
+  // return a.count() > b.count();
+  // });
+  // }
   std::vector<std::unique_ptr<SubshapePoint>> clusteredPoints;
   while (!nbours.empty()) {
+    if (options.sortBeforeClustering) {
+      std::ranges::sort(nbours, [](const auto &a, const auto &b) -> bool {
+        return a.count() > b.count();
+      });
+    }
+    std::cout << "Next round" << std::endl;
+    for (const auto &a : nbours) {
+      std::cout << a.count() << " : " << a << std::endl;
+    }
     clusteredPoints.emplace_back(
         std::make_unique<SubshapePoint>(termPoints, nbours.front()));
     // knock members of nbours.front() out of the other lists
@@ -306,12 +324,68 @@ void buildTerminalPoints(
   makeInitialTerminalPoints(mol, confId, options, termPoints);
   std::cout << "Initial number of terminal points: " << termPoints.size()
             << std::endl;
+#if 0
   clusterTerminalPoints(options, termPoints);
   std::cout << "Clustered number of terminal points: " << termPoints.size()
             << std::endl;
-  if (termPoints.size() < options.numTerminalPoints) {
-    addExtraTerminalPoints(grid, options, termPoints);
+  for (size_t i = 1; i < termPoints.size(); ++i) {
+    for (size_t j = 0; j < i; ++j) {
+      std::cout << i << " -> " << j << " : "
+                << (termPoints[i]->getPosition() - termPoints[j]->getPosition())
+                       .length()
+                << std::endl;
+    }
   }
+  if (termPoints.size() < options.numTerminalPoints) {
+    // addExtraTerminalPoints(grid, options, termPoints);
+  }
+#endif
+}
+
+void addGridPoints(const RDGeom::UniformGrid3D &grid,
+                   const SubshapeOptions &options,
+                   std::vector<std::unique_ptr<SubshapePoint>> &termPoints) {
+  // const auto shapeVect = grid.getOccupancyVect();
+  // for (size_t i = 1; i < shapeVect->size(); ++i) {
+  //   if ((*shapeVect)[i] < 3.0) {
+  //     continue;
+  //   }
+  //   const auto posI = grid.getGridPointLoc(i);
+  //   termPoints.emplace_back(new SubshapePoint(posI));
+  // }
+  class DistFunctor {
+   public:
+    explicit DistFunctor(
+        const std::vector<std::unique_ptr<SubshapePoint>> &termPoints)
+        : d_points(&termPoints) {}
+    ~DistFunctor() = default;
+    double operator()(const unsigned int i, const unsigned int j) {
+      return ((*d_points)[i]->getPosition() - (*d_points)[j]->getPosition())
+          .lengthSq();
+    }
+    const std::vector<std::unique_ptr<SubshapePoint>> *d_points;
+  };
+  const RDPickers::LeaderPicker leaderPicker;
+  DistFunctor distFunctor(termPoints);
+  std::ranges::sort(termPoints, [](const auto &pt1, const auto &pt2) -> bool {
+    return pt1->getNumNbours() < pt2->getNumNbours();
+  });
+  auto picks = leaderPicker.lazyPick(distFunctor, termPoints.size(), 0, 1.0);
+  // Allow for mysterious LeaderPicker behaviour where it returns a
+  // vector of 0s when it should only pick 1 shape.
+  std::ranges::sort(picks);
+  auto [first, last] = std::ranges::unique(picks);
+  picks.erase(first, last);
+  std::cout << "picks : " << picks.size() << " :: ";
+  for (const auto &pick : picks) {
+    std::cout << pick << " ";
+  }
+  std::cout << std::endl;
+  std::vector<std::unique_ptr<SubshapePoint>> tmpPoints;
+  for (const auto &pick : picks) {
+    tmpPoints.emplace_back(std::move(termPoints[pick]));
+  }
+  termPoints = std::move(tmpPoints);
 }
 
 void addSkeletonPoints(
@@ -323,12 +397,10 @@ void addSkeletonPoints(
   // Build the initial set of skeleton points and add them to end
   // end of termpPoints, keeping track of where they started
   size_t numOrigTermPoints = termPoints.size();
-  int num3 = 0;
   for (size_t i = 1; i < shapeVect->size(); ++i) {
     if ((*shapeVect)[i] < 3.0) {
       continue;
     }
-    ++num3;
     const auto posI = grid.getGridPointLoc(i);
     bool ok = true;
     for (size_t j = 0; j < numOrigTermPoints; ++j) {
@@ -342,7 +414,6 @@ void addSkeletonPoints(
       termPoints.emplace_back(new SubshapePoint(posI));
     }
   }
-  std::cout << "num3 : " << num3 << std::endl;
   std::cout << "Orig number of terminal points: " << numOrigTermPoints
             << " num added points : " << termPoints.size() - numOrigTermPoints
             << std::endl;
@@ -417,31 +488,63 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
   d_refGrid = buildGrid(ref, refConfId, options);
   d_fitGrid = buildGrid(fit, fitConfId, options);
 
+  std::cout << "RRRRRRRRRRRRRef" << std::endl;
   buildTerminalPoints(ref, refConfId, options, *d_refGrid, d_refPoints);
+  addGridPoints(*d_refGrid, options, d_refPoints);
+#if 0
+  buildTerminalPoints(ref, refConfId, options, *d_refGrid, d_refPoints);
+#endif
   std::cout << "Ref points : " << d_refPoints.size() << " " << std::endl;
   for (const auto &p : d_refPoints) {
     std::cout << p->getPosition().x << "," << p->getPosition().y << ","
               << p->getPosition().z << ";";
   }
   std::cout << std::endl;
-  // addSkeletonPoints(*d_refGrid, options, d_refPoints);
-  SubshapeOptions tmpOptions = options;
-  tmpOptions.pointRadScale = 0.5;
-  clusterTerminalPoints(tmpOptions, d_refPoints);
-  std::cout << "Ref points + skeleton points : " << d_refPoints.size() << " "
-            << std::endl;
+#if 0
+  if (options.addSkeletonPointsToRef) {
+    addSkeletonPoints(*d_refGrid, options, d_refPoints);
+  }
+  std::cout << "Ref points + skeleton points not clustered : "
+            << d_refPoints.size() << " " << std::endl;
   for (const auto &p : d_refPoints) {
     std::cout << p->getPosition().x << "," << p->getPosition().y << ","
               << p->getPosition().z << ";";
   }
   std::cout << std::endl;
+  SubshapeOptions tmpOptions = options;
+  clusterTerminalPoints(tmpOptions, d_refPoints);
+  std::cout << "Ref points + skeleton points clustered : " << d_refPoints.size()
+            << " " << std::endl;
+  for (const auto &p : d_refPoints) {
+    std::cout << p->getPosition().x << "," << p->getPosition().y << ","
+              << p->getPosition().z << ";";
+  }
+  std::cout << std::endl;
+#endif
+  std::cout << "FFFFFFFFFFFit" << std::endl;
   buildTerminalPoints(fit, fitConfId, options, *d_fitGrid, d_fitPoints);
-  std::cout << "Fit points : " << d_fitPoints.size() << " " << std::endl;
+  addGridPoints(*d_fitGrid, options, d_fitPoints);
+#if 0
+  buildTerminalPoints(fit, fitConfId, options, *d_fitGrid, d_fitPoints);
+#endif
+  std::cout << "Orig Fit points : " << d_fitPoints.size() << " " << std::endl;
   for (const auto &p : d_fitPoints) {
     std::cout << p->getPosition().x << "," << p->getPosition().y << ","
               << p->getPosition().z << ";";
   }
   std::cout << std::endl;
+#if 0
+  if (options.addSkeletonPointsToRef) {
+    // addSkeletonPoints(*d_fitGrid, options, d_fitPoints);
+  }
+  std::cout << "Fit points with skels : " << d_fitPoints.size() << " "
+            << std::endl;
+  for (const auto &p : d_fitPoints) {
+    std::cout << p->getPosition().x << "," << p->getPosition().y << ","
+              << p->getPosition().z << ";";
+  }
+  std::cout << std::endl;
+#endif
 
   size_t numTris = 0, numStarts = 0;
   buildDistMatrices();
@@ -462,11 +565,14 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
               fitTriDists[1] = d_fitPointsDists[tgt_i][tgt_k];
               fitTriDists[2] = d_fitPointsDists[tgt_j][tgt_k];
               std::ranges::sort(fitTriDists);
-              std::cout << ref_i << " -> " << ref_j << " -> " << ref_k << " to "
-                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
-                        << std::endl;
-              std::cout << fabs(refTriDists[0] - fitTriDists[0]) << " : " << fabs(refTriDists[1] - fitTriDists[1])
-              << " : " << fabs(refTriDists[2] - fitTriDists[2])  << " vs " << options.triangleSideTolerance << std::endl;
+              // std::cout << ref_i << " -> " << ref_j << " -> " << ref_k << "
+              // to "
+              //           << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+              //           << std::endl;
+              // std::cout << fabs(refTriDists[0] - fitTriDists[0]) << " : "
+              //           << fabs(refTriDists[1] - fitTriDists[1]) << " : "
+              //           << fabs(refTriDists[2] - fitTriDists[2]) << " vs "
+              //           << options.triangleSideTolerance << std::endl;
               if (fabs(refTriDists[0] - fitTriDists[0]) >
                       options.triangleSideTolerance ||
                   fabs(refTriDists[1] - fitTriDists[1]) >
@@ -475,24 +581,30 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
                       options.triangleSideTolerance) {
                 continue;
               }
-              std::cout << ref_i << " -> " << ref_j << " -> " << ref_k << " to "
-                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
-                        << std::endl;
-              std::cout << ref_i << " -> " << ref_k << " -> " << ref_j << " to "
-                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
-                        << std::endl;
-              std::cout << ref_j << " -> " << ref_i << " -> " << ref_k << " to "
-                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
-                        << std::endl;
-              std::cout << ref_j << " -> " << ref_k << " -> " << ref_i << " to "
-                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
-                        << std::endl;
-              std::cout << ref_k << " -> " << ref_i << " -> " << ref_j << " to "
-                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
-                        << std::endl;
-              std::cout << ref_k << " -> " << ref_j << " -> " << ref_i << " to "
-                        << tgt_i << " -> " << tgt_j << " -> " << tgt_k
-                        << std::endl;
+              // std::cout << ref_i << " -> " << ref_j << " -> " << ref_k << "
+              // to "
+              //           << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+              //           << std::endl;
+              // std::cout << ref_i << " -> " << ref_k << " -> " << ref_j << "
+              // to "
+              //           << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+              //           << std::endl;
+              // std::cout << ref_j << " -> " << ref_i << " -> " << ref_k << "
+              // to "
+              //           << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+              //           << std::endl;
+              // std::cout << ref_j << " -> " << ref_k << " -> " << ref_i << "
+              // to "
+              //           << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+              //           << std::endl;
+              // std::cout << ref_k << " -> " << ref_i << " -> " << ref_j << "
+              // to "
+              //           << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+              //           << std::endl;
+              // std::cout << ref_k << " -> " << ref_j << " -> " << ref_i << "
+              // to "
+              //           << tgt_i << " -> " << tgt_j << " -> " << tgt_k
+              //           << std::endl;
               numStarts += 6;
               ++numTris;
               d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
@@ -514,7 +626,14 @@ SubshapeStarts::SubshapeStarts(const ROMol &ref, const ROMol &fit,
     }
   }
   std::cout << "Total triangles : " << numTris << " for " << numStarts
-            << " starts" << std::endl;
+            << " starts :: " << d_possStarts.size() << std::endl;
+#if 1
+  if (options.clusterStartsThreshold > 0.0) {
+    clusterStartPoints(fit, fitConfId, options);
+  }
+  std::cout << "Clustered starts : " << d_possStarts.size() << std::endl;
+#endif
+  sortStartPoints();
 }
 
 namespace {
@@ -546,8 +665,9 @@ SubshapeStarts &SubshapeStarts::operator=(const SubshapeStarts &other) {
   return *this;
 }
 
-std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::getNextStartTransform(double *ssd) {
-  if (d_nextStart == d_possStarts.size()) {
+std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::getNextStartTransform(
+    double *ssd) {
+  if (d_nextStart >= d_possStarts.size()) {
     return std::unique_ptr<RDGeom::Transform3D>();
   }
   auto trans = std::make_unique<RDGeom::Transform3D>();
@@ -559,12 +679,42 @@ std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::getNextStartTransform(doubl
   fits[0] = &d_fitPoints[d_possStarts[d_nextStart][3]]->getPosition();
   fits[1] = &d_fitPoints[d_possStarts[d_nextStart][4]]->getPosition();
   fits[2] = &d_fitPoints[d_possStarts[d_nextStart][5]]->getPosition();
+  // std::cout << "refs : ";
+  // for (const auto &p : refs) {
+  //   std::cout << p->x << "," << p->y << "," << p->z << ";";
+  // }
+  // std::cout << "\nfits : ";
+  // for (const auto &p : fits) {
+  //   std::cout << p->x << "," << p->y << "," << p->z << ";";
+  // }
+  // std::cout << std::endl;
   auto rssd = RDNumeric::Alignments::AlignPoints(refs, fits, *trans);
   ++d_nextStart;
   if (ssd) {
     *ssd = rssd;
   }
   return trans;
+}
+
+std::array<double, 7> SubshapeStarts::getNextStartQuaternion(double *ssd) {
+  auto trans = getNextStartTransform(ssd);
+  Eigen::Matrix3d r;
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      r(i, j) = trans->getValUnchecked(i, j);
+    }
+  }
+  Eigen::Quaterniond q = Eigen::Quaterniond(r);
+  std::array<double, 7> rs;
+  rs[0] = q.x();
+  rs[1] = q.y();
+  rs[2] = q.z();
+  rs[3] = q.w();
+  rs[4] = trans->getValUnchecked(0, 3);
+  rs[5] = trans->getValUnchecked(1, 3);
+  rs[6] = trans->getValUnchecked(2, 3);
+
+  return rs;
 }
 
 namespace {
@@ -576,7 +726,6 @@ std::vector<std::vector<double>> buildDistMatrix(
     for (size_t j = 0; j < i; ++j) {
       dists[i][j] = dists[j][i] =
           (points[i]->getPosition() - points[j]->getPosition()).length();
-      std::cout << i << " -> " << j << ": " << dists[i][j] << std::endl;
     }
   }
   return dists;
@@ -586,6 +735,90 @@ std::vector<std::vector<double>> buildDistMatrix(
 void SubshapeStarts::buildDistMatrices() {
   d_refPointsDists = buildDistMatrix(d_refPoints);
   d_fitPointsDists = buildDistMatrix(d_fitPoints);
+}
+
+void SubshapeStarts::clusterStartPoints(const ROMol &fit, int fitConfId,
+                                        const SubshapeOptions &options) {
+  std::cout << "clusterStartPoints at " << options.clusterStartsThreshold
+            << std::endl;
+  std::vector<size_t> selTrans;
+  std::vector<std::unique_ptr<ROMol>> selConfs;
+  selTrans.reserve(getNumPossibleStarts());
+  double ssdCutoff =
+      options.rmsdTriangleTolerance * options.rmsdTriangleTolerance * 3.0;
+  auto fitConf = fit.getConformer(fitConfId);
+
+  for (size_t i = 0; i < getNumPossibleStarts(); ++i) {
+    double ssd = 0.0;
+    const auto trans = getNextStartTransform(&ssd);
+    // std::cout << i << " : " << ssd << " vs " << ssdCutoff << std::endl;
+    if (ssd > ssdCutoff) {
+      continue;
+    }
+    std::unique_ptr<ROMol> fitCp(new ROMol(fit, true));
+    fitCp->addConformer(new Conformer(fitConf));
+    MolTransforms::transformConformer(fitCp->getConformer(), *trans);
+    if (selTrans.empty()) {
+      selTrans.push_back(i);
+      selConfs.emplace_back(std::move(fitCp));
+    } else {
+      bool foundSimilar = false;
+      for (const auto &c : selConfs) {
+        auto rmsd = MolAlign::CalcRMS(*c, *fitCp);
+        // std::cout << i << " conf " << rmsd << " vs "
+        // << options.clusterStartsThreshold << std::endl;
+        if (rmsd < options.clusterStartsThreshold) {
+          foundSimilar = true;
+          break;
+        }
+      }
+      if (!foundSimilar) {
+        // std::cout << "selected " << i << std::endl;
+        selTrans.push_back(i);
+        selConfs.emplace_back(std::move(fitCp));
+      }
+    }
+  }
+  std::cout << "selected confs : " << std::endl << "[" << std::endl;
+  for (const auto &c : selConfs) {
+    std::cout << "\"" << MolToCXSmiles(*c) << "\"," << std::endl;
+  }
+  std::cout << "]" << std::endl;
+  std::vector<std::array<std::uint64_t, 6>> tmpStarts;
+  tmpStarts.reserve(selTrans.size());
+  for (size_t i = 1; i < selTrans.size(); ++i) {
+    tmpStarts.push_back(d_possStarts[selTrans[i]]);
+  }
+  d_nextStart = 0;
+  d_possStarts = std::move(tmpStarts);
+}
+
+void SubshapeStarts::sortStartPoints() {
+  std::cout << "Sorting " << getNumPossibleStarts() << " starts..."
+            << std::endl;
+  std::vector<std::pair<size_t, double>> ssd_indices;
+  ssd_indices.reserve(getNumPossibleStarts());
+  for (size_t i = 0; i < getNumPossibleStarts(); ++i) {
+    double ssd = 0.0;
+    const auto trans = getNextStartTransform(&ssd);
+    ssd_indices.push_back(std::make_pair(i, ssd));
+  }
+  std::ranges::sort(ssd_indices, [](const auto &p1, const auto &p2) -> bool {
+    return p1.second < p2.second;
+  });
+  std::cout << "sorted indices" << std::endl;
+  std::vector<std::array<std::uint64_t, 6>> tmpStarts;
+  tmpStarts.reserve(getNumPossibleStarts());
+  int i = 0;
+  for (const auto &c : ssd_indices) {
+    if (i < 20) {
+      std::cout << c.first << " : " << c.second << std::endl;
+    }
+    tmpStarts.push_back(std::move(d_possStarts[c.first]));
+    ++i;
+  }
+  d_nextStart = 0;
+  d_possStarts = std::move(tmpStarts);
 }
 
 }  // namespace GaussianShape
