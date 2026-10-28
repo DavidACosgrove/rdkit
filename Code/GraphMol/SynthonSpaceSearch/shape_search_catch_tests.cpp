@@ -75,10 +75,9 @@ TEST_CASE("Shape Small test") {
                                     "1-3;2-1;amide-1"};
   ShapeBuildParams shapeBuildOptions;
   shapeBuildOptions.numConfs = 100;
-  shapeBuildOptions.rmsThreshold = 0.5;
   shapeBuildOptions.numThreads = 1;
   shapeBuildOptions.shapeSimThreshold = 0.95;
-  shapeBuildOptions.randomSeed = 0xdac;
+  shapeBuildOptions.embedParameters.randomSeed = 0xdac;
 
   SynthonSpace synthonspace;
 #if 0
@@ -95,9 +94,10 @@ TEST_CASE("Shape Small test") {
   params.approxSimilarityAdjuster = 0.2;
   params.numConformers = shapeBuildOptions.numConfs;
   params.numThreads = shapeBuildOptions.numThreads;
-  params.confRMSThreshold = shapeBuildOptions.rmsThreshold;
-  params.timeOut = 0;
-  params.randomSeed = shapeBuildOptions.randomSeed;
+  params.embedParameters.pruneRmsThresh =
+      shapeBuildOptions.embedParameters.pruneRmsThresh;
+  params.embedParameters.randomSeed =
+      shapeBuildOptions.embedParameters.randomSeed;
   params.bestHit = true;
   auto queryMol = v2::SmilesParse::MolFromSmiles(querySmi);
   auto results = synthonspace.shapeSearch(*queryMol, params);
@@ -129,9 +129,7 @@ TEST_CASE("Shape Callback Version") {
   params.approxSimilarityAdjuster = 0.2;
   params.numConformers = 10;
   params.numThreads = 2;
-  params.confRMSThreshold = 0.5;
-  params.timeOut = 0;
-  params.randomSeed = 0xdac;
+  params.embedParameters.randomSeed = 0xdac;
   params.bestHit = true;
   auto queryMol =
       "O=C(c1ccccc1)N1CCCC1 |(0.0443291,-1.81486,-1.76886;0.0506321,-0.858174,-0.921491;1.37975,-0.430412,-0.483603;2.18964,-1.35506,0.144714;3.47088,-1.00454,0.585539;3.93803,0.297573,0.388032;3.1267,1.22739,-0.242406;1.85597,0.849751,-0.670531;-1.14837,-0.261434,-0.446583;-1.26073,0.836916,0.520219;-2.73583,1.04666,0.696614;-3.34033,-0.283345,0.290893;-2.46516,-0.679843,-0.874401)|"_smiles;
@@ -163,7 +161,6 @@ TEST_CASE("Shape DB Writer") {
   synthonspace.readTextFile(libName, cancelled);
   CHECK(synthonspace.getNumReactions() == 1);
   ShapeBuildParams shapeBuildParams;
-  shapeBuildParams.timeOut = 0;
   synthonspace.buildSynthonShapes(cancelled, shapeBuildParams);
 
   auto spaceName = std::tmpnam(nullptr);
@@ -247,7 +244,7 @@ C=CCC1(S(=O)(=O)[U])CC1	100000101377	2	20a	2024-09
   bool cancelled = false;
   space.readStream(iss, cancelled);
   ShapeBuildParams shapeOptions;
-  shapeOptions.randomSeed = 1;
+  shapeOptions.embedParameters.randomSeed = 1;
   CHECK_NOTHROW(space.buildSynthonShapes(cancelled, shapeOptions));
 }
 
@@ -290,9 +287,7 @@ TEST_CASE("Two piece query") {
   SynthonSpaceSearchParams params;
   params.similarityCutoff = 0.7;
   params.numThreads = 1;
-  params.confRMSThreshold = 0.5;
-  params.timeOut = 0;
-  params.randomSeed = 1;
+  params.embedParameters.randomSeed = 1;
   params.bestHit = true;
   params.shapeOverlayOptions.simAlpha = 0.95;
   params.shapeOverlayOptions.simBeta = 0.05;
@@ -381,7 +376,7 @@ c1ccccc1[1*]	1-1	0	test1
   shapeBuildParams.numConfs = 10;
   shapeBuildParams.userConformerGenerator = generateConfs;
   shapeBuildParams.shapeSimThreshold = -1.0;
-  shapeBuildParams.randomSeed = 0xdac;
+  shapeBuildParams.embedParameters.randomSeed = 0xdac;
   bool cancelled = false;
   SynthonSpace synthonSpace;
   synthonSpace.readStream(iss, cancelled);
@@ -394,16 +389,15 @@ c1ccccc1[1*]	1-1	0	test1
   params.approxSimilarityAdjuster = 0.3;
   params.numConformers = 10;
   params.numThreads = 1;
-  params.confRMSThreshold = 1.0;
-  params.timeOut = 0;
-  params.randomSeed = 0xdac;
+  params.embedParameters.pruneRmsThresh = 1.0;
+  params.embedParameters.randomSeed = 0xdac;
   params.bestHit = true;
   params.maxHits = 1;  // for speed
   auto results = synthonSpace.shapeSearch(*queryMol, params);
   CHECK(results.getHitMolecules().size() == 1);
   CHECK(results.getHitMolecules()[0]->getName() == "1-1;2-1;3-1;test1");
   CHECK_THAT(results.getHitMolecules()[0]->getProp<double>("Similarity"),
-             Catch::Matchers::WithinAbs(0.786, 0.001));
+             Catch::Matchers::WithinAbs(0.831, 0.001));
 }
 
 TEST_CASE("Trim sample molecules") {
@@ -484,9 +478,7 @@ TEST_CASE("Excluded volume") {
   SynthonSpaceSearchParams params;
   params.numConformers = 10;
   params.numThreads = 1;
-  params.confRMSThreshold = 0.5;
-  params.timeOut = 0;
-  params.randomSeed = 0xdac;
+  params.embedParameters.randomSeed = 0xdac;
   params.bestHit = true;
   params.maxHits = 10;
   params.similarityCutoff = 0.45;
@@ -517,9 +509,7 @@ TEST_CASE("Shape Write possible hits") {
   params.approxSimilarityAdjuster = 0.2;
   params.numConformers = 10;
   params.numThreads = 2;
-  params.confRMSThreshold = 0.5;
-  params.timeOut = 0;
-  params.randomSeed = 0xdac;
+  params.embedParameters.randomSeed = 0xdac;
   params.bestHit = true;
   params.possibleHitsFile = "amide_space_shapes_poss_hits.txt";
   params.writePossibleHitsAndStop = false;
@@ -547,4 +537,25 @@ TEST_CASE("Shape Write possible hits") {
   auto newResults = synthonspace.shapeSearch(*queryMol, params);
   CHECK(countFileLines("amide_space_shapes_poss_hits.txt") == 3);
   std::remove(params.possibleHitsFile.c_str());
+}
+
+TEST_CASE("Shape DGeom Parameters") {
+  SynthonSpaceSearchParams searchParams;
+  CHECK(searchParams.embedParameters.pruneRmsThresh == 0.5);
+  CHECK(searchParams.embedParameters.ETversion == 4);
+
+  searchParams.embedParameters = DGeomHelpers::ETKDGv3;
+  CHECK(searchParams.embedParameters.ETversion == 2);  // Yep, that's correct.
+  CHECK(searchParams.embedParameters.pruneRmsThresh == -1.0);
+  searchParams.embedParameters.pruneRmsThresh = 1.0;
+  CHECK(searchParams.embedParameters.pruneRmsThresh == 1.0);
+
+  ShapeBuildParams buildParams;
+  CHECK(buildParams.embedParameters.pruneRmsThresh == 0.5);
+  CHECK(buildParams.embedParameters.ETversion == 4);
+  buildParams.embedParameters = DGeomHelpers::ETKDGv3;
+  CHECK(buildParams.embedParameters.ETversion == 2);  // Yep, that's correct.
+  CHECK(buildParams.embedParameters.pruneRmsThresh == -1.0);
+  buildParams.embedParameters.pruneRmsThresh = 2.0;
+  CHECK(buildParams.embedParameters.pruneRmsThresh == 2.0);
 }

@@ -1157,10 +1157,8 @@ bool SynthonSpaceShapeSearcher::verifyHit(
   // If the run is multi-threaded, this will already be running
   // on the maximum number of threads, so do the embedding on
   // a single thread.
-  auto dgParams = DGeomHelpers::ETKDGv3;
-  dgParams.pruneRmsThresh = getParams().confRMSThreshold;
-  dgParams.randomSeed = getParams().randomSeed;
-  dgParams.timeout = getParams().timeOut;
+  auto dgParams = getParams().embedParameters;
+  dgParams.numThreads = 1;
   UserConfGenerator userConf = getParams().userConformerGenerator;
   auto hitConfs = details::generateIsomerConformers(
       hit, getParams().numConformers, true, getParams().stereoEnumOpts,

@@ -42,11 +42,12 @@ SynthonSpaceSearcher::SynthonSpaceSearcher(
   }
   if (d_params.randomSample) {
     if (!d_randGen) {
-      if (d_params.randomSeed == -1) {
+      if (d_params.embedParameters.randomSeed == -1) {
         std::random_device rd;
         d_randGen = std::make_unique<std::mt19937>(rd());
       } else {
-        d_randGen = std::make_unique<std::mt19937>(d_params.randomSeed);
+        d_randGen =
+            std::make_unique<std::mt19937>(d_params.embedParameters.randomSeed);
       }
     }
   }
@@ -65,8 +66,9 @@ SearchResults SynthonSpaceSearcher::search(const ThreadMode threadMode) {
   std::vector<std::unique_ptr<ROMol>> results;
   const TimePoint *endTime = nullptr;
   TimePoint endTimePt;
-  if (d_params.timeOut > 0) {
-    endTimePt = Clock::now() + std::chrono::seconds(d_params.timeOut);
+  if (d_params.embedParameters.timeout > 0) {
+    endTimePt =
+        Clock::now() + std::chrono::seconds(d_params.embedParameters.timeout);
     endTime = &endTimePt;
   }
   bool timedOut = false;
