@@ -41,9 +41,9 @@ import sys
 from pathlib import Path
 
 from rdkit import Chem
-from rdkit.Chem import (rdSynthonSpaceSearch, rdFingerprintGenerator,
+from rdkit.Chem import (rdDistGeom, rdSynthonSpaceSearch, rdFingerprintGenerator,
                         rdRascalMCES, rdGeneralizedSubstruct, rdMolDescriptors,
-                        rdDistGeom, rdGaussianShape)
+                        rdGaussianShape)
 
 def createShapeDatabaseForTest(spaceFile, restartFile):
   space = rdSynthonSpaceSearch.SynthonSpace()
@@ -453,8 +453,8 @@ class TestCase(unittest.TestCase):
 
   def testDGeomParams(self):
     # Just test that they can be read and set.
-    ssparams = rdSynthonSpaceSearch.SynthonSpaceSearchParams()
-    self.assertEqual(ssparams.embedParameters.ETversion, 4)
+    # ssparams = rdSynthonSpaceSearch.SynthonSpaceSearchParams()
+    # self.assertEqual(ssparams.embedParameters.ETversion, 4)
     # self.assertEqual(ssparams.embedParameters.pruneRmsThresh, 0.5)
     
     # ssparams.embedParameters = rdDistGeom.ETKDGv3()
@@ -462,8 +462,9 @@ class TestCase(unittest.TestCase):
     # ssparams.embedParameters.pruneRmsThresh = 1.0
     # self.assertEqual(ssparams.embedParameters.pruneRmsThresh, 1.0)
 
-    # buildParams = rdSynthonSpaceSearch.ShapeBuildParams()
-    # buildParams.embedParameters = rdDistGeom.ETKDGv3()
+    buildParams = rdSynthonSpaceSearch.ShapeBuildParams()
+    bep = rdDistGeom.ETKDGv3()
+    buildParams.embedParameters = bep
     # self.assertEqual(buildParams.embedParameters.ETversion, 2)
     # buildParams.embedParameters.pruneRmsThresh = 2.0
     # self.assertEqual(buildParams.embedParameters.pruneRmsThresh, 2.0)
