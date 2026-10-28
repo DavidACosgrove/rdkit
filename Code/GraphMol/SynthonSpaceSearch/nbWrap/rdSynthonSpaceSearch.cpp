@@ -83,7 +83,7 @@ DGeomHelpers::PyEmbedParameters get_embedParameters1(
 }
 
 void set_embedParameters1(SynthonSpaceSearch::SynthonSpaceSearchParams &params,
-                          const DGeomHelpers::EmbedParameters &pyEmbParams) {
+                          const DGeomHelpers::PyEmbedParameters &pyEmbParams) {
   params.embedParameters = pyEmbParams;
 }
 
@@ -93,7 +93,7 @@ DGeomHelpers::PyEmbedParameters get_embedParameters2(
 }
 
 void set_embedParameters2(SynthonSpaceSearch::ShapeBuildParams &params,
-                          const DGeomHelpers::EmbedParameters &pyEmbParams) {
+                          const DGeomHelpers::PyEmbedParameters &pyEmbParams) {
   params.embedParameters = pyEmbParams;
 }
 
@@ -606,10 +606,13 @@ use 7 threads.  Default=1.)DOC")
           nb::for_setter(nb::keep_alive<1, 2>()),
           "  Add an excluded volume to use in the shape search.  The volume"
           " overlap and mean overlap over clashing atoms will be reported.")
-      .def_prop_rw(
-          "embedParameters", &get_embedParameters1, &set_embedParameters1,
-          nb::for_setter(nb::keep_alive<1, 2>()),
-          R"DOC(The DGeom parameters to use.  Default is ETKDGv4 with pruneRMSThreshold=0.5.)DOC")
+      .def_prop_rw("embedParameters", &get_embedParameters1,
+                   &set_embedParameters1,
+                   R"DOC(The DGeom parameters to use.  Default is ETKDGv4 with
+ pruneRmsThresh=0.5.  If you assign an EmbedParameters object,
+ all defaults are replaced by that object's values.  You can't alter values
+ of embedParameters in place;  Set all required values in a new
+ rdDistGeom.EmbedParameters object and assign)DOC")
       .def_rw("maxExcludedVolume",
               &SynthonSpaceSearch::SynthonSpaceSearchParams::maxExcludedVolume,
               "Maximum allowed excluded volume for a hit to be accepted."
@@ -654,10 +657,13 @@ use 7 threads.  Default=1.)DOC")
       m, "ShapeBuildParams",
       "Parameters for building shape objects for SynthonSpaceSearch.")
       .def(nb::init<>())
-      .def_prop_rw(
-          "embedParameters", &get_embedParameters2, &set_embedParameters2,
-          nb::for_setter(nb::keep_alive<1, 2>()),
-          R"DOC(The DGeom parameters to use.  Default is ETKDGv4 with pruneRMSThreshold=0.5.)DOC")
+      .def_prop_rw("embedParameters", &get_embedParameters2,
+                   &set_embedParameters2,
+                   R"DOC(The DGeom parameters to use.  Default is ETKDGv4 with
+ pruneRmsThresh=0.5.  If you assign an EmbedParameters object,
+ all defaults are replaced by that object's values.  You can't alter values
+ of embedParameters in place;  Set all required values in a new
+ rdDistGeom.EmbedParameters object and assign)DOC")
       .def_rw("numConfs", &SynthonSpaceSearch::ShapeBuildParams::numConfs,
               "Maximum number of conformers per synthon or query.  Default=10")
       .def_rw(

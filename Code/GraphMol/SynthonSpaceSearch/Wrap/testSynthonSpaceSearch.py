@@ -453,21 +453,26 @@ class TestCase(unittest.TestCase):
 
   def testDGeomParams(self):
     # Just test that they can be read and set.
-    # ssparams = rdSynthonSpaceSearch.SynthonSpaceSearchParams()
-    # self.assertEqual(ssparams.embedParameters.ETversion, 4)
-    # self.assertEqual(ssparams.embedParameters.pruneRmsThresh, 0.5)
-    
-    # ssparams.embedParameters = rdDistGeom.ETKDGv3()
-    # self.assertEqual(ssparams.embedParameters.ETversion, 2)
-    # ssparams.embedParameters.pruneRmsThresh = 1.0
-    # self.assertEqual(ssparams.embedParameters.pruneRmsThresh, 1.0)
+    ssparams = rdSynthonSpaceSearch.SynthonSpaceSearchParams()
+    self.assertEqual(ssparams.embedParameters.ETversion, 4)
+    self.assertEqual(ssparams.embedParameters.pruneRmsThresh, 0.5)
+
+
+    # It's important to set the embedParameters up as required
+    # and then add it.  Mutation in place doesn't work as the
+    # getter always returns a new copy.
+    ep = rdDistGeom.ETKDGv3()
+    ep.pruneRmsThresh = 1.0
+    ssparams.embedParameters = ep
+    self.assertEqual(ssparams.embedParameters.ETversion, 2)
+    self.assertEqual(ssparams.embedParameters.pruneRmsThresh, 1.0)
 
     buildParams = rdSynthonSpaceSearch.ShapeBuildParams()
-    bep = rdDistGeom.ETKDGv3()
+    bep = rdDistGeom.ETKDGv2()
+    bep.pruneRmsThresh = 2.0
     buildParams.embedParameters = bep
-    # self.assertEqual(buildParams.embedParameters.ETversion, 2)
-    # buildParams.embedParameters.pruneRmsThresh = 2.0
-    # self.assertEqual(buildParams.embedParameters.pruneRmsThresh, 2.0)
+    self.assertEqual(buildParams.embedParameters.ETversion, 2)
+    self.assertEqual(buildParams.embedParameters.pruneRmsThresh, 2.0)
     
     
     
