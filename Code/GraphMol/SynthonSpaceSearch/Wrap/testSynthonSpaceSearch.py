@@ -314,10 +314,13 @@ class TestCase(unittest.TestCase):
     ssparams.maxHits = -1
     ssparams.numThreads = 1
     ssparams.numConformers = 10
-    ssparams.embedParameters.pruneRmsThresh = 0.25
-    ssparams.embedParameters.randomSeed = 0xdac
+    ep = ssparams.embedParameters
+    ep.pruneRmsThresh = 0.25
+    ep.randomSeed = 0xdac
+    ssparams.embedParameters = ep
     ssparams.bestHit = True
-
+    self.assertEqual(ssparams.embedParameters.randomSeed, 0xdac)
+    
     ssparams.fragSimilarityAdjuster = 0.2
     ssparams.approxSimilarityAdjuster = 0.2
     ssparams.similarityCutoff = 0.98
@@ -402,7 +405,10 @@ class TestCase(unittest.TestCase):
     ssparams.fragSimilarityAdjuster = 0.2
     ssparams.approxSimilarityAdjuster = 0.2
     ssparams.numConformers = 100
-    ssparams.embedParameters.pruneRmsThresh = 0.5
+    ep = ssparams.embedParameters
+    ep.pruneRmsThresh = 0.25
+    ep.randomSeed = 0xdac
+    ssparams.embedParameters = ep
     ssparams.randomSeed = 0xdac
     ssparams.bestHit = True
     ssparams.similarityCutoff = 0.8
