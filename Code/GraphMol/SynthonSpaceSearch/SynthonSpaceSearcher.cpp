@@ -66,9 +66,8 @@ SearchResults SynthonSpaceSearcher::search(const ThreadMode threadMode) {
   std::vector<std::unique_ptr<ROMol>> results;
   const TimePoint *endTime = nullptr;
   TimePoint endTimePt;
-  if (d_params.embedParameters.timeout > 0) {
-    endTimePt =
-        Clock::now() + std::chrono::seconds(d_params.embedParameters.timeout);
+  if (d_params.timeOut > 0) {
+    endTimePt = Clock::now() + std::chrono::seconds(d_params.timeOut);
     endTime = &endTimePt;
   }
   bool timedOut = false;
