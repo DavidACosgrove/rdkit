@@ -12,7 +12,7 @@ else()
 endif()
 target_compile_definitions(GaussianShape PRIVATE RDKIT_GAUSSIANSHAPE_BUILD)
 
-rdkit_headers(GaussianShape.h ShapeInput.h ShapeOverlayOptions.h, SubshapeStarts.h)
+rdkit_headers(GaussianShape.h ShapeInput.h ShapeOverlayOptions.h, SubshapeStarts.h DEST GraphMol/GaussianShape)
 
 rdkit_catch_test(testGaussianShape catch_tests.cpp LINK_LIBRARIES GaussianShape
         FileParsers MolTransforms DistGeomHelpers DistGeometry ${TBB_DEP})
