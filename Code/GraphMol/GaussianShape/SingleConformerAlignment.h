@@ -146,8 +146,8 @@ struct RDKIT_GAUSSIANSHAPE_EXPORT SingleConformerAlignment {
   std::vector<double> d_ref;
   std::vector<double> d_refAlphas;
   std::vector<double> d_refTemp;
-  const int *d_refTypes;
-  const boost::dynamic_bitset<> *d_refCarbonRadii;
+  const std::vector<int> d_refTypes;
+  const std::unique_ptr<boost::dynamic_bitset<>> d_refCarbonRadii;
   const int d_nRefShape;
   const int d_nRefColor;
   const double d_refShapeVol;
@@ -155,8 +155,8 @@ struct RDKIT_GAUSSIANSHAPE_EXPORT SingleConformerAlignment {
   std::vector<double> d_fit;
   std::vector<double> d_fitAlphas;
   std::vector<double> d_fitTemp;
-  const int *d_fitTypes;
-  const boost::dynamic_bitset<> *d_fitCarbonRadii;
+  const std::vector<int> d_fitTypes;
+  const std::unique_ptr<boost::dynamic_bitset<>> d_fitCarbonRadii;
   const int d_nFitShape;
   const int d_nFitColor;
   double d_fitShapeVol;

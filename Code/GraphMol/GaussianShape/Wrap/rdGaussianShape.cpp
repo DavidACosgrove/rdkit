@@ -14,13 +14,14 @@
 
 #include <boost/python.hpp>
 
-#include <Geometry/point.h>
-#include <GraphMol/ROMol.h>
-#include <GraphMol/RWMol.h>
-#include <GraphMol/GaussianShape/GaussianShape.h>
-#include <GraphMol/GaussianShape/ShapeInput.h>
-#include <GraphMol/GaussianShape/ShapeOverlayOptions.h>
-#include <RDBoost/Wrap.h>
+#include "Geometry/point.h"
+#include "GraphMol/ROMol.h"
+#include "GraphMol/RWMol.h"
+#include "GraphMol/GaussianShape/GaussianShape.h"
+#include "GraphMol/GaussianShape/ShapeInput.h"
+#include "GraphMol/GaussianShape/ShapeOverlayOptions.h"
+#include "GraphMol/GaussianShape/SubshapeOptions.h"
+#include "RDBoost/Wrap.h"
 
 namespace python = boost::python;
 
@@ -337,6 +338,7 @@ void wrap_rdGaussianShape() {
       .value("ROTATE_45_FRAGMENT",
              RDKit::GaussianShape::StartMode::ROTATE_45_FRAGMENT)
       .value("A_LA_PUBCHEM", GaussianShape::StartMode::A_LA_PUBCHEM)
+      .value("SUBSHAPE", GaussianShape::StartMode::SUBSHAPE)
       .export_values();
 
   python::enum_<RDKit::GaussianShape::OptimMode>("OptimMode")
@@ -450,6 +452,42 @@ void wrap_rdGaussianShape() {
           "Optimisation stops when the shape Tversky score changes by less"
           " than this amount after an optimisation step.  A larger number is"
           " faster but gives less precise overlays.  Default=0.001.")
+      .def_readwrite("subshapeOptions",
+                     &GaussianShape::ShapeOverlayOptions::subshapeOptions,
+                     "Options for use with SUBSHAPE startMode.")
+      .def_readwrite("maxSubshapeStarts",
+                     &GaussianShape::ShapeOverlayOptions::maxSubshapeStarts,
+                     "The maximum number of starts to do when using"
+                     " SUBSHAPE startMode.  All subshape starts are"
+                     " assessed and sorted in descending initial"
+                     " score. If maxSubshapeStarts is positive, only the"
+                     " first ones up to the maximum are used to start"
+                     " an overlay.  Default -1 means no maximum.")
+      .def("__setattr__", &safeSetattr);
+
+  python::class_<GaussianShape::SubshapeOptions, boost::noncopyable>(
+      "SubshapeOptions",
+      "SubshapeOptions - options for use with SUBSHAPE startMode.")
+      .def_readwrite(
+          "r_w", &GaussianShape::SubshapeOptions::r_w,
+          "The window radius for finding the neighbours of atoms when building"
+          " points.  Default=3.")
+      .def_readwrite(
+          "clusterStartsThreshold",
+          &GaussianShape::SubshapeOptions::clusterStartsThreshold,
+          "Clusters the start transformations at this RMSD threshold so that"
+          " similar start points are not used.  <0.0 means no clustering."
+          "  Default=2.0.")
+      .def_readwrite(
+          "triangleSideTolerance",
+          &GaussianShape::SubshapeOptions::triangleSideTolerance,
+          "When deciding if 2 triangles match so as to be used as a start point, this is the"
+          " threshold in the difference in side lengths, in Angstrom.  Default=0.5.")
+      .def_readwrite(
+          "rmsdTriangleTolerance",
+          &GaussianShape::SubshapeOptions::rmsdTriangleTolerance,
+          "When assessing whether 2 triangles are overlaid well enough to be used"
+          " as a start point, this is the RMSD tolerance in Angstrom.  Default=0.5.")
       .def("__setattr__", &safeSetattr);
 
   std::string docString("ShapeInput object");

@@ -11,6 +11,7 @@
 //
 
 #include <algorithm>
+#include <numbers>
 
 #include <Eigen/Geometry>
 
@@ -19,7 +20,6 @@
 #include "GraphMol/GaussianShape/ShapeInput.h"
 #include "GraphMol/GaussianShape/SubshapeStarts.h"
 #include "GraphMol/SmilesParse/SmilesWrite.h"
-#include "GraphMol/MolAlign/AlignMolecules.h"
 #include "GraphMol/MolTransforms/MolTransforms.h"
 
 #include <SimDivPickers/LeaderPicker.h>
@@ -108,6 +108,8 @@ void prunePoints(std::vector<std::unique_ptr<SubshapePoint>> &termPoints) {
 
 SubshapeStarts::SubshapeStarts(const ShapeInput &ref, const ShapeInput &fit,
                                const SubshapeOptions &options) {
+  PRECONDITION(!ref.getCoords().empty() && !fit.getCoords().empty(),
+               "Both ShapeInput objects must have at least 1 point.")
   std::cout << "RRRRRRRRRRRRRef" << std::endl;
   makeInitialPoints(ref, options, d_refPoints);
   prunePoints(d_refPoints);
@@ -128,81 +130,8 @@ SubshapeStarts::SubshapeStarts(const ShapeInput &ref, const ShapeInput &fit,
   std::cout << std::endl;
 
   buildDistMatrices();
-  std::array<double, 3> refTriDists;
-  std::array<double, 3> fitTriDists;
+  buildStarts(options);
 
-  for (size_t ref_i = 2; ref_i < d_refPoints.size(); ++ref_i) {
-    for (size_t ref_j = 1; ref_j < ref_i; ++ref_j) {
-      for (size_t ref_k = 0; ref_k < ref_j; ++ref_k) {
-        refTriDists[0] = d_refPointsDists[ref_i][ref_j];
-        refTriDists[1] = d_refPointsDists[ref_i][ref_k];
-        refTriDists[2] = d_refPointsDists[ref_j][ref_k];
-        for (size_t tgt_i = 2; tgt_i < d_fitPoints.size(); ++tgt_i) {
-          for (size_t tgt_j = 1; tgt_j < tgt_i; ++tgt_j) {
-            for (size_t tgt_k = 0; tgt_k < tgt_j; ++tgt_k) {
-              fitTriDists[0] = d_fitPointsDists[tgt_i][tgt_j];
-              fitTriDists[1] = d_fitPointsDists[tgt_i][tgt_k];
-              fitTriDists[2] = d_fitPointsDists[tgt_j][tgt_k];
-              if (fabs(refTriDists[0] - fitTriDists[0]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[1] - fitTriDists[1]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[2] - fitTriDists[2]) >
-                      options.triangleSideTolerance) {
-                d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
-                    ref_i, ref_j, ref_k, tgt_i, tgt_j, tgt_k});
-              }
-              if (fabs(refTriDists[0] - fitTriDists[1]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[1] - fitTriDists[0]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[2] - fitTriDists[2]) >
-                      options.triangleSideTolerance) {
-                d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
-                    ref_i, ref_k, ref_j, tgt_i, tgt_j, tgt_k});
-              }
-              if (fabs(refTriDists[0] - fitTriDists[0]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[1] - fitTriDists[2]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[2] - fitTriDists[1]) >
-                      options.triangleSideTolerance) {
-                d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
-                    ref_j, ref_i, ref_k, tgt_i, tgt_j, tgt_k});
-              }
-              if (fabs(refTriDists[0] - fitTriDists[2]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[1] - fitTriDists[0]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[2] - fitTriDists[1]) >
-                      options.triangleSideTolerance) {
-                d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
-                    ref_j, ref_k, ref_i, tgt_i, tgt_j, tgt_k});
-              }
-              if (fabs(refTriDists[0] - fitTriDists[1]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[1] - fitTriDists[2]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[2] - fitTriDists[0]) >
-                      options.triangleSideTolerance) {
-                d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
-                    ref_k, ref_i, ref_j, tgt_i, tgt_j, tgt_k});
-              }
-              if (fabs(refTriDists[0] - fitTriDists[2]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[1] - fitTriDists[1]) >
-                      options.triangleSideTolerance ||
-                  fabs(refTriDists[2] - fitTriDists[0]) >
-                      options.triangleSideTolerance) {
-                d_possStarts.emplace_back(std::array<std::uint64_t, 6>{
-                    ref_k, ref_j, ref_i, tgt_i, tgt_j, tgt_k});
-              }
-            }
-          }
-        }
-      }
-    }
-  }
   std::cout << "Total starts :: " << d_possStarts.size() << std::endl;
   if (options.clusterStartsThreshold > 0.0) {
     clusterStartPoints(fit, options);
@@ -238,53 +167,81 @@ SubshapeStarts &SubshapeStarts::operator=(const SubshapeStarts &other) {
 
 std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::getNextStartTransform(
     double *ssd) {
-  if (d_nextStart >= d_possStarts.size()) {
-    return std::unique_ptr<RDGeom::Transform3D>();
-  }
-  auto trans = std::make_unique<RDGeom::Transform3D>();
-  std::vector<const RDGeom::Point3D *> refs(3);
-  refs[0] = &d_refPoints[d_possStarts[d_nextStart][0]]->getPosition();
-  refs[1] = &d_refPoints[d_possStarts[d_nextStart][1]]->getPosition();
-  refs[2] = &d_refPoints[d_possStarts[d_nextStart][2]]->getPosition();
-  std::vector<const RDGeom::Point3D *> fits(3);
-  fits[0] = &d_fitPoints[d_possStarts[d_nextStart][3]]->getPosition();
-  fits[1] = &d_fitPoints[d_possStarts[d_nextStart][4]]->getPosition();
-  fits[2] = &d_fitPoints[d_possStarts[d_nextStart][5]]->getPosition();
-  auto rssd = RDNumeric::Alignments::AlignPoints(refs, fits, *trans);
+  auto xform = getTransform(d_nextStart, ssd);
   ++d_nextStart;
-  if (ssd) {
-    *ssd = rssd;
-  }
-  return trans;
+  return xform;
 }
 
 std::unique_ptr<std::array<double, 7>> SubshapeStarts::getNextStartQuaternion(
     double *ssd) {
-  auto trans = getNextStartTransform(ssd);
-  std::unique_ptr<std::array<double, 7>> retVal;
-  if (!trans) {
-    return retVal;
+  auto xform = getNextStartTransform(ssd);
+  if (!xform) {
+    return std::unique_ptr<std::array<double, 7>>();
   }
 
-  Eigen::Matrix3d r;
+  // Le Chat provided this.  Apparently Eigen and the RDKit have different
+  // conventions.
+  std::unique_ptr<std::array<double, 7>> retVal;
+  Eigen::Matrix3d m;
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 3; ++j) {
-      r(i, j) = trans->getValUnchecked(i, j);
+      m(i, j) = xform->getValUnchecked(i, j);
     }
   }
-  auto q = Eigen::Quaterniond(r);
+  auto q = Eigen::Quaterniond(m);
+  q.normalize();
   retVal.reset(new std::array<double, 7>());
-  (*retVal)[0] = q.x();
-  (*retVal)[1] = q.y();
-  (*retVal)[2] = q.z();
-  (*retVal)[3] = q.w();
-  (*retVal)[4] = trans->getValUnchecked(0, 3);
-  (*retVal)[5] = trans->getValUnchecked(1, 3);
-  (*retVal)[6] = trans->getValUnchecked(2, 3);
-
+  (*retVal)[0] = q.w();
+  (*retVal)[1] = -q.x();
+  (*retVal)[2] = -q.y();
+  (*retVal)[3] = -q.z();
+  (*retVal)[4] = xform->getValUnchecked(0, 3);
+  (*retVal)[5] = xform->getValUnchecked(1, 3);
+  (*retVal)[6] = xform->getValUnchecked(2, 3);
   return retVal;
 }
 
+std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::getTransform(
+    std::uint64_t num, double *ssd) {
+  if (num >= d_possStarts.size()) {
+    return std::unique_ptr<RDGeom::Transform3D>();
+  }
+  std::unique_ptr<RDGeom::Transform3D> trans =
+      std::make_unique<RDGeom::Transform3D>(*d_possStarts[num].first);
+  if (ssd) {
+    *ssd = d_possStarts[num].second;
+  }
+  return trans;
+}
+
+std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::calcTransform(
+    size_t ref_i, size_t ref_j, size_t ref_k, size_t fit_i, size_t fit_j,
+    size_t fit_k, double &ssd) {
+  auto trans = std::make_unique<RDGeom::Transform3D>();
+  std::vector<const RDGeom::Point3D *> refs(3);
+  refs[0] = &d_refPoints[ref_i]->getPosition();
+  refs[1] = &d_refPoints[ref_j]->getPosition();
+  refs[2] = &d_refPoints[ref_k]->getPosition();
+  std::vector<const RDGeom::Point3D *> fits(3);
+  fits[0] = &d_fitPoints[fit_i]->getPosition();
+  fits[1] = &d_fitPoints[fit_j]->getPosition();
+  fits[2] = &d_fitPoints[fit_k]->getPosition();
+  ssd = RDNumeric::Alignments::AlignPoints(refs, fits, *trans);
+  return trans;
+}
+
+std::unique_ptr<RDGeom::Transform3D> SubshapeStarts::calcTransform(
+    size_t ref_i, size_t ref_j, size_t fit_i, size_t fit_j, double &ssd) {
+  auto trans = std::make_unique<RDGeom::Transform3D>();
+  std::vector<const RDGeom::Point3D *> refs(2);
+  refs[0] = &d_refPoints[ref_i]->getPosition();
+  refs[1] = &d_refPoints[ref_j]->getPosition();
+  std::vector<const RDGeom::Point3D *> fits(2);
+  fits[0] = &d_fitPoints[fit_i]->getPosition();
+  fits[1] = &d_fitPoints[fit_j]->getPosition();
+  ssd = RDNumeric::Alignments::AlignPoints(refs, fits, *trans);
+  return trans;
+}
 namespace {
 std::vector<std::vector<double>> buildDistMatrix(
     const std::vector<std::unique_ptr<SubshapePoint>> &points) {
@@ -305,6 +262,181 @@ void SubshapeStarts::buildDistMatrices() {
   d_fitPointsDists = buildDistMatrix(d_fitPoints);
 }
 
+void SubshapeStarts::buildStarts(const SubshapeOptions &options) {
+  std::cout << "Number of ref points : " << d_refPoints.size() << std::endl;
+  std::cout << "Number of fit points : " << d_fitPoints.size() << std::endl;
+  if (d_refPoints.size() == 1 || d_fitPoints.size() == 1) {
+    // If one of the shapes only has 1 point, we can only do point-onto-point
+    // and rotate starts.
+    buildPointStarts(options);
+  } else if (d_refPoints.size() == 2 || d_fitPoints.size() == 2) {
+    // If one of the shapes only has 2 points, we can only do line-onto-line
+    // and rotate starts.
+    buildLineStarts(options);
+  } else {
+    // Both shapes have at least 3 points,
+    buildTriangleStarts(options);
+  }
+}
+void SubshapeStarts::buildPointStarts(const SubshapeOptions &options) {}
+
+void SubshapeStarts::buildLineStarts(const SubshapeOptions &options) {
+  std::cout << "Build line starts" << std::endl;
+  double ssd;
+  // Rotations of 90, 180, 270 degrees.
+  static const std::array<double, 4> sinT{0.0, sin(std::numbers::pi / 2.0),
+                                          sin(std::numbers::pi),
+                                          sin(std::numbers::pi * 1.5)};
+  static const std::array<double, 4> cosT{1.0, cos(std::numbers::pi / 2.0),
+                                          cos(std::numbers::pi),
+                                          cos(std::numbers::pi * 1.5)};
+
+  for (size_t ref_i = 1; ref_i < d_refPoints.size(); ++ref_i) {
+    for (size_t ref_j = 0; ref_j < ref_i; ++ref_j) {
+      RDGeom::Point3D rotAxis =
+          d_refPoints[ref_i]->getPosition().directionVector(
+              d_refPoints[ref_j]->getPosition());
+      RDGeom::Point3D midRef = (d_refPoints[ref_i]->getPosition() +
+                                d_refPoints[ref_j]->getPosition()) /
+                               2.0;
+      RDGeom::Transform3D toOrigin, fromOrigin;
+      toOrigin.SetTranslation(
+          RDGeom::Point3D(-midRef[0], -midRef[1], -midRef[2]));
+      fromOrigin.SetTranslation(
+          RDGeom::Point3D(midRef[0], midRef[1], midRef[2]));
+
+      for (size_t tgt_i = 1; tgt_i < d_fitPoints.size(); ++tgt_i) {
+        for (size_t tgt_j = 0; tgt_j < tgt_i; ++tgt_j) {
+          if (fabs(d_refPointsDists[ref_i][ref_j] -
+                   d_fitPointsDists[tgt_i][tgt_j]) <
+              options.triangleSideTolerance) {
+            std::cout << ref_i << " -> " << ref_j << " onto " << tgt_i << " -> "
+                      << tgt_j << " :: " << d_refPointsDists[ref_i][ref_j]
+                      << " and " << d_fitPointsDists[tgt_i][tgt_j] << " : "
+                      << fabs(d_refPointsDists[ref_i][ref_j] -
+                              d_fitPointsDists[tgt_i][tgt_j])
+                      << std::endl;
+            auto trans1 = calcTransform(ref_i, ref_j, tgt_i, tgt_j, ssd);
+            for (int k = 0; k < 4; ++k) {
+              RDGeom::Transform3D rot;
+              rot.SetRotation(sinT[k], cosT[k], rotAxis);
+              RDGeom::Transform3D fullXform =
+                  fromOrigin * rot * toOrigin * (*trans1);
+              d_possStarts.emplace_back(
+                  std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
+                      std::make_unique<RDGeom::Transform3D>(fullXform), ssd));
+            }
+            auto trans2 = calcTransform(ref_j, ref_i, tgt_i, tgt_j, ssd);
+            for (int k = 0; k < 4; ++k) {
+              RDGeom::Transform3D rot;
+              rot.SetRotation(sinT[k], cosT[k], rotAxis);
+              RDGeom::Transform3D fullXform =
+                  fromOrigin * rot * toOrigin * (*trans2);
+              d_possStarts.emplace_back(
+                  std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
+                      std::make_unique<RDGeom::Transform3D>(fullXform), ssd));
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+void SubshapeStarts::buildTriangleStarts(const SubshapeOptions &options) {
+  std::array<double, 3> refTriDists;
+  std::array<double, 3> fitTriDists;
+  double ssd;
+
+  for (size_t ref_i = 2; ref_i < d_refPoints.size(); ++ref_i) {
+    for (size_t ref_j = 1; ref_j < ref_i; ++ref_j) {
+      for (size_t ref_k = 0; ref_k < ref_j; ++ref_k) {
+        refTriDists[0] = d_refPointsDists[ref_i][ref_j];
+        refTriDists[1] = d_refPointsDists[ref_i][ref_k];
+        refTriDists[2] = d_refPointsDists[ref_j][ref_k];
+        for (size_t tgt_i = 2; tgt_i < d_fitPoints.size(); ++tgt_i) {
+          for (size_t tgt_j = 1; tgt_j < tgt_i; ++tgt_j) {
+            for (size_t tgt_k = 0; tgt_k < tgt_j; ++tgt_k) {
+              fitTriDists[0] = d_fitPointsDists[tgt_i][tgt_j];
+              fitTriDists[1] = d_fitPointsDists[tgt_i][tgt_k];
+              fitTriDists[2] = d_fitPointsDists[tgt_j][tgt_k];
+              if (fabs(refTriDists[0] - fitTriDists[0]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[1] - fitTriDists[1]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[2] - fitTriDists[2]) >
+                      options.triangleSideTolerance) {
+                auto trans = calcTransform(ref_i, ref_j, ref_k, tgt_i, tgt_j,
+                                           tgt_k, ssd);
+                d_possStarts.emplace_back(
+                    std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
+                        std::move(trans), ssd));
+              }
+              if (fabs(refTriDists[0] - fitTriDists[1]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[1] - fitTriDists[0]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[2] - fitTriDists[2]) >
+                      options.triangleSideTolerance) {
+                auto trans = calcTransform(ref_i, ref_k, ref_j, tgt_i, tgt_j,
+                                           tgt_k, ssd);
+                d_possStarts.emplace_back(
+                    std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
+                        std::move(trans), ssd));
+              }
+              if (fabs(refTriDists[0] - fitTriDists[0]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[1] - fitTriDists[2]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[2] - fitTriDists[1]) >
+                      options.triangleSideTolerance) {
+                auto trans = calcTransform(ref_j, ref_i, ref_k, tgt_i, tgt_j,
+                                           tgt_k, ssd);
+                d_possStarts.emplace_back(
+                    std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
+                        std::move(trans), ssd));
+              }
+              if (fabs(refTriDists[0] - fitTriDists[2]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[1] - fitTriDists[0]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[2] - fitTriDists[1]) >
+                      options.triangleSideTolerance) {
+                auto trans = calcTransform(ref_j, ref_k, ref_i, tgt_i, tgt_j,
+                                           tgt_k, ssd);
+                d_possStarts.emplace_back(
+                    std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
+                        std::move(trans), ssd));
+              }
+              if (fabs(refTriDists[0] - fitTriDists[1]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[1] - fitTriDists[2]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[2] - fitTriDists[0]) >
+                      options.triangleSideTolerance) {
+                auto trans = calcTransform(ref_k, ref_i, ref_j, tgt_i, tgt_j,
+                                           tgt_k, ssd);
+                d_possStarts.emplace_back(
+                    std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
+                        std::move(trans), ssd));
+              }
+              if (fabs(refTriDists[0] - fitTriDists[2]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[1] - fitTriDists[1]) >
+                      options.triangleSideTolerance ||
+                  fabs(refTriDists[2] - fitTriDists[0]) >
+                      options.triangleSideTolerance) {
+                auto trans = calcTransform(ref_k, ref_j, ref_i, tgt_i, tgt_j,
+                                           tgt_k, ssd);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 void SubshapeStarts::clusterStartPoints(const ShapeInput &fit,
                                         const SubshapeOptions &options) {
   std::vector<size_t> selTrans;
@@ -315,7 +447,7 @@ void SubshapeStarts::clusterStartPoints(const ShapeInput &fit,
   double shapeCutoff =
       options.clusterStartsThreshold * options.clusterStartsThreshold;
 
-  for (size_t i = 0; i < getNumPossibleStarts(); ++i) {
+  for (size_t i = 0; i < d_possStarts.size(); ++i) {
     double ssd = 0.0;
     const auto trans = getNextStartTransform(&ssd);
     // reject any where the triangle points end up too far apart.
@@ -348,10 +480,11 @@ void SubshapeStarts::clusterStartPoints(const ShapeInput &fit,
       }
     }
   }
-  std::vector<std::array<std::uint64_t, 6>> tmpStarts;
+  std::vector<std::pair<std::unique_ptr<RDGeom::Transform3D>, double>>
+      tmpStarts;
   tmpStarts.reserve(selTrans.size());
   for (size_t i = 0; i < selTrans.size(); ++i) {
-    tmpStarts.push_back(d_possStarts[selTrans[i]]);
+    tmpStarts.push_back(std::move(d_possStarts[selTrans[i]]));
   }
   d_nextStart = 0;
   d_possStarts = std::move(tmpStarts);
@@ -359,8 +492,8 @@ void SubshapeStarts::clusterStartPoints(const ShapeInput &fit,
 
 void SubshapeStarts::sortStartPoints() {
   std::vector<std::pair<size_t, double>> ssd_indices;
-  ssd_indices.reserve(getNumPossibleStarts());
-  for (size_t i = 0; i < getNumPossibleStarts(); ++i) {
+  ssd_indices.reserve(d_possStarts.size());
+  for (size_t i = 0; i < d_possStarts.size(); ++i) {
     double ssd = 0.0;
     const auto trans = getNextStartTransform(&ssd);
     ssd_indices.push_back(std::make_pair(i, ssd));
@@ -368,7 +501,8 @@ void SubshapeStarts::sortStartPoints() {
   std::ranges::sort(ssd_indices, [](const auto &p1, const auto &p2) -> bool {
     return p1.second < p2.second;
   });
-  std::vector<std::array<std::uint64_t, 6>> tmpStarts;
+  std::vector<std::pair<std::unique_ptr<RDGeom::Transform3D>, double>>
+      tmpStarts;
   tmpStarts.reserve(getNumPossibleStarts());
   for (const auto &c : ssd_indices) {
     tmpStarts.push_back(std::move(d_possStarts[c.first]));

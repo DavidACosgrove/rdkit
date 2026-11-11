@@ -16,13 +16,14 @@
 #include <nanobind/stl/vector.h>
 #include <nanobind/stl/optional.h>
 
-#include <Geometry/point.h>
-#include <GraphMol/ROMol.h>
-#include <GraphMol/RWMol.h>
-#include <GraphMol/GaussianShape/GaussianShape.h>
-#include <GraphMol/GaussianShape/ShapeInput.h>
-#include <GraphMol/GaussianShape/ShapeOverlayOptions.h>
-#include <RDBoost/Wrap_nb.h>
+#include "Geometry/point.h"
+#include "GraphMol/ROMol.h"
+#include "GraphMol/RWMol.h"
+#include "GraphMol/GaussianShape/GaussianShape.h"
+#include "GraphMol/GaussianShape/ShapeInput.h"
+#include "GraphMol/GaussianShape/ShapeOverlayOptions.h"
+#include "GraphMol/GaussianShape/SubshapeOptions.h"
+#include "RDBoost/Wrap_nb.h"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -176,6 +177,7 @@ NOTE: This functionality is experimental and the API and/or results may change i
       .value("ROTATE_45_FRAGMENT",
              RDKit::GaussianShape::StartMode::ROTATE_45_FRAGMENT)
       .value("A_LA_PUBCHEM", GaussianShape::StartMode::A_LA_PUBCHEM)
+      .value("SUBSHAPE", GaussianShape::StartMode::SUBSHAPE)
       .export_values();
 
   nb::enum_<RDKit::GaussianShape::OptimMode>(m, "OptimMode")
@@ -185,6 +187,32 @@ NOTE: This functionality is experimental and the API and/or results may change i
       .value("SHAPE_PLUS_COLOR",
              RDKit::GaussianShape::OptimMode::SHAPE_PLUS_COLOR)
       .export_values();
+
+  nb::class_<GaussianShape::SubshapeOptions>(
+      m, "SubshapeOptions",
+      "SubshapeOptions - options for use with SUBSHAPE startMode.")
+      .def(nb::init<>())
+      .def_rw(
+          "r_w", &GaussianShape::SubshapeOptions::r_w,
+          R"DOC(The window radius for finding the neighbours of atoms when building
+ points.  Default=3.)DOC")
+      .def_rw(
+          "clusterStartsThreshold",
+          &GaussianShape::SubshapeOptions::clusterStartsThreshold,
+          R"DOC(Clusters the start transformations at this RMSD threshold so that
+ similar start points are not used.  <0.0 means no clustering. Default=2.0.)DOC")
+      .def_rw(
+          "triangleSideTolerance",
+          &GaussianShape::SubshapeOptions::triangleSideTolerance,
+          R"DOC(When deciding if 2 triangles match so as to be used as a start
+ point, this is the threshold in the difference in side lengths, in Angstrom.
+  Default=0.5.)DOC")
+      .def_rw(
+          "rmsdTriangleTolerance",
+          &GaussianShape::SubshapeOptions::rmsdTriangleTolerance,
+          R"DOC(When assessing whether 2 triangles are overlaid well enough to be used
+ as a start point, this is the RMSD tolerance in Angstrom.  Default=0.5.)DOC")
+      .def("__setattr__", &safeSetattr);
 
   nb::class_<GaussianShape::ShapeInputOptions>(
       m, "ShapeInputOptions",
@@ -317,6 +345,15 @@ units the coordinates are in.)DOC")
           R"DOC(Optimisation stops when the shape Tversky score changes by less
 than this amount after an optimisation step.  A larger number is
 faster but gives less precise overlays.  Default=0.001.)DOC")
+      .def_rw("subshapeOptions",
+              &GaussianShape::ShapeOverlayOptions::subshapeOptions,
+              R"DOC(Options for use with SUBSHAPE startMode.)DOC")
+      .def_rw("maxSubshapeStarts",
+              &GaussianShape::ShapeOverlayOptions::maxSubshapeStarts,
+              R"DOC(The maximum number of starts to do when using
+ SUBSHAPE startMode.  All subshape starts are assessed and sorted in descending
+ initial score. If maxSubshapeStarts is positive, only the first ones up to the
+ maximum are used to start an overlay.  Default -1 means no maximum.)DOC")
       .def("__setattr__", &safeSetattr);
 
   nb::class_<GaussianShape::ShapeInput>(m, "ShapeInput", "ShapeInput object")

@@ -37,16 +37,18 @@ SingleConformerAlignment::SingleConformerAlignment(
     double distCutoff, double shapeConvergenceCriterion, unsigned int maxIts)
     : d_ref(ref),
       d_refAlphas(refAlphas),
-      d_refTypes(refTypes),
-      d_refCarbonRadii(refCarbonRadii),
+      d_refTypes(std::vector<int>(refTypes, refTypes + nRefShape + nRefColor)),
+      d_refCarbonRadii(
+          std::make_unique<boost::dynamic_bitset<>>(*refCarbonRadii)),
       d_nRefShape(nRefShape),
       d_nRefColor(nRefColor),
       d_refShapeVol(refShapeVol),
       d_refColorVol(refColorVol),
       d_fit(fit),
       d_fitAlphas(fitAlphas),
-      d_fitTypes(fitTypes),
-      d_fitCarbonRadii(fitCarbonRadii),
+      d_fitTypes(std::vector<int>(fitTypes, fitTypes + nFitShape + nFitColor)),
+      d_fitCarbonRadii(
+          std::make_unique<boost::dynamic_bitset<>>(*fitCarbonRadii)),
       d_nFitShape(nFitShape),
       d_nFitColor(nFitColor),
       d_fitShapeVol(fitShapeVol),
@@ -130,6 +132,8 @@ std::array<double, 5> SingleConformerAlignment::calcScores(
   } else {
     scores[0] = scores[1];
   }
+  std::cout << "calcScores: " << scores[0] << ", " << scores[1] << ", "
+            << scores[2] << ", " << scores[3] << ", " << scores[4] << std::endl;
   return scores;
 }
 
@@ -270,12 +274,16 @@ double calcVolAndGrads(const double *ref, const double *refAlphas,
     cartToQuatGrads(quat, fit, numFitPts, gradConverters, numFitShape);
   }
 
+  std::cout << "calc colour volume for " << numRefPts << " vs " << numFitPts
+            << std::endl;
   for (int i = 0, i_idx = 0; i < numRefPts * 3; i += 3, i_idx++) {
     const auto ai = refAlphas[i_idx];
     const auto aType = refTypes[i_idx];
     for (int j = 0, j_idx = 0, k = 0; j < numFitPts * 3;
          j += 3, j_idx++, k += 12) {
       const auto bType = fitTypes[j_idx];
+      std::cout << i << " -> " << j << " : " << aType << " vs " << bType
+                << std::endl;
       if (aType != bType) {
         continue;
       }
@@ -283,6 +291,8 @@ double calcVolAndGrads(const double *ref, const double *refAlphas,
       const auto dy = ref[i + 1] - fit[j + 1];
       const auto dz = ref[i + 2] - fit[j + 2];
       const auto d2 = dx * dx + dy * dy + dz * dz;
+      std::cout << i << " -> " << j << " : " << d2 << " vs " << distCutoff2
+                << std::endl;
       if (useCutoff && d2 > distCutoff2) {
         continue;
       }

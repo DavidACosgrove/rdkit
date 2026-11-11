@@ -63,6 +63,8 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   // elements the quaternion, last 3 the translation.
   std::unique_ptr<std::array<double, 7>> getNextStartQuaternion(
       double *ssd = nullptr);
+  std::unique_ptr<RDGeom::Transform3D> getTransform(std::uint64_t num,
+                                                    double *ssd = nullptr);
 
  private:
   std::vector<std::unique_ptr<SubshapePoint>> d_refPoints;
@@ -70,10 +72,24 @@ class RDKIT_GAUSSIANSHAPE_EXPORT SubshapeStarts {
   std::vector<std::vector<double>> d_refPointsDists;
   std::vector<std::vector<double>> d_fitPointsDists;
   std::uint64_t d_nextStart = 0;
-  std::vector<std::array<std::uint64_t, 6>> d_possStarts;
+  std::vector<std::pair<std::unique_ptr<RDGeom::Transform3D>, double>>
+      d_possStarts;
 
   // Make the squared distance matrices for the points.
   void buildDistMatrices();
+
+  std::unique_ptr<RDGeom::Transform3D> calcTransform(size_t ref_i, size_t ref_j,
+                                                     size_t ref_k, size_t fit_i,
+                                                     size_t fit_j, size_t fit_k,
+                                                     double &ssd);
+  std::unique_ptr<RDGeom::Transform3D> calcTransform(size_t ref_i, size_t ref_j,
+                                                     size_t fit_i, size_t fit_j,
+                                                     double &ssd);
+
+  void buildStarts(const SubshapeOptions &options);
+  void buildPointStarts(const SubshapeOptions &options);
+  void buildLineStarts(const SubshapeOptions &options);
+  void buildTriangleStarts(const SubshapeOptions &options);
 
   // Cluster the start points at the threshold - only keep start
   // points that put the target start overlays more than the

@@ -217,7 +217,25 @@ class TestCase(unittest.TestCase):
     self.assertEqual(stuff[1], 8)
     self.assertEqual(stuff[2], 3)
     self.assertAlmostEqual(stuff[0][8][3], 0.449, places=3)
-    
 
+  def test11_subshapeStarts(self):
+    ref = Chem.MolFromSmiles(r"[C@H](CCc1ccccc1)(C(=O)O)N[C@H](C(=O)N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2)CC(C)C |(35.672,41.482,-5.722;34.516,40.842,-6.512;34.843,39.355,-6.7;33.819,38.475,-7.45;33.825,38.414,-8.838;32.951,37.553,-9.53;32.064,36.747,-8.81;32.096,36.799,-7.402;32.985,37.656,-6.73;35.934,42.778,-6.452;36.833,42.858,-7.316;35.175,43.735,-6.275;35.516,41.561,-4.218;36.707,42.096,-3.513;38.055,41.449,-3.859;39.11,42.138,-3.959;37.975,40.129,-3.983;39.134,39.277,-4.298;38.825,38.04,-5.133;37.649,37.934,-5.605;39.788,37.369,-5.652;39.985,38.945,-3.037;39.221,37.953,-2.164;37.934,37.961,-1.823;37.579,36.695,-1.314;38.63,35.975,-1.286;39.736,36.771,-1.642;41.052,36.341,-1.48;41.213,35.042,-0.964;40.095,34.215,-0.69;38.765,34.665,-0.855;36.506,41.966,-2.002;37.6,42.757,-1.31;37.546,44.225,-1.728;37.408,42.58,0.19),wD:0.0,wU:17.21,13.33|")
+    probe = Chem.MolFromSmiles(r"N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2 |(37.935,40.394,-3.825;39.119,39.593,-4.13;38.758,38.486,-5.101;37.526,38.337,-5.395;39.716,37.852,-5.605;39.883,39.108,-2.906;39.086,38.098,-2.209;38.093,38.363,-1.34;37.565,37.179,-0.881;38.201,36.136,-1.471;39.193,36.684,-2.308;40.015,35.812,-3.036;39.846,34.441,-2.913;38.844,33.933,-2.075;38.015,34.752,-1.333),wU:1.0|")
+    ovOpts = rdGaussianShape.ShapeOverlayOptions()
+    ovOpts.startMode = rdGaussianShape.StartMode.SUBSHAPE
+    ovOpts.maxSubshapeStarts = 4
+    res = rdGaussianShape.AlignMol(ref, probe, overlayOpts=ovOpts)
+    self.assertAlmostEqual(res[0], 0.331, places=3)
+
+    subshapeOpts = rdGaussianShape.SubshapeOptions()
+    subshapeOpts.clusterStartsThreshold = 1.0
+    ovOpts.subshapeOptions = subshapeOpts
+    
+    subshapeOpts2 = ovOpts.subshapeOptions
+    self.assertEqual(subshapeOpts2.clusterStartsThreshold, 1.0)
+
+    
 if __name__ == '__main__':
   unittest.main()
+
+  

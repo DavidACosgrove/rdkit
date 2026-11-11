@@ -33,6 +33,7 @@
 #include "RDGeneral/RDLog.h"
 #include "GraphMol/Substruct/SubstructMatch.h"
 #include "SimDivPickers/LeaderPicker.h"
+#include "pubchem_shape/PubChemShape.hpp"
 
 using namespace RDKit;
 
@@ -1081,34 +1082,53 @@ TEST_CASE("github #9441: problem with explicit Hs") {
 }
 
 TEST_CASE("Subshape Starts") {
-  auto pdb_trp_3tmn =
-      R"(N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2 |(37.935,40.394,-3.825;39.119,39.593,-4.13;38.758,38.486,-5.101;37.526,38.337,-5.395;39.716,37.852,-5.605;39.883,39.108,-2.906;39.086,38.098,-2.209;38.093,38.363,-1.34;37.565,37.179,-0.881;38.201,36.136,-1.471;39.193,36.684,-2.308;40.015,35.812,-3.036;39.846,34.441,-2.913;38.844,33.933,-2.075;38.015,34.752,-1.333),wU:1.0|)"_smiles;
-  REQUIRE(pdb_trp_3tmn);
-  auto pdb_0zn_1tmn =
-      R"([C@H](CCc1ccccc1)(C(=O)O)N[C@H](C(=O)N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2)CC(C)C |(35.672,41.482,-5.722;34.516,40.842,-6.512;34.843,39.355,-6.7;33.819,38.475,-7.45;33.825,38.414,-8.838;32.951,37.553,-9.53;32.064,36.747,-8.81;32.096,36.799,-7.402;32.985,37.656,-6.73;35.934,42.778,-6.452;36.833,42.858,-7.316;35.175,43.735,-6.275;35.516,41.561,-4.218;36.707,42.096,-3.513;38.055,41.449,-3.859;39.11,42.138,-3.959;37.975,40.129,-3.983;39.134,39.277,-4.298;38.825,38.04,-5.133;37.649,37.934,-5.605;39.788,37.369,-5.652;39.985,38.945,-3.037;39.221,37.953,-2.164;37.934,37.961,-1.823;37.579,36.695,-1.314;38.63,35.975,-1.286;39.736,36.771,-1.642;41.052,36.341,-1.48;41.213,35.042,-0.964;40.095,34.215,-0.69;38.765,34.665,-0.855;36.506,41.966,-2.002;37.6,42.757,-1.31;37.546,44.225,-1.728;37.408,42.58,0.19),wD:0.0,wU:17.21,13.33|)"_smiles;
-  REQUIRE(pdb_0zn_1tmn);
 #if 1
   {
-    GaussianShape::ShapeOverlayOptions opts;
-    opts.nSteps = 100;
-    opts.startMode = GaussianShape::StartMode::ROTATE_180_FRAGMENT;
-    opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
-    auto probeShape = GaussianShape::ShapeInput(*pdb_trp_3tmn, -1);
-    auto refShape = GaussianShape::ShapeInput(*pdb_0zn_1tmn, -1);
+    // This tests one molecule has only 2 points
+    auto largeMol =
+        "O=C(c1ccccc1)N1CCCC1 |(0.0443291,-1.81486,-1.76886;0.0506321,-0.858174,-0.921491;1.37975,-0.430412,-0.483603;2.18964,-1.35506,0.144714;3.47088,-1.00454,0.585539;3.93803,0.297573,0.388032;3.1267,1.22739,-0.242406;1.85597,0.849751,-0.670531;-1.14837,-0.261434,-0.446583;-1.26073,0.836916,0.520219;-2.73583,1.04666,0.696614;-3.34033,-0.283345,0.290893;-2.46516,-0.679843,-0.874401)|"_smiles;
+    REQUIRE(largeMol);
+    auto smallMol =
+        "CN1CCCC1 |(0.0506321,-0.858174,-0.921491;-1.14837,-0.261434,-0.446583;-1.26073,0.836916,0.520219;-2.73583,1.04666,0.696614;-3.34033,-0.283345,0.290893;-2.46516,-0.679843,-0.874401)|"_smiles;
+    REQUIRE(smallMol);
+    GaussianShape::ShapeOverlayOptions ovOpts;
+    ovOpts.nSteps = 100;
+    ovOpts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    ovOpts.maxSubshapeStarts = 16;
+    ovOpts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    ovOpts.subshapeOptions.clusterStartsThreshold = -1.0;
+    auto probeShape = GaussianShape::ShapeInput(*smallMol, -1);
+    auto refShape = GaussianShape::ShapeInput(*largeMol, -1);
     RDGeom::Transform3D xform;
     // Use the smaller molecule as the probe
-    auto scores = GaussianShape::AlignShape(refShape, probeShape, &xform, opts);
-    std::cout << "frag mode scores : " << scores[0] << ", " << scores[1] << ", "
-              << scores[2] << std::endl;
-    ROMol mol(*pdb_trp_3tmn);
+    auto scores =
+        GaussianShape::AlignShape(refShape, probeShape, &xform, ovOpts);
+    std::cout << "subshape mode scores : " << scores[0] << ", " << scores[1]
+              << ", " << scores[2] << std::endl;
+    ROMol mol(*smallMol);
     MolTransforms::transformConformer(mol.getConformer(), xform);
     std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.331, 0.001));
+    GaussianShape::ShapeInputOptions shapeOpts;
+    auto checkScores = GaussianShape::ScoreMolecule(*largeMol, mol, shapeOpts,
+                                                    shapeOpts, ovOpts);
+    std::cout << "check scores : " << checkScores[0] << ", " << checkScores[1]
+              << ", " << checkScores[2] << std::endl;
   }
 #endif
+#if 0
   {
+    // This tests both molecules have more than 3 points.
+    auto pdb_trp_3tmn =
+        R"(N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2 |(37.935,40.394,-3.825;39.119,39.593,-4.13;38.758,38.486,-5.101;37.526,38.337,-5.395;39.716,37.852,-5.605;39.883,39.108,-2.906;39.086,38.098,-2.209;38.093,38.363,-1.34;37.565,37.179,-0.881;38.201,36.136,-1.471;39.193,36.684,-2.308;40.015,35.812,-3.036;39.846,34.441,-2.913;38.844,33.933,-2.075;38.015,34.752,-1.333),wU:1.0|)"_smiles;
+    REQUIRE(pdb_trp_3tmn);
+    auto pdb_0zn_1tmn =
+        R"([C@H](CCc1ccccc1)(C(=O)O)N[C@H](C(=O)N[C@H](C(=O)O)Cc1c[nH]c2c1cccc2)CC(C)C |(35.672,41.482,-5.722;34.516,40.842,-6.512;34.843,39.355,-6.7;33.819,38.475,-7.45;33.825,38.414,-8.838;32.951,37.553,-9.53;32.064,36.747,-8.81;32.096,36.799,-7.402;32.985,37.656,-6.73;35.934,42.778,-6.452;36.833,42.858,-7.316;35.175,43.735,-6.275;35.516,41.561,-4.218;36.707,42.096,-3.513;38.055,41.449,-3.859;39.11,42.138,-3.959;37.975,40.129,-3.983;39.134,39.277,-4.298;38.825,38.04,-5.133;37.649,37.934,-5.605;39.788,37.369,-5.652;39.985,38.945,-3.037;39.221,37.953,-2.164;37.934,37.961,-1.823;37.579,36.695,-1.314;38.63,35.975,-1.286;39.736,36.771,-1.642;41.052,36.341,-1.48;41.213,35.042,-0.964;40.095,34.215,-0.69;38.765,34.665,-0.855;36.506,41.966,-2.002;37.6,42.757,-1.31;37.546,44.225,-1.728;37.408,42.58,0.19),wD:0.0,wU:17.21,13.33|)"_smiles;
+    REQUIRE(pdb_0zn_1tmn);
     GaussianShape::ShapeOverlayOptions opts;
     opts.nSteps = 100;
     opts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    opts.maxSubshapeStarts = 16;
     opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
     auto probeShape = GaussianShape::ShapeInput(*pdb_trp_3tmn, -1);
     auto refShape = GaussianShape::ShapeInput(*pdb_0zn_1tmn, -1);
@@ -1120,7 +1140,9 @@ TEST_CASE("Subshape Starts") {
     ROMol mol(*pdb_trp_3tmn);
     MolTransforms::transformConformer(mol.getConformer(), xform);
     std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.331, 0.001));
   }
+#endif
 }
 
 TEST_CASE("Subshape Starts 5ht3ligs") {
