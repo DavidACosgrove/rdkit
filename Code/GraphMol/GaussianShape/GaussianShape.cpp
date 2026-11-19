@@ -275,6 +275,7 @@ void setupSubshapeAligners(
   double ssdCutoff =
       options.rmsdTriangleTolerance * options.rmsdTriangleTolerance * 3.0;
 
+#if 0
   std::cout << "Start ref shape : " << refShape.getIsNormalized() << " : "
             << MolToCXSmiles(*refShape.shapeToMol(), true) << std::endl;
   std::cout << "Start fit shape : " << fitShape.getIsNormalized() << " : "
@@ -291,6 +292,7 @@ void setupSubshapeAligners(
     std::cout << t << " : ";
   }
   std::cout << std::endl;
+#endif
 
   SubshapeStarts starts(refShape, fitShape, options);
   starts.gotoFirstPossibleStart();
@@ -300,16 +302,12 @@ void setupSubshapeAligners(
   const bool useColor = overlayOpts.optimMode != OptimMode::SHAPE_ONLY;
 
   for (std::uint64_t i = 0; i < starts.getNumPossibleStarts(); i++) {
-    std::cout << "START " << i << std::endl;
     double ssd = 0.0;
     auto xform = starts.getNextStartTransform(&ssd);
     if (!xform) {
       break;
     }
     if (ssd > ssdCutoff) {
-      continue;
-    }
-    if (i != 0) {
       continue;
     }
     ShapeInput fitShapeCp(fitShape);
@@ -325,24 +323,14 @@ void setupSubshapeAligners(
     moveToOrigin.SetTranslation(
         RDGeom::Point3D(transCp[0], transCp[1], transCp[2]));
     ShapeInput refShapeCp(refShape);
-    std::cout << "refCp shape types : " << refShape.getNumAtoms() << " and "
-              << refShape.getNumFeatures() << " :: ";
-    for (const auto t : refShapeCp.getFeatureTypes()) {
-      std::cout << t << " : ";
-    }
-    std::cout << std::endl;
-    std::cout << "fitCp shape types : " << fitShape.getNumAtoms() << " and "
-              << fitShape.getNumFeatures() << " :: ";
-    for (const auto t : fitShapeCp.getFeatureTypes()) {
-      std::cout << t << " : ";
-    }
-    std::cout << std::endl;
     refShapeCp.transformCoords(moveToOrigin);
     fitShapeCp.transformCoords(moveToOrigin);
+#if 0
     std::cout << "optimising fitMol1 : "
               << MolToCXSmiles(*fitShapeCp.shapeToMol(true)) << std::endl;
     std::cout << "against refShapeCp : "
               << MolToCXSmiles(*refShapeCp.shapeToMol(true)) << std::endl;
+#endif
     // Keep hold of the translation that set up this overlay start.
     moveToOrigins.push_back(transCp);
 
@@ -376,8 +364,10 @@ void setupSubshapeAligners(
         overlayOpts.optParam, overlayOpts.useDistCutoff, overlayOpts.distCutoff,
         overlayOpts.shapeConvergenceCriterion, overlayOpts.nSteps));
     bestScoreForStart.push_back({score, aligners.size() - 1});
+#if 0
     std::cout << "bsss : " << bestScoreForStart.back().first << " for "
               << bestScoreForStart.back().second << " :: " << ssd << std::endl;
+#endif
   }
 }
 
@@ -461,6 +451,14 @@ void setupAligners(
   if (overlayOpts.startMode == StartMode::SUBSHAPE) {
     setupSubshapeAligners(refShape, fitShape, overlayOpts, aligners,
                           bestScoreForStart, moveToOrigins, initTransforms);
+    if (aligners.empty()) {
+      // There were no subshapes that could form a start, so revert to
+      // A_LA_PUBCHEM (the default) so we get something.
+      ShapeOverlayOptions tmpOpts = overlayOpts;
+      tmpOpts.startMode = StartMode::A_LA_PUBCHEM;
+      setupRotateTranslateAligners(refShape, fitShape, tmpOpts, aligners,
+                                   bestScoreForStart);
+    }
   } else {
     setupRotateTranslateAligners(refShape, fitShape, overlayOpts, aligners,
                                  bestScoreForStart);
@@ -476,11 +474,10 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
   std::vector<std::unique_ptr<RDGeom::Transform3D>> initTransforms;
   setupAligners(refShape, fitShape, overlayOpts, aligners, bestScoreForStart,
                 moveToOrigins, initTransforms);
-  std::cout << "Number of aligners : " << aligners.size() << std::endl;
 
   // Do it in 2 cycles, a quick optimisation first, followed by an additional
   // longer one for those that look like they're going to win.
-  std::array<double, 3> bestScore;
+  std::array<double, 3> bestScore{0.0, 0.0, 0.0};
   double bestTotal = -1.0;
 
   for (unsigned int cycle = 0; cycle < 2; cycle++) {
@@ -505,11 +502,8 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
       std::array<double, 20> outScores;
       aligners[m]->doOverlay(outScores, cycle);
       nextBestScoreForStart.emplace_back(outScores[0], m);
-      std::cout << "cycle = " << cycle << " start " << m
-                << " start  score = " << bssf
-                << "   finish scores = " << outScores[0] << ", " << outScores[1]
-                << ", " << outScores[2] << std::endl;
       auto fitMol = fitShape.shapeToMol(true);
+#if 0
       RDGeom::Transform3D xform;
       aligners[m]->getFinalQuatTrans(xform);
       if (!moveToOrigins.empty()) {
@@ -519,11 +513,12 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
         RDGeom::Transform3D moveFromOrigin;
         moveFromOrigin.SetTranslation(RDGeom::Point3D(
             -moveToOrigins[m][0], -moveToOrigins[m][1], -moveToOrigins[m][2]));
-        xform = xform * moveToOrigin * (*initTransforms[m]);
+        xform = moveFromOrigin * xform * moveToOrigin * (*initTransforms[m]);
       }
       MolTransforms::transformConformer(fitMol->getConformer(), xform);
       std::cout << "init opt fitMol : " << cycle
                 << " :: " << MolToCXSmiles(*fitMol) << std::endl;
+#endif
       if (outScores[0] > bestTotal) {
         bestTotal = outScores[0];
         bestScore =
@@ -542,10 +537,12 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
         }
       }
     }
+#if 0
     auto fitMol = fitShape.shapeToMol(true);
     MolTransforms::transformConformer(fitMol->getConformer(), bestXform);
     std::cout << "final opt fitMol onto normed ref : " << cycle
               << " :: " << MolToCXSmiles(*fitMol) << std::endl;
+#endif
     bestScoreForStart = nextBestScoreForStart;
   }
   return bestScore;

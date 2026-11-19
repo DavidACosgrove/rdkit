@@ -30,6 +30,7 @@
 #include <boost/flyweight/key_value.hpp>
 #include <boost/flyweight/no_tracking.hpp>
 #include <RDGeneral/BoostEndInclude.h>
+#include "GraphMol/SmilesParse/SmartsWrite.h"
 
 #ifdef RDK_HAS_EIGEN3
 #include <Eigen/Dense>

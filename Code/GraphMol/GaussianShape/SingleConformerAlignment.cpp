@@ -39,7 +39,9 @@ SingleConformerAlignment::SingleConformerAlignment(
       d_refAlphas(refAlphas),
       d_refTypes(std::vector<int>(refTypes, refTypes + nRefShape + nRefColor)),
       d_refCarbonRadii(
-          std::make_unique<boost::dynamic_bitset<>>(*refCarbonRadii)),
+          refCarbonRadii
+              ? std::make_unique<boost::dynamic_bitset<>>(*refCarbonRadii)
+              : nullptr),
       d_nRefShape(nRefShape),
       d_nRefColor(nRefColor),
       d_refShapeVol(refShapeVol),
@@ -48,7 +50,9 @@ SingleConformerAlignment::SingleConformerAlignment(
       d_fitAlphas(fitAlphas),
       d_fitTypes(std::vector<int>(fitTypes, fitTypes + nFitShape + nFitColor)),
       d_fitCarbonRadii(
-          std::make_unique<boost::dynamic_bitset<>>(*fitCarbonRadii)),
+          fitCarbonRadii
+              ? std::make_unique<boost::dynamic_bitset<>>(*fitCarbonRadii)
+              : nullptr),
       d_nFitShape(nFitShape),
       d_nFitColor(nFitColor),
       d_fitShapeVol(fitShapeVol),
@@ -91,18 +95,18 @@ void SingleConformerAlignment::getFinalQuatTrans(
 std::array<double, 5> SingleConformerAlignment::calcScores(
     const double *ref, const double *fit, const bool includeColor) {
   std::array<double, 5> scores{0.0, 0.0, 0.0, 0.0, 0.0};
-  scores[3] = calcVolAndGrads(ref, d_refAlphas.data(), d_nRefShape,
-                              d_refCarbonRadii, fit, d_fitAlphas.data(),
-                              d_nFitShape, d_fitCarbonRadii, d_gradConverters,
-                              d_useCutoff, d_distCutoff2, nullptr, nullptr);
+  scores[3] = calcVolAndGrads(
+      ref, d_refAlphas.data(), d_nRefShape, d_refCarbonRadii.get(), fit,
+      d_fitAlphas.data(), d_nFitShape, d_fitCarbonRadii.get(), d_gradConverters,
+      d_useCutoff, d_distCutoff2, nullptr, nullptr);
   if (d_nRefColor && d_nFitColor &&
       (d_optimMode == OptimMode::SHAPE_PLUS_COLOR || includeColor)) {
     scores[4] = calcVolAndGrads(
         ref + d_nRefShape * 3, d_refAlphas.data() + d_nRefShape, d_nRefColor,
-        d_refTypes + d_nRefShape, fit + d_nFitShape * 3,
-        d_fitAlphas.data() + d_nFitShape, d_nFitColor, d_fitTypes + d_nFitShape,
-        d_nFitShape, d_gradConverters, d_useCutoff, d_distCutoff2, nullptr,
-        nullptr);
+        d_refTypes.data() + d_nRefShape, fit + d_nFitShape * 3,
+        d_fitAlphas.data() + d_nFitShape, d_nFitColor,
+        d_fitTypes.data() + d_nFitShape, d_nFitShape, d_gradConverters,
+        d_useCutoff, d_distCutoff2, nullptr, nullptr);
   }
   scores = calcScores(scores[3], scores[4], includeColor);
   return scores;
@@ -132,8 +136,6 @@ std::array<double, 5> SingleConformerAlignment::calcScores(
   } else {
     scores[0] = scores[1];
   }
-  std::cout << "calcScores: " << scores[0] << ", " << scores[1] << ", "
-            << scores[2] << ", " << scores[3] << ", " << scores[4] << std::endl;
   return scores;
 }
 
@@ -274,16 +276,12 @@ double calcVolAndGrads(const double *ref, const double *refAlphas,
     cartToQuatGrads(quat, fit, numFitPts, gradConverters, numFitShape);
   }
 
-  std::cout << "calc colour volume for " << numRefPts << " vs " << numFitPts
-            << std::endl;
   for (int i = 0, i_idx = 0; i < numRefPts * 3; i += 3, i_idx++) {
     const auto ai = refAlphas[i_idx];
     const auto aType = refTypes[i_idx];
     for (int j = 0, j_idx = 0, k = 0; j < numFitPts * 3;
          j += 3, j_idx++, k += 12) {
       const auto bType = fitTypes[j_idx];
-      std::cout << i << " -> " << j << " : " << aType << " vs " << bType
-                << std::endl;
       if (aType != bType) {
         continue;
       }
@@ -291,8 +289,6 @@ double calcVolAndGrads(const double *ref, const double *refAlphas,
       const auto dy = ref[i + 1] - fit[j + 1];
       const auto dz = ref[i + 2] - fit[j + 2];
       const auto d2 = dx * dx + dy * dy + dz * dz;
-      std::cout << i << " -> " << j << " : " << d2 << " vs " << distCutoff2
-                << std::endl;
       if (useCutoff && d2 > distCutoff2) {
         continue;
       }
@@ -354,18 +350,19 @@ void SingleConformerAlignment::calcVolumeAndGradients(
   gradients[0] = gradients[1] = gradients[2] = gradients[3] = gradients[4] =
       gradients[5] = gradients[6] = 0.0;
   shapeOvlpVol = calcVolAndGrads(
-      d_refTemp.data(), d_refAlphas.data(), d_nRefShape, d_refCarbonRadii,
-      d_fitTemp.data(), d_fitAlphas.data(), d_nFitShape, d_fitCarbonRadii,
+      d_refTemp.data(), d_refAlphas.data(), d_nRefShape, d_refCarbonRadii.get(),
+      d_fitTemp.data(), d_fitAlphas.data(), d_nFitShape, d_fitCarbonRadii.get(),
       d_gradConverters, d_useCutoff, d_distCutoff2, quatTrans.data(),
       gradients.data());
   if (d_optimMode == OptimMode::SHAPE_PLUS_COLOR) {
     std::array<double, 7> colorGrads{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     colorOvlpVol = calcVolAndGrads(
         d_refTemp.data() + 3 * d_nRefShape, d_refAlphas.data() + d_nRefShape,
-        d_nRefColor, d_refTypes + d_nRefShape,
+        d_nRefColor, d_refTypes.data() + d_nRefShape,
         d_fitTemp.data() + 3 * d_nFitShape, d_fitAlphas.data() + d_nFitShape,
-        d_nFitColor, d_fitTypes + d_nFitShape, d_nFitShape, d_gradConverters,
-        d_useCutoff, d_distCutoff2, quatTrans.data(), colorGrads.data());
+        d_nFitColor, d_fitTypes.data() + d_nFitShape, d_nFitShape,
+        d_gradConverters, d_useCutoff, d_distCutoff2, quatTrans.data(),
+        colorGrads.data());
     // The color gradients are normally dwarfed by the shape gradients, so
     // normalize them and then mix by the same rule as the final score.
     const auto shapeSum = sqrt(std::accumulate(

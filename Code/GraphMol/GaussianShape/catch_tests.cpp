@@ -1082,9 +1082,44 @@ TEST_CASE("github #9441: problem with explicit Hs") {
 }
 
 TEST_CASE("Subshape Starts") {
-#if 1
+#if 0
   {
-    // This tests one molecule has only 2 points
+    // This tests the case where one molecule only has 1 point
+    auto largeMol =
+        "O=C(c1ccccc1)N1CCCC1 |(0.0443291,-1.81486,-1.76886;0.0506321,-0.858174,-0.921491;1.37975,-0.430412,-0.483603;2.18964,-1.35506,0.144714;3.47088,-1.00454,0.585539;3.93803,0.297573,0.388032;3.1267,1.22739,-0.242406;1.85597,0.849751,-0.670531;-1.14837,-0.261434,-0.446583;-1.26073,0.836916,0.520219;-2.73583,1.04666,0.696614;-3.34033,-0.283345,0.290893;-2.46516,-0.679843,-0.874401)|"_smiles;
+    REQUIRE(largeMol);
+    auto smallMol =
+        "C1CCCC1 |(-1.26073,0.836916,0.520219;-2.73583,1.04666,0.696614;-3.34033,-0.283345,0.290893;-2.46516,-0.679843,-0.874401;-1.14837,-0.261434,-0.446583)|"_smiles;
+    REQUIRE(smallMol);
+    GaussianShape::ShapeOverlayOptions ovOpts;
+    ovOpts.nSteps = 100;
+    ovOpts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    ovOpts.maxSubshapeStarts = 16;
+    ovOpts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    ovOpts.subshapeOptions.clusterStartsThreshold = -1.0;
+    auto probeShape = GaussianShape::ShapeInput(*smallMol, -1);
+    auto refShape = GaussianShape::ShapeInput(*largeMol, -1);
+    RDGeom::Transform3D xform;
+    // Use the smaller molecule as the probe
+    auto scores =
+        GaussianShape::AlignShape(refShape, probeShape, &xform, ovOpts);
+    std::cout << "subshape mode scores : " << scores[0] << ", " << scores[1]
+              << ", " << scores[2] << std::endl;
+    ROMol mol(*smallMol);
+    MolTransforms::transformConformer(mol.getConformer(), xform);
+    std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.342, 0.001));
+    GaussianShape::ShapeInputOptions shapeOpts;
+    auto checkScores = GaussianShape::ScoreMolecule(*largeMol, mol, shapeOpts,
+                                                    shapeOpts, ovOpts);
+    std::cout << "check scores : " << checkScores[0] << ", " << checkScores[1]
+              << ", " << checkScores[2] << std::endl;
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(checkScores[0], 0.0001));
+    CHECK_THAT(scores[1], Catch::Matchers::WithinAbs(checkScores[1], 0.0001));
+    CHECK_THAT(scores[2], Catch::Matchers::WithinAbs(checkScores[2], 0.0001));
+  }
+  {
+    // This tests the case where one molecule has only 2 points
     auto largeMol =
         "O=C(c1ccccc1)N1CCCC1 |(0.0443291,-1.81486,-1.76886;0.0506321,-0.858174,-0.921491;1.37975,-0.430412,-0.483603;2.18964,-1.35506,0.144714;3.47088,-1.00454,0.585539;3.93803,0.297573,0.388032;3.1267,1.22739,-0.242406;1.85597,0.849751,-0.670531;-1.14837,-0.261434,-0.446583;-1.26073,0.836916,0.520219;-2.73583,1.04666,0.696614;-3.34033,-0.283345,0.290893;-2.46516,-0.679843,-0.874401)|"_smiles;
     REQUIRE(largeMol);
@@ -1108,15 +1143,16 @@ TEST_CASE("Subshape Starts") {
     ROMol mol(*smallMol);
     MolTransforms::transformConformer(mol.getConformer(), xform);
     std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
-    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.331, 0.001));
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.361, 0.001));
     GaussianShape::ShapeInputOptions shapeOpts;
     auto checkScores = GaussianShape::ScoreMolecule(*largeMol, mol, shapeOpts,
                                                     shapeOpts, ovOpts);
     std::cout << "check scores : " << checkScores[0] << ", " << checkScores[1]
               << ", " << checkScores[2] << std::endl;
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(checkScores[0], 0.0001));
+    CHECK_THAT(scores[1], Catch::Matchers::WithinAbs(checkScores[1], 0.0001));
+    CHECK_THAT(scores[2], Catch::Matchers::WithinAbs(checkScores[2], 0.0001));
   }
-#endif
-#if 0
   {
     // This tests both molecules have more than 3 points.
     auto pdb_trp_3tmn =
@@ -1140,9 +1176,85 @@ TEST_CASE("Subshape Starts") {
     ROMol mol(*pdb_trp_3tmn);
     MolTransforms::transformConformer(mol.getConformer(), xform);
     std::cout << "\"" << MolToCXSmiles(mol) << "\"," << std::endl;
-    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.331, 0.001));
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.329, 0.001));
+  }
+  {
+    // These are 2 LOBSTER compounds that failed initially - 069_A_400 and
+    // 0CG_A_318 respectively.  The failure was because there are no
+    // triangles that fit the default criteria, so it now falls back to
+    // A_LA_PUBCHEM
+    auto lobster1 =
+        R"(O=C(NO)c1cccc(O)c1 |(-26.8719,21.1923,-7.6956;-25.907,20.9444,-8.4512;-25.3952,21.8244,-9.3206;-25.8711,23.1152,-9.4353;-25.2778,19.5104,-8.5303;-24.1746,19.1892,-9.3589;-23.6716,17.8801,-9.4249;-24.2781,16.8517,-8.6767;-25.3583,17.1932,-7.8768;-25.9913,16.2433,-7.1495;-25.8431,18.488,-7.7877)|)"_smiles;
+    REQUIRE(lobster1);
+    auto lobster2 =
+        R"(C#CCO[P@@](=O)(O)OP(=O)(O)O |(-26.6512,22.036,-7.15359;-26.6409,21.5612,-8.32059;-26.6266,21.0058,-9.66229;-25.4133,20.3132,-10.0696;-24.2362,19.7108,-9.19549;-23.5247,18.843,-10.1283;-23.4847,20.8176,-8.54966;-24.9538,18.921,-8.01676;-25.514,17.4117,-7.82846;-26.5958,17.5427,-6.76379;-24.3246,16.6331,-7.37135;-26.0051,16.9481,-9.16648),wU:4.5|)"_smiles;
+    REQUIRE(lobster2);
+    GaussianShape::ShapeOverlayOptions opts;
+    opts.nSteps = 100;
+    opts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    opts.maxSubshapeStarts = 16;
+    opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    RDGeom::Transform3D xform;
+    GaussianShape::ShapeInputOptions shapeOpts;
+    auto scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
+                                               shapeOpts, &xform, opts);
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.452, 0.001));
   }
 #endif
+  {
+    // These are 2 LOBSTER compounds that failed initially - 069_A_400 and
+    // 0CG_A_318 respectively.  The failure was because there are no
+    // triangles that fit the default criteria, so it now falls back to
+    // A_LA_PUBCHEM
+    auto lobster1 =
+        R"(NS(=O)(=O)c1cc2ccccc2s1 |(-5.4207,-0.4449,16.2808;-5.9182,0.9618,16.8871;-5.393,1.1444,18.2112;-7.3823,1.1234,16.732;-5.2273,2.1732,15.9088;-5.862,3.3765,15.4187;-4.818,4.1924,14.764;-5.0448,5.3851,14.0866;-3.9689,6.0711,13.4971;-2.6942,5.5103,13.5332;-2.4434,4.3287,14.2086;-3.5293,3.6546,14.7901;-3.4536,2.1043,15.5814)|)"_smiles;
+    REQUIRE(lobster1);
+    auto lobster2 =
+        R"(NS(=O)(=O)Nc1ccc(S(N)(=O)=O)cc1 |(-2.2179,4.9835,12.2881;-2.618,6.2127,13.2184;-1.6911,6.2995,14.3149;-2.7823,7.3687,12.3945;-4.0831,5.9173,13.8518;-4.4672,4.7265,14.5441;-3.5176,3.7501,14.9653;-3.9388,2.5922,15.6646;-5.3236,2.4266,15.9368;-5.8939,0.9865,16.8194;-5.2816,-0.289,16.0958;-7.3375,0.9672,16.7299;-5.3681,1.0713,18.1561;-6.2672,3.3919,15.5167;-5.828,4.5329,14.8243)|)"_smiles;
+    REQUIRE(lobster2);
+    GaussianShape::ShapeOverlayOptions opts;
+    opts.nSteps = 100;
+    opts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    opts.maxSubshapeStarts = 16;
+    opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    RDGeom::Transform3D xform;
+    GaussianShape::ShapeInputOptions shapeOpts;
+    auto scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
+                                               shapeOpts, &xform, opts);
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.450, 0.001));
+    std::cout << MolToCXSmiles(*lobster2) << std::endl;
+    opts.startMode = GaussianShape::StartMode::A_LA_PUBCHEM;
+    scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
+                                          shapeOpts, &xform, opts);
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.569, 0.001));
+    std::cout << MolToCXSmiles(*lobster2) << std::endl;
+  }
+}
+
+TEST_CASE("Default better than Subshape") {
+  // 2 lobster compounds where the subshape did a lot worse than the
+  // default overlay.  They are FB2_A_302  and FBS_A_304 respectively.
+  auto lobster1 =
+      "NS(=O)(=O)c1ccccc1 |(-5.3737,-0.3004,16.1592;-5.9749,0.9658,16.9619;-5.4198,1.0355,18.3125;-7.4227,1.0083,16.8208;-5.4159,2.4326,16.1627;-6.2935,3.4547,15.8267;-5.8327,4.597,15.1932;-4.4693,4.7282,14.8837;-3.5857,3.7122,15.2257;-4.0285,2.5439,15.8583)|"_smiles;
+  REQUIRE(lobster1);
+  auto lobster2 =
+      "NS(=O)(=O)c1ccc(F)cc1 |(-5.405,-0.3755,16.1865;-5.9593,0.9034,16.9304;-5.4191,1.0168,18.2437;-7.4024,0.953,16.7966;-5.3987,2.3404,16.0489;-6.2931,3.3595,15.7592;-5.8425,4.5051,15.1242;-4.5195,4.607,14.8175;-4.0739,5.7422,14.2163;-3.6102,3.6211,15.0966;-4.0528,2.4686,15.7245)|"_smiles;
+  REQUIRE(lobster2);
+  GaussianShape::ShapeOverlayOptions opts;
+  opts.nSteps = 100;
+  opts.startMode = GaussianShape::StartMode::SUBSHAPE;
+  opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+  RDGeom::Transform3D xform;
+  GaussianShape::ShapeInputOptions shapeOpts;
+  auto scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
+                                             shapeOpts, &xform, opts);
+  CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.393, 0.001));
+  std::cout << MolToCXSmiles(*lobster2) << std::endl;
+  // opts.startMode = GaussianShape::StartMode::A_LA_PUBCHEM;
+  // scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
+  //                                       shapeOpts, &xform, opts);
+  // CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.958, 0.001));
+  // std::cout << MolToCXSmiles(*lobster2) << std::endl;
 }
 
 TEST_CASE("Subshape Starts 5ht3ligs") {

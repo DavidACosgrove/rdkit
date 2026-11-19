@@ -26,7 +26,7 @@ struct SubshapeOptions {
       2.0;  //! Clusters the start transformations at
             //! this RMSD threshold so that similar start points
             //! are not used.  < 0.0 means no clustering.
-  double triangleSideTolerance = 0.5;  //! When deciding if 2 triangles match so
+  double triangleSideTolerance = 1.0;  //! When deciding if 2 triangles match so
                                        //! as to be used as a start point, this
                                        //! is the threshold in the difference in
                                        //! side lengths.
