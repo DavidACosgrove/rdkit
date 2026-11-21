@@ -14,24 +14,29 @@
 #include <chrono>
 #include <random>
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <vector>
 #include <execution>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "GraphMol/MolOps.h"
-#include "GraphMol/DistGeomHelpers/Embedder.h"
-#include "GraphMol/FileParsers/MolWriters.h"
-#include "GraphMol/FileParsers/MolSupplier.h"
-#include "GraphMol/GaussianShape/GaussianShape.h"
-#include "GraphMol/GaussianShape/ShapeInput.h"
+#include <GraphMol/MolOps.h>
+#include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <GraphMol/FileParsers/MolWriters.h>
+#include <GraphMol/FileParsers/MolSupplier.h>
+#include <GraphMol/GaussianShape/GaussianShape.h>
+#include <GraphMol/GaussianShape/ShapeInput.h>
+#include <GraphMol/GaussianShape/SingleConformerAlignment.h>
 #include "GraphMol/GaussianShape/SubshapeStarts.h"
+#include <GraphMol/MolTransforms/MolTransforms.h>
+#include <GraphMol/SmilesParse/SmilesWrite.h>
+#include <GraphMol/Substruct/SubstructMatch.h>
 #include "GraphMol/MolAlign/AlignMolecules.h"
-#include "GraphMol/MolTransforms/MolTransforms.h"
 #include "GraphMol/SmilesParse/SmilesWrite.h"
 #include "GraphMol/Substruct/SubstructMatch.h"
 #include "SimDivPickers/LeaderPicker.h"
-#include "pubchem_shape/PubChemShape.hpp"
 
 using namespace RDKit;
 
@@ -124,9 +129,9 @@ TEST_CASE("basic alignment") {
     ROMol cp(*probe);
     const auto scores = GaussianShape::AlignMolecule(
         *ref, cp, shapeOpts, shapeOpts, nullptr, overlayOpts);
-    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.477, 0.005));
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.512, 0.005));
     CHECK_THAT(scores[1], Catch::Matchers::WithinAbs(0.747, 0.005));
-    CHECK_THAT(scores[2], Catch::Matchers::WithinAbs(0.207, 0.005));
+    CHECK_THAT(scores[2], Catch::Matchers::WithinAbs(0.278, 0.005));
     const auto rescores = GaussianShape::ScoreMolecule(*ref, cp, shapeOpts,
                                                        shapeOpts, overlayOpts);
     CHECK_THAT(rescores[0], Catch::Matchers::WithinAbs(scores[0], 0.005));
@@ -745,7 +750,6 @@ std::
                 "Nc1cc(Cn2c(C(=O)O)c(-c3ccc[nH]c3=O)c3cc(C(F)(F)F)ccc32)ccn1 |(29.4427,46.05,43.4472;28.8505,44.9996,42.7518;27.6724,44.4529,43.2669;27.0734,43.3813,42.5955;25.8189,42.6999,43.052;25.2163,43.3606,44.2071;24.4581,44.4943,44.0838;24.1931,45.0901,42.7808;24.1204,46.4333,42.7998;23.8923,44.4562,41.7912;24.0461,44.8297,45.3707;23.2097,45.9536,45.7413;23.5041,46.7963,46.7667;22.6287,47.9099,47.1092;21.5037,48.1244,46.3872;21.1624,47.2732,45.3588;21.9195,46.1834,44.9822;21.563,45.4266,44.0641;24.5817,43.8725,46.2645;24.4958,43.6833,47.6538;25.1452,42.5857,48.2292;25.0531,42.3252,49.6881;24.5934,41.0857,49.9422;26.2447,42.4118,50.3073;24.2575,43.1875,50.3428;25.8943,41.6963,47.4464;25.9994,41.8646,46.0771;25.324,42.958,45.5057;27.6791,42.8877,41.4291;28.8324,43.5019,40.9842;29.4267,44.5435,41.6155)|",
 };
 std::vector<std::shared_ptr<RWMol>> lobsters;
-
 void initLobsters() {
   if (lobsters.empty()) {
     for (const auto &text : lobstersText) {
@@ -1078,6 +1082,70 @@ TEST_CASE("github #9441: problem with explicit Hs") {
     CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.4197, 0.0001));
   }
 }
+
+TEST_CASE("color gradients use their own converters") {
+  // The color converters are stored after the numFitShape shape points'
+  // ones; where they are stored mustn't change the gradients.
+  auto colorGradients = [](int numFitShape) {
+    const double ref[3] = {0.0, 0.0, 0.0}, fit[3] = {1.0, 0.5, -0.3};
+    const double alphas[1] = {1.0};
+    const int types[1] = {1};
+    const double quat[4] = {0.9, 0.1, 0.3, 0.2};
+    std::vector<double> gradConverters(12 * (numFitShape + 1), 0.0);
+    std::array<double, 7> grads{};
+    GaussianShape::calcVolAndGrads(ref, alphas, 1, types, fit, alphas, 1, types,
+                                   numFitShape, gradConverters, false, 0.0,
+                                   quat, grads.data());
+    return grads;
+  };
+  const auto atStart = colorGradients(0);
+  const auto afterShape = colorGradients(2);
+  for (unsigned int g = 1; g < atStart.size(); ++g) {
+    CHECK(atStart[g] != 0.0);
+    CHECK(afterShape[g] == atStart[g]);
+  }
+}
+
+TEST_CASE("color gradients are mixed into the matching components") {
+  // One atom and one color feature in each of ref and fit.
+  const std::vector<double> ref{0.0, 0.0, 0.0, 0.2, -0.4, 0.1};
+  const std::vector<double> fit{1.0, 0.5, -0.3, -0.6, 0.8, 0.7};
+  const std::vector<double> alphas{0.8, 1.0};
+  const int types[2] = {0, 1};
+  const double mixingParam = 0.5;
+  GaussianShape::SingleConformerAlignment sca(
+      ref, alphas, types, nullptr, 1, 1, 1.0, 1.0, fit, alphas, types, nullptr,
+      1, 1, 1.0, 1.0, {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+      GaussianShape::OptimMode::SHAPE_PLUS_COLOR, 1.0, 0.0, mixingParam, false,
+      0.0, 0.001, 100);
+  const std::array<double, 7> quatTrans{1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  double shapeVol, colorVol;
+  std::array<double, 7> mixed{};
+  sca.calcVolumeAndGradients(quatTrans, shapeVol, colorVol, mixed);
+
+  // The same thing computed piecewise.
+  std::vector<double> gradConverters(24, 0.0);
+  std::array<double, 7> shapeGrads{}, colorGrads{};
+  GaussianShape::calcVolAndGrads(
+      ref.data(), alphas.data(), 1, nullptr, fit.data(), alphas.data(), 1,
+      nullptr, gradConverters, false, 0.0, quatTrans.data(), shapeGrads.data());
+  GaussianShape::calcVolAndGrads(ref.data() + 3, alphas.data() + 1, 1,
+                                 types + 1, fit.data() + 3, alphas.data() + 1,
+                                 1, types + 1, 1, gradConverters, false, 0.0,
+                                 quatTrans.data(), colorGrads.data());
+  double shapeSum = 0.0, colorSum = 0.0;
+  for (unsigned int g = 1; g < 7; ++g) {
+    shapeSum += shapeGrads[g] * shapeGrads[g];
+    colorSum += colorGrads[g] * colorGrads[g];
+  }
+  const auto ratio = std::sqrt(shapeSum / colorSum);
+  for (unsigned int g = 1; g < 7; ++g) {
+    const auto expected =
+        shapeGrads[g] * (1 - mixingParam) + colorGrads[g] * ratio * mixingParam;
+    CHECK_THAT(mixed[g], Catch::Matchers::WithinAbs(expected, 1.0e-10));
+  }
+}
+
 
 TEST_CASE("Subshape Starts") {
   {
