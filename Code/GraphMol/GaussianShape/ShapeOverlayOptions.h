@@ -89,9 +89,9 @@ struct RDKIT_GAUSSIANSHAPE_EXPORT ShapeOverlayOptions {
   int maxSubshapeStarts{-1};  //! The maximum number of starts to do when using
                               //! SUBSHAPE startMode.  All subshape starts are
                               //! assessed and sorted in descending initial
-                              //! score. If maxSubshapeStarts positive, only the
-                              //! first ones up to the maximum are used to start
-                              //! an overlay.  -1 means no maximum.
+                              //! score. If maxSubshapeStarts is positive, only
+                              //! the first ones up to the maximum are used to
+                              //! start an overlay.  -1 means no maximum.
 };
 
 inline std::ostream &operator<<(std::ostream &os, const StartMode &sm) {

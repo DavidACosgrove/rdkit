@@ -28,9 +28,7 @@
 #include "GraphMol/GaussianShape/SubshapeStarts.h"
 #include "GraphMol/MolAlign/AlignMolecules.h"
 #include "GraphMol/MolTransforms/MolTransforms.h"
-#include "SimDivPickers/DistPicker.h"
 #include "GraphMol/SmilesParse/SmilesWrite.h"
-#include "RDGeneral/RDLog.h"
 #include "GraphMol/Substruct/SubstructMatch.h"
 #include "SimDivPickers/LeaderPicker.h"
 #include "pubchem_shape/PubChemShape.hpp"
@@ -1082,7 +1080,6 @@ TEST_CASE("github #9441: problem with explicit Hs") {
 }
 
 TEST_CASE("Subshape Starts") {
-#if 0
   {
     // This tests the case where one molecule only has 1 point
     auto largeMol =
@@ -1200,7 +1197,6 @@ TEST_CASE("Subshape Starts") {
                                                shapeOpts, &xform, opts);
     CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.452, 0.001));
   }
-#endif
   {
     // These are 2 LOBSTER compounds that failed initially - 069_A_400 and
     // 0CG_A_318 respectively.  The failure was because there are no
@@ -1232,29 +1228,33 @@ TEST_CASE("Subshape Starts") {
 }
 
 TEST_CASE("Default better than Subshape") {
-  // 2 lobster compounds where the subshape did a lot worse than the
-  // default overlay.  They are FB2_A_302  and FBS_A_304 respectively.
-  auto lobster1 =
-      "NS(=O)(=O)c1ccccc1 |(-5.3737,-0.3004,16.1592;-5.9749,0.9658,16.9619;-5.4198,1.0355,18.3125;-7.4227,1.0083,16.8208;-5.4159,2.4326,16.1627;-6.2935,3.4547,15.8267;-5.8327,4.597,15.1932;-4.4693,4.7282,14.8837;-3.5857,3.7122,15.2257;-4.0285,2.5439,15.8583)|"_smiles;
-  REQUIRE(lobster1);
-  auto lobster2 =
-      "NS(=O)(=O)c1ccc(F)cc1 |(-5.405,-0.3755,16.1865;-5.9593,0.9034,16.9304;-5.4191,1.0168,18.2437;-7.4024,0.953,16.7966;-5.3987,2.3404,16.0489;-6.2931,3.3595,15.7592;-5.8425,4.5051,15.1242;-4.5195,4.607,14.8175;-4.0739,5.7422,14.2163;-3.6102,3.6211,15.0966;-4.0528,2.4686,15.7245)|"_smiles;
-  REQUIRE(lobster2);
-  GaussianShape::ShapeOverlayOptions opts;
-  opts.nSteps = 100;
-  opts.startMode = GaussianShape::StartMode::SUBSHAPE;
-  opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
-  RDGeom::Transform3D xform;
-  GaussianShape::ShapeInputOptions shapeOpts;
-  auto scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
-                                             shapeOpts, &xform, opts);
-  CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.393, 0.001));
-  std::cout << MolToCXSmiles(*lobster2) << std::endl;
-  // opts.startMode = GaussianShape::StartMode::A_LA_PUBCHEM;
-  // scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
-  //                                       shapeOpts, &xform, opts);
-  // CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.958, 0.001));
-  // std::cout << MolToCXSmiles(*lobster2) << std::endl;
+  // 2 pairs of lobster compounds where initially the subshape did a lot
+  // worse than the default overlay.  They are FB2_A_302  and FBS_A_304
+  // and FB2_A_504 and L4K_A_304 respectively.
+  std::vector<std::string> lobster1smis{
+      "NS(=O)(=O)c1ccccc1 |(-5.3737,-0.3004,16.1592;-5.9749,0.9658,16.9619;-5.4198,1.0355,18.3125;-7.4227,1.0083,16.8208;-5.4159,2.4326,16.1627;-6.2935,3.4547,15.8267;-5.8327,4.597,15.1932;-4.4693,4.7282,14.8837;-3.5857,3.7122,15.2257;-4.0285,2.5439,15.8583)|",
+      "NS(=O)(=O)c1ccccc1 |(9.5005,-8.6915,26.8076;10.008,-7.29657,26.2104;11.0403,-7.59115,25.26;8.85481,-6.56958,25.7769;10.7332,-6.31326,27.4922;11.7029,-5.37874,27.1711;12.2578,-4.60346,28.1647;11.8373,-4.75095,29.4756;10.8534,-5.66816,29.789;10.3071,-6.45605,28.8034)|"};
+  std::vector<std::string> lobster2smis{
+      "NS(=O)(=O)c1ccc(F)cc1 |(-5.405,-0.3755,16.1865;-5.9593,0.9034,16.9304;-5.4191,1.0168,18.2437;-7.4024,0.953,16.7966;-5.3987,2.3404,16.0489;-6.2931,3.3595,15.7592;-5.8425,4.5051,15.1242;-4.5195,4.607,14.8175;-4.0739,5.7422,14.2163;-3.6102,3.6211,15.0966;-4.0528,2.4686,15.7245)|",
+      "CCCCCc1ccc(S(N)(=O)=O)cc1 |(-4.20411,9.20557,12.734;-2.9094,8.86109,13.3424;-2.59814,7.41424,13.1148;-3.59991,6.43392,13.7099;-3.0663,5.01936,13.7197;-4.00486,4.01031,14.3359;-4.29217,4.04708,15.6934;-5.13392,3.11016,16.2775;-5.69066,2.10499,15.4938;-6.7615,0.889237,16.2216;-6.0711,0.380878,17.5662;-7.99607,1.59058,16.5307;-6.83337,-0.175377,15.2744;-5.42647,2.06275,14.1333;-4.59114,3.01366,13.5681)|"};
+  for (size_t i = 0; i < lobster1smis.size(); ++i) {
+    auto lobster1 = v2::SmilesParse::MolFromSmiles(lobster1smis[i]);
+    REQUIRE(lobster1);
+    auto lobster2 = v2::SmilesParse::MolFromSmiles(lobster2smis[i]);
+    REQUIRE(lobster2);
+    GaussianShape::ShapeOverlayOptions opts;
+    opts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    RDGeom::Transform3D xform;
+    GaussianShape::ShapeInputOptions shapeOpts;
+    auto subshapeScores = GaussianShape::AlignMolecule(
+        *lobster1, *lobster2, shapeOpts, shapeOpts, &xform, opts);
+    opts.startMode = GaussianShape::StartMode::A_LA_PUBCHEM;
+    auto defaultScores = GaussianShape::AlignMolecule(
+        *lobster1, *lobster2, shapeOpts, shapeOpts, &xform, opts);
+    // Check that the 2 combo scores are roughly the same
+    CHECK(fabs(subshapeScores[0] - defaultScores[0]) < 0.05);
+  }
 }
 
 TEST_CASE("Subshape Starts 5ht3ligs") {
