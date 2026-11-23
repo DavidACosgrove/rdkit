@@ -19,21 +19,24 @@ namespace RDKit {
 namespace GaussianShape {
 
 struct SubshapeOptions {
-  double r_w = 3.0;  //! The window radius for finding the neighbours of atoms
-                     //! when building points.  The paper says 4.0, Greg
-                     //! uses 3.0.
-  double clusterStartsThreshold =
-      2.0;  //! Clusters the start transformations at
-            //! this RMSD threshold so that similar start points
-            //! are not used.  < 0.0 means no clustering.
-  double triangleSideTolerance = 1.0;  //! When deciding if 2 triangles match so
-                                       //! as to be used as a start point, this
-                                       //! is the threshold in the difference in
-                                       //! side lengths.
-  double rmsdTriangleTolerance = 0.5;  //! When assessing whether 2 triangles
-                                       //! are overlaid well enough to be used
-                                       //! as start point, this is the RMSD
-                                       //! tolerance.
+  double r_w{3.0};  //! The window radius for finding the neighbours of atoms
+                    //! when building points.  The paper says 4.0, Greg
+                    //! uses 3.0.
+  double clusterStartsThreshold{
+      1.0};  //! Clusters the start transformations at
+             //! this RMSD threshold so that similar start points
+             //! are not used.  < 0.0 means no clustering.
+  double triangleSideTolerance{1.0};  //! When deciding if 2 triangles match so
+                                      //! as to be used as a start point, this
+                                      //! is the threshold in the difference in
+                                      //! side lengths.
+  double rmsdTriangleTolerance{1.0};  //! When assessing whether 2 triangles
+                                      //! are overlaid well enough to be used
+                                      //! as start point, this is the RMSD
+                                      //! tolerance.
+  bool byPharmacophoreFeature{
+      false};  //! Use pharmacophore features to define
+               //! the start points, not the SubShape algorithm.
 };
 
 }  // namespace GaussianShape

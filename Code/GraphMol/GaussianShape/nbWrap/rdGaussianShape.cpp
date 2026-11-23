@@ -212,6 +212,11 @@ NOTE: This functionality is experimental and the API and/or results may change i
           &GaussianShape::SubshapeOptions::rmsdTriangleTolerance,
           R"DOC(When assessing whether 2 triangles are overlaid well enough to be used
  as a start point, this is the RMSD tolerance in Angstrom.  Default=0.5.)DOC")
+      .def_rw(
+          "byPharmacophoreFeature",
+          &GaussianShape::SubshapeOptions::byPharmacophoreFeature,
+          R"DOC(Use pharmacophore features to define the start points rather than
+ the SubShape algorithm. Default=False.)DOC")
       .def("__setattr__", &safeSetattr);
 
   nb::class_<GaussianShape::ShapeInputOptions>(

@@ -502,8 +502,8 @@ std::array<double, 3> alignShape(ShapeInput &refShape, ShapeInput &fitShape,
       std::array<double, 20> outScores;
       aligners[m]->doOverlay(outScores, cycle);
       nextBestScoreForStart.emplace_back(outScores[0], m);
-      auto fitMol = fitShape.shapeToMol(true);
 #if 0
+      auto fitMol = fitShape.shapeToMol();
       RDGeom::Transform3D xform;
       aligners[m]->getFinalQuatTrans(xform);
       if (!moveToOrigins.empty()) {

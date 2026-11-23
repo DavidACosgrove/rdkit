@@ -104,40 +104,91 @@ void prunePoints(std::vector<std::unique_ptr<SubshapePoint>> &termPoints) {
   termPoints = std::move(tmpPoints);
 }
 
+void makeFeaturePoints(
+    const ShapeInput &shape,
+    std::vector<std::unique_ptr<SubshapePoint>> &termPoints) {
+  const auto &coords = shape.getCoords();
+  const auto &types = shape.getFeatureTypes();
+  for (unsigned int i = 0, j = shape.getNumAtoms(), k = 3 * shape.getNumAtoms();
+       i < shape.getNumFeatures(); ++i, ++j, k += 3) {
+    termPoints.push_back(std::make_unique<SubshapePoint>(
+        RDGeom::Point3D(coords[k], coords[k + 1], coords[k + 2]), types[j], 0));
+  }
+}
+
 }  // namespace
 
 SubshapeStarts::SubshapeStarts(const ShapeInput &ref, const ShapeInput &fit,
                                const SubshapeOptions &options) {
   PRECONDITION(!ref.getCoords().empty() && !fit.getCoords().empty(),
                "Both ShapeInput objects must have at least 1 point.")
-  makeInitialPoints(ref, options, d_refPoints);
-  prunePoints(d_refPoints);
+  if (options.byPharmacophoreFeature) {
+    makeFeaturePoints(ref, d_refPoints);
+  } else {
+    makeInitialPoints(ref, options, d_refPoints);
+    prunePoints(d_refPoints);
+  }
 #if 0
-  std::cout << "Ref shape : " << MolToCXSmiles(*ref.shapeToMol()) << std::endl;
+  std::cout << "Ref shape : " << MolToCXSmiles(*ref.shapeToMol(true))
+            << std::endl;
+  std::cout << "Ref types : ";
+  for (unsigned int i = 0; i < ref.getNumFeatures(); ++i) {
+    std::cout << ref.getFeatureTypes()[i + ref.getNumAtoms()] << " ";
+  }
+  std::cout << std::endl;
   std::cout << "Ref points : ";
+  for (unsigned int i = 0; i < d_refPoints.size(); i++) {
+    std::cout << "[Cl]";
+    if (i < d_refPoints.size() - 1) {
+      std::cout << ".";
+    } else {
+      std::cout << " |(";
+    }
+  }
   for (const auto &p : d_refPoints) {
     std::cout << p->getPosition()[0] << "," << p->getPosition()[1] << ","
               << p->getPosition()[2] << ";";
   }
-  std::cout << std::endl;
+  std::cout << ")|" << std::endl;
 #endif
-  makeInitialPoints(fit, options, d_fitPoints);
-  prunePoints(d_fitPoints);
+  if (options.byPharmacophoreFeature) {
+    makeFeaturePoints(fit, d_fitPoints);
+  } else {
+    makeInitialPoints(fit, options, d_fitPoints);
+    prunePoints(d_fitPoints);
+  }
 #if 0
-  std::cout << "Fit shape : " << MolToCXSmiles(*fit.shapeToMol()) << std::endl;
+  std::cout << "Fit shape : " << MolToCXSmiles(*fit.shapeToMol(true))
+            << std::endl;
+  for (unsigned int i = 0; i < fit.getNumFeatures(); ++i) {
+    std::cout << fit.getFeatureTypes()[i + fit.getNumAtoms()] << " ";
+  }
+  std::cout << std::endl;
+  std::cout << "Fit points : ";
+  for (unsigned int i = 0; i < d_fitPoints.size(); i++) {
+    std::cout << "[Cl]";
+    if (i < d_fitPoints.size() - 1) {
+      std::cout << ".";
+    } else {
+      std::cout << " |(";
+    }
+  }
   for (const auto &p : d_fitPoints) {
     std::cout << p->getPosition()[0] << "," << p->getPosition()[1] << ","
               << p->getPosition()[2] << ";";
   }
-  std::cout << std::endl;
+  std::cout << ")|" << std::endl;
 #endif
   buildDistMatrices();
   buildStarts(options);
+  // std::cout << "InitialNumber of starts : " << getNumPossibleStarts()
+  // << std::endl;
 
   if (getNumPossibleStarts() > 1 && options.clusterStartsThreshold > 0.0) {
     clusterStartPoints(fit, options);
   }
   sortStartPoints();
+  // std::cout << "Number of starts : " << getNumPossibleStarts() << std::endl;
 }
 
 namespace {
@@ -363,89 +414,98 @@ void SubshapeStarts::buildLineStarts(const SubshapeOptions &options) {
   }
 }
 
+namespace {
+bool checkTriangleMatch(const std::array<double, 3> &refTriDists,
+                        const std::array<double, 3> &fitTriDists,
+                        const std::array<int, 3> &refTypes,
+                        std::array<int, 3> &fitTypes, const unsigned int i,
+                        const unsigned int j, const unsigned int k,
+                        const double triangleSideTolerance) {
+  if (refTypes[0] != fitTypes[i] || refTypes[1] != fitTypes[j] ||
+      refTypes[2] != fitTypes[k]) {
+    return false;
+  }
+  if (fabs(refTriDists[0] - fitTriDists[i]) >= triangleSideTolerance ||
+      fabs(refTriDists[1] - fitTriDists[j]) >= triangleSideTolerance ||
+      fabs(refTriDists[2] - fitTriDists[k]) >= triangleSideTolerance) {
+    return true;
+  }
+  return true;
+}
+}  // namespace
 void SubshapeStarts::buildTriangleStarts(const SubshapeOptions &options) {
   std::array<double, 3> refTriDists;
   std::array<double, 3> fitTriDists;
+  std::array<int, 3> refTypes;
+  std::array<int, 3> fitTypes;
   double ssd;
 
   for (size_t ref_i = 2; ref_i < d_refPoints.size(); ++ref_i) {
+    refTypes[0] = d_refPoints[ref_i]->getType();
     for (size_t ref_j = 1; ref_j < ref_i; ++ref_j) {
+      refTypes[1] = d_refPoints[ref_j]->getType();
       for (size_t ref_k = 0; ref_k < ref_j; ++ref_k) {
+        refTypes[2] = d_refPoints[ref_k]->getType();
         refTriDists[0] = d_refPointsDists[ref_i][ref_j];
         refTriDists[1] = d_refPointsDists[ref_i][ref_k];
         refTriDists[2] = d_refPointsDists[ref_j][ref_k];
         for (size_t tgt_i = 2; tgt_i < d_fitPoints.size(); ++tgt_i) {
+          fitTypes[0] = d_fitPoints[tgt_i]->getType();
           for (size_t tgt_j = 1; tgt_j < tgt_i; ++tgt_j) {
+            fitTypes[1] = d_fitPoints[tgt_j]->getType();
             for (size_t tgt_k = 0; tgt_k < tgt_j; ++tgt_k) {
+              fitTypes[2] = d_fitPoints[tgt_k]->getType();
               fitTriDists[0] = d_fitPointsDists[tgt_i][tgt_j];
               fitTriDists[1] = d_fitPointsDists[tgt_i][tgt_k];
               fitTriDists[2] = d_fitPointsDists[tgt_j][tgt_k];
-              if (fabs(refTriDists[0] - fitTriDists[0]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[1] - fitTriDists[1]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[2] - fitTriDists[2]) <
-                      options.triangleSideTolerance) {
+              if (checkTriangleMatch(refTriDists, fitTriDists, fitTypes,
+                                     refTypes, 0, 1, 2,
+                                     options.triangleSideTolerance)) {
                 auto trans = calcTransform(ref_i, ref_j, ref_k, tgt_i, tgt_j,
                                            tgt_k, ssd);
                 d_possStarts.emplace_back(
                     std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
                         std::move(trans), ssd));
               }
-              if (fabs(refTriDists[0] - fitTriDists[1]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[1] - fitTriDists[0]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[2] - fitTriDists[2]) <
-                      options.triangleSideTolerance) {
+              if (checkTriangleMatch(refTriDists, fitTriDists, fitTypes,
+                                     refTypes, 1, 0, 2,
+                                     options.triangleSideTolerance)) {
                 auto trans = calcTransform(ref_i, ref_k, ref_j, tgt_i, tgt_j,
                                            tgt_k, ssd);
                 d_possStarts.emplace_back(
                     std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
                         std::move(trans), ssd));
               }
-              if (fabs(refTriDists[0] - fitTriDists[0]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[1] - fitTriDists[2]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[2] - fitTriDists[1]) <
-                      options.triangleSideTolerance) {
+              if (checkTriangleMatch(refTriDists, fitTriDists, fitTypes,
+                                     refTypes, 0, 2, 1,
+                                     options.triangleSideTolerance)) {
                 auto trans = calcTransform(ref_j, ref_i, ref_k, tgt_i, tgt_j,
                                            tgt_k, ssd);
                 d_possStarts.emplace_back(
                     std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
                         std::move(trans), ssd));
               }
-              if (fabs(refTriDists[0] - fitTriDists[2]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[1] - fitTriDists[0]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[2] - fitTriDists[1]) <
-                      options.triangleSideTolerance) {
+              if (checkTriangleMatch(refTriDists, fitTriDists, fitTypes,
+                                     refTypes, 2, 0, 1,
+                                     options.triangleSideTolerance)) {
                 auto trans = calcTransform(ref_j, ref_k, ref_i, tgt_i, tgt_j,
                                            tgt_k, ssd);
                 d_possStarts.emplace_back(
                     std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
                         std::move(trans), ssd));
               }
-              if (fabs(refTriDists[0] - fitTriDists[1]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[1] - fitTriDists[2]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[2] - fitTriDists[0]) <
-                      options.triangleSideTolerance) {
+              if (checkTriangleMatch(refTriDists, fitTriDists, fitTypes,
+                                     refTypes, 1, 2, 0,
+                                     options.triangleSideTolerance)) {
                 auto trans = calcTransform(ref_k, ref_i, ref_j, tgt_i, tgt_j,
                                            tgt_k, ssd);
                 d_possStarts.emplace_back(
                     std::pair<std::unique_ptr<RDGeom::Transform3D>, double>(
                         std::move(trans), ssd));
               }
-              if (fabs(refTriDists[0] - fitTriDists[2]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[1] - fitTriDists[1]) <
-                      options.triangleSideTolerance &&
-                  fabs(refTriDists[2] - fitTriDists[0]) <
-                      options.triangleSideTolerance) {
+              if (checkTriangleMatch(refTriDists, fitTriDists, fitTypes,
+                                     refTypes, 2, 1, 0,
+                                     options.triangleSideTolerance)) {
                 auto trans = calcTransform(ref_k, ref_j, ref_i, tgt_i, tgt_j,
                                            tgt_k, ssd);
                 d_possStarts.emplace_back(

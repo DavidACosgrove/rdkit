@@ -1146,7 +1146,6 @@ TEST_CASE("color gradients are mixed into the matching components") {
   }
 }
 
-
 TEST_CASE("Subshape Starts") {
   {
     // This tests the case where one molecule only has 1 point
@@ -1263,7 +1262,7 @@ TEST_CASE("Subshape Starts") {
     GaussianShape::ShapeInputOptions shapeOpts;
     auto scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
                                                shapeOpts, &xform, opts);
-    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.452, 0.001));
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.451, 0.001));
   }
   {
     // These are 2 LOBSTER compounds that failed initially - 069_A_400 and
@@ -1285,7 +1284,7 @@ TEST_CASE("Subshape Starts") {
     GaussianShape::ShapeInputOptions shapeOpts;
     auto scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
                                                shapeOpts, &xform, opts);
-    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.450, 0.001));
+    CHECK_THAT(scores[0], Catch::Matchers::WithinAbs(0.543, 0.001));
     std::cout << MolToCXSmiles(*lobster2) << std::endl;
     opts.startMode = GaussianShape::StartMode::A_LA_PUBCHEM;
     scores = GaussianShape::AlignMolecule(*lobster1, *lobster2, shapeOpts,
@@ -1296,7 +1295,7 @@ TEST_CASE("Subshape Starts") {
 }
 
 TEST_CASE("Default better than Subshape") {
-  // 2 pairs of lobster compounds where initially the subshape did a lot
+  // Pairs of lobster compounds where initially the subshape did a lot
   // worse than the default overlay.  They are FB2_A_302  and FBS_A_304
   // and FB2_A_504 and L4K_A_304 respectively.
   std::vector<std::string> lobster1smis{
@@ -1321,6 +1320,48 @@ TEST_CASE("Default better than Subshape") {
     auto defaultScores = GaussianShape::AlignMolecule(
         *lobster1, *lobster2, shapeOpts, shapeOpts, &xform, opts);
     // Check that the 2 combo scores are roughly the same
+    CHECK(fabs(subshapeScores[0] - defaultScores[0]) < 0.05);
+  }
+}
+
+TEST_CASE("Fragment start better than Subshape") {
+  // Pairs of lobster compounds where ROTATE_180_FRAGMENT
+  // did better than SUBSHAPE.
+  // PTU_A_810 and 6AI_A_2001
+  std::vector<std::string> lobster1smis{
+      R"(CCS/C(N)=N\c1ccccc1 |(9.0879,10.4056,29.1361;8.0209,11.4453,29.4463;6.7437,10.7117,30.4982;6.2183,11.8933,31.7537;4.7716,12.068,32.0199;7.0696,12.6397,32.4914;8.3873,12.6186,32.8219;8.9988,13.8598,33.1585;10.3662,13.9239,33.5189;11.1422,12.7469,33.5576;10.5638,11.4979,33.2239;9.1964,11.4278,32.8616)|)",
+      R"(CS(=O)(=O)c1ccc(-c2noc([C@@H](CC3CC3)[C@H](N)C(=O)N3CC[C@H](F)C3)n2)c(F)c1 |(42.5151,47.7593,45.1098;41.1445,46.8403,44.3966;41.4716,45.4503,44.2655;39.9085,47.1608,45.0865;40.9984,47.51,42.7567;40.0161,48.4961,42.4687;39.8819,49.0033,41.1659;40.7203,48.551,40.1107;40.465,49.1275,38.7635;40.6047,48.3962,37.6238;40.2832,49.1619,36.5847;39.9673,50.3236,37.183;39.5283,51.5242,36.1799;40.8018,52.0334,35.4372;42.0699,52.1255,36.3404;42.0221,53.4778,36.9984;43.1307,53.0444,36.0559;38.3794,51.0671,35.1997;38.3565,51.8199,34.304;36.9979,51.0024,35.9635;36.6892,51.9545,36.7033;36.1793,49.9187,35.7514;34.7448,49.9693,36.0712;34.2302,48.586,35.6735;35.4297,47.6981,35.6106;35.6662,47.2151,36.8793;36.553,48.6254,35.2078;40.0501,50.3844,38.4968;41.7275,47.5494,40.4338;42.5796,47.0327,39.5407;41.8618,47.0412,41.7394),wD:12.12,17.18,wU:24.25|)"};
+  std::vector<std::string> lobster2smis{
+      R"(Nc1ccc2cn[nH]c2c1 |(71.101,43.3616,-4.5112;70.3455,42.9317,-3.4153;70.8956,42.9557,-2.1391;70.1539,42.5297,-1.0507;68.8488,42.0955,-1.2473;67.7932,41.6027,-0.4145;66.73,41.3347,-1.1526;67.0328,41.6226,-2.3737;68.2946,42.086,-2.4846;69.0439,42.5088,-3.5902)|)",
+      R"(C=CC(=O)Nc1onc(-c2cc(Cl)c(O)cc2O)c1-c1ccc(OC)cc1 |(66.2197,39.9568,22.8761;67.5938,39.6616,22.6945;68.0248,39.2139,21.2891;68.4273,40.0359,20.5162;67.6996,37.9209,20.7935;67.1693,36.8128,21.5524;66.2846,35.9305,21.0777;66.0083,34.9547,21.9108;66.6997,35.1277,22.9922;66.7349,34.2924,24.2336;67.969,33.897,24.7221;67.9957,33.1138,25.9114;69.4879,32.5602,26.466;66.829,32.7536,26.5737;66.8868,32.0958,27.7489;65.601,33.1422,26.0878;65.5708,33.9298,24.8812;64.2902,34.3042,24.3126;67.517,36.3798,22.8179;68.4364,36.9605,23.8248;67.9639,37.4399,25.0813;68.8883,38.0247,26.0032;70.2009,38.1398,25.6671;71.1234,38.7226,26.532;70.6692,39.2304,27.8423;70.6705,37.6797,24.3648;69.7782,37.1142,23.4825)|)"};
+  for (size_t i = 0; i < lobster1smis.size(); ++i) {
+    auto lobster1 = v2::SmilesParse::MolFromSmiles(lobster1smis[i]);
+    REQUIRE(lobster1);
+    auto lobster2 = v2::SmilesParse::MolFromSmiles(lobster2smis[i]);
+    REQUIRE(lobster2);
+    GaussianShape::ShapeOverlayOptions opts;
+    opts.startMode = GaussianShape::StartMode::SUBSHAPE;
+    opts.optimMode = GaussianShape::OptimMode::SHAPE_PLUS_COLOR_SCORE;
+    opts.subshapeOptions.rmsdTriangleTolerance = 1.0;
+    opts.subshapeOptions.triangleSideTolerance = 1.0;
+    opts.subshapeOptions.clusterStartsThreshold = 1.0;
+    opts.subshapeOptions.byPharmacophoreFeature = true;
+    RDGeom::Transform3D xform;
+    GaussianShape::ShapeInputOptions shapeOpts;
+    auto subshapeScores = GaussianShape::AlignMolecule(
+        *lobster1, *lobster2, shapeOpts, shapeOpts, &xform, opts);
+    std::cout << "subshapes : " << subshapeScores[0] << ", "
+              << subshapeScores[1] << ", " << subshapeScores[2] << std::endl;
+    std::cout << MolToCXSmiles(*lobster2) << std::endl;
+
+    opts.startMode = GaussianShape::StartMode::ROTATE_180_FRAGMENT;
+    auto defaultScores = GaussianShape::AlignMolecule(
+        *lobster1, *lobster2, shapeOpts, shapeOpts, &xform, opts);
+    std::cout << "fragments : " << defaultScores[0] << ", " << defaultScores[1]
+              << ", " << defaultScores[2] << std::endl;
+    std::cout << MolToCXSmiles(*lobster2) << std::endl;
+    // Check that the 2 combo scores are roughly the same - that's what
+    // is being optimised
     CHECK(fabs(subshapeScores[0] - defaultScores[0]) < 0.05);
   }
 }

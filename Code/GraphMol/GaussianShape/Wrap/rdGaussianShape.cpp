@@ -488,6 +488,11 @@ void wrap_rdGaussianShape() {
           &GaussianShape::SubshapeOptions::rmsdTriangleTolerance,
           "When assessing whether 2 triangles are overlaid well enough to be used"
           " as a start point, this is the RMSD tolerance in Angstrom.  Default=0.5.")
+      .def_readwrite(
+          "byPharmacophoreFeature",
+          &GaussianShape::SubshapeOptions::byPharmacophoreFeature,
+          "Use pharmacophore features to define the start points rather than"
+          " the SubShape algorithm. Default=False.")
       .def("__setattr__", &safeSetattr);
 
   std::string docString("ShapeInput object");
